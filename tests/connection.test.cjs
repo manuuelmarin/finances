@@ -117,7 +117,7 @@ test('el servidor lee el libro configurado y no admite cambiarlo desde el client
   assert.equal(calls.length, 2);
   assert.equal(calls.every(call => call.id === 'fixture-book'), true);
   assert.equal(calls[1].range, "'Configuración'!B6:C10");
-  assert.deepEqual(Object.keys(result).sort(), ['checkedAt', 'environment', 'modelVersion', 'ok', 'sheetCount', 'state', 'type']);
+  assert.deepEqual(Object.keys(result).sort(), ['apiVersion', 'backendReady', 'checkedAt', 'environment', 'modelVersion', 'ok', 'sheetCount', 'state', 'type']);
 });
 
 test('deniega visitantes desconocidos, identidad vacía y configuraciones incompletas antes de leer', () => {
@@ -181,10 +181,10 @@ test('rechaza una versión ausente o duplicada en la tabla de parámetros', () =
   }
 });
 
-test('los permisos preparados son de lectura y el despliegue es privado', () => {
+test('los permisos permiten la API de datos y el despliegue continúa privado', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '../apps-script/appsscript.json')));
   assert.deepEqual(manifest.oauthScopes, [
-    'https://www.googleapis.com/auth/spreadsheets.readonly',
+    'https://www.googleapis.com/auth/spreadsheets',
     'https://www.googleapis.com/auth/userinfo.email'
   ]);
   assert.equal(manifest.webapp.access, 'MYSELF');
