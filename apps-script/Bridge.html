@@ -47,6 +47,18 @@
     } catch (error) {
       detail.textContent += ' No se ha podido comunicar el resultado a la ventana anterior; vuelve a Finanzas y repite la prueba.';
     }
+    // Datos financieros por canal autenticado de Google; no se envían en la URL ni por JSONP.
+    let apiReceiver;
+    try { apiReceiver=window.top.opener; } catch(error) {}
+    if(payload.ok && apiReceiver) window.addEventListener('message',event=>{
+      if(event.origin!==appOrigin || event.source!==apiReceiver || !event.data || typeof event.data!=='object') return;
+      const message=event.data;
+      if(message.type!=='finances.api.request.v1' || message.state!==payload.state ||
+        typeof message.callId!=='string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(message.callId) ||
+        !message.request || typeof message.request!=='object' || JSON.stringify(message.request).length>60000) return;
+      const reply=result=>apiReceiver.postMessage({type:'finances.api.response.v1',state:payload.state,callId:message.callId,result},appOrigin);
+      google.script.run.withSuccessHandler(reply).withFailureHandler(()=>reply({ok:false,error:'RESPONSE_UNCERTAIN',message:'No se pudo confirmar la respuesta de Google. Reintenta la misma solicitud.'})).financialApi(message.request);
+    });
   </script>
 </body>
 </html>

@@ -10,6 +10,7 @@
   <title>Finanzas · Tu espacio personal</title>
   <link rel="stylesheet" href="styles.css">
   <script src="connection.js" defer></script>
+  <script src="api.js" defer></script>
   <script src="calculators.js" defer></script>
   <script src="app.js" defer></script>
 </head>
@@ -142,6 +143,8 @@
           <div id="results" class="connection-results" hidden><dl><div><dt>Pestañas leídas</dt><dd id="sheet-count"></dd></div><div><dt>Versión del modelo</dt><dd id="model-version"></dd></div></dl><p id="checked-at"></p></div>
           <div class="connection-actions"><button id="connect" class="button button-primary button-full" type="button" disabled>Comprobar conexión</button><button id="setup-toggle" class="button button-secondary button-full" type="button"><svg class="icon"><use href="#icon-sliders"/></svg>Configurar conexión</button></div>
           <p class="connection-footnote"><svg class="icon"><use href="#icon-lock"/></svg>La comprobación solo lee la estructura.</p>
+          <div class="connection-actions"><button id="backend-check" class="button button-secondary button-full" type="button">Comprobar backend</button></div>
+          <p id="backend-result" class="connection-footnote" role="status" aria-live="polite">Esta comprobación verifica la API de datos y solo realiza una lectura.</p>
         </section>
         <aside class="connection-guide" aria-label="Cómo conectar">
           <span class="section-kicker">TRES MOMENTOS, UN SOLO ENLACE</span><h2>Así funciona.</h2>
