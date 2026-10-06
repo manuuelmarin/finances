@@ -10,7 +10,7 @@ test('autoriza antes de cualquier lectura o escritura y mantiene el libro solo e
 });
 test('preparación idempotente conserva entradas, fórmulas y observación antigua sin inventar una hora',()=>{
   const r=runtime(), inputs=JSON.stringify(r.state().tables);assert.equal(r.init().ok,true);const count=r.writes.length,formulas=r.formulas();assert.equal(r.init().ok,true);
-  assert.equal(r.writes.length,count);assert.equal(r.book().sheets.length,13);assert.equal(JSON.stringify(r.state().tables),inputs);assert.deepEqual(r.formulas(),formulas);
+  assert.equal(r.writes.length,count);assert.equal(r.book().sheets.length,15);assert.equal(JSON.stringify(r.state().tables),inputs);assert.deepEqual(r.formulas(),formulas);
   const result=r.api({action:'read'});assert.equal(result.backendReady,true);assert.equal(result.observations[0].scope,'desconocido');assert.equal(result.observations[0].time,null);assert.equal(result.observations[0].difference,null);
 });
 test('un reintento persistido devuelve los mismos IDs sin duplicar; no se reutiliza la solicitud con otros datos',()=>{

@@ -1,8 +1,8 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="referrer" content="no-referrer"><title>Finanzas · Instalar conexión</title><style>
 :root{color-scheme:dark;--ink:#10191b;--panel:#172325;--line:#2d3f3e;--text:#efeee5;--muted:#a4b6ad;--mint:#b9d6bf;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}*{box-sizing:border-box}body{margin:0;background:var(--ink);color:var(--text);line-height:1.65}main{max-width:1000px;margin:auto;padding:36px 32px 70px}a{color:var(--mint);text-underline-offset:4px}.back{display:inline-flex;padding:8px 0;margin-bottom:30px;text-decoration:none}.eyebrow{font-size:11px;letter-spacing:.16em;color:var(--mint);font-weight:650;margin:0 0 10px}h1{font-weight:500;letter-spacing:-.045em;font-size:clamp(32px,5vw,54px);line-height:1.12;margin:0 0 20px}h2{font-size:22px;font-weight:500;margin:0;color:var(--text);letter-spacing:-.025em}.intro{color:var(--muted);max-width:650px;font-size:17px}.code-section{margin:28px 0;border:1px solid var(--line);padding:25px;background:var(--panel);border-radius:12px}.code-section header{display:flex;gap:20px;align-items:center;justify-content:space-between}.code-section>p{color:var(--muted);font-size:14px}button{border:0;padding:12px 18px;border-radius:8px;min-height:44px;background:var(--mint);color:#142019;font:inherit;font-size:14px;font-weight:650;cursor:pointer}button:focus-visible,a:focus-visible,summary:focus-visible,pre:focus-visible{outline:3px solid #e1eddf;outline-offset:4px}summary{cursor:pointer;padding:8px 0;color:var(--mint);font-size:14px}pre{white-space:pre;overflow:auto;max-height:450px;padding:18px;border:1px solid var(--line);background:var(--ink);font:12px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace;border-radius:6px}ol{padding-left:25px;color:var(--muted)}li{padding:8px 0}strong{color:var(--text)}table{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed}td,th{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}th{color:var(--mint);font-weight:500}td:first-child,th:first-child{width:48%}code{font-family:ui-monospace,monospace;font-size:.9em}.notice{padding:18px 20px;border-left:2px solid var(--mint);background:#162123;color:var(--muted);font-size:14px;margin:24px 0}#copy-status{color:var(--mint);font-size:14px;min-height:24px}.configuration{margin-top:44px}footer{margin-top:45px;padding-top:20px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}@media(max-width:580px){main{padding:24px 18px 50px}.code-section{padding:20px 16px}.code-section header{align-items:flex-start;flex-direction:column;gap:14px}.code-section header button{width:100%}td,th{padding:12px 6px;font-size:12px}}
-</style><script src="install.js" defer></script></head><body><main><a class="back" href="./#connection">← Volver a Finanzas</a><p class="eyebrow">GOOGLE SHEETS · CONEXIÓN PRIVADA</p><h1>Tu libro.<br>Una conexión sencilla.</h1><p class="intro">Copia estos tres archivos en tu proyecto de Apps Script. Paso 3: esta versión prepara la lectura y escritura de datos en la copia de pruebas, con acceso privado. Los formularios financieros de la app se elegirán después.</p><p class="notice">Actualiza tu proyecto existente. Conserva las tres propiedades que ya configuraste. El manifiesto solicita ahora permiso de escritura para las pruebas del backend.</p><p id="copy-status" role="status" aria-live="polite"></p>
-<section class="code-section" aria-labelledby="file-0"><header><div><p class="eyebrow">ARCHIVO 1 DE 3</p><h2 id="file-0">Code.gs</h2></div><button type="button" data-copy="code-0">Copiar código</button></header><p>Sustituye todo el contenido de Code.gs por este código.</p><details><summary>Ver código completo</summary><pre id="code-0" tabindex="0">// Pasos 2 y 3: conexión privada y API financiera sobre el libro existente.
+</style><script src="install.js" defer></script></head><body><main><a class="back" href="./#connection">← Volver a Finanzas</a><p class="eyebrow">GOOGLE SHEETS · CONEXIÓN PRIVADA</p><h1>Tu libro.<br>Una conexión sencilla.</h1><p class="intro">Copia estos tres archivos en tu proyecto de Apps Script. Paso 4: esta versión consulta fondos por ISIN y nombre de referencia, conserva la fecha y fuente de cada valor liquidativo y actualiza la copia de pruebas. Los formularios de la app se elegirán en el paso 5.</p><p class="notice">Actualiza tu proyecto existente. Conserva las tres propiedades que ya configuraste. El manifiesto añade permiso para consultar las fuentes públicas de precios. Mantén el acceso privado de Google.</p><p id="copy-status" role="status" aria-live="polite"></p>
+<section class="code-section" aria-labelledby="file-0"><header><div><p class="eyebrow">ARCHIVO 1 DE 3</p><h2 id="file-0">Code.gs</h2></div><button type="button" data-copy="code-0">Copiar código</button></header><p>Sustituye todo el contenido de Code.gs por este código.</p><details><summary>Ver código completo</summary><pre id="code-0" tabindex="0">// Pasos 2, 3 y 4: conexión privada, API financiera y cotizaciones por ISIN.
 // Solo opera en TEST_SPREADSHEET_ID y ENVIRONMENT=test. No incluye datos personales.
 const CONNECTION_TYPE_ = &#x27;finances.connection.v1&#x27;;
 const APP_ORIGIN_ = &#x27;https://manuuelmarin.github.io&#x27;;
@@ -27,7 +27,9 @@ const TABLE_SCHEMA_ = [
   [&#x27;Configuración&#x27;, &#x27;tCategorias&#x27;, [&#x27;Grupo&#x27;, &#x27;Subgrupo&#x27;, &#x27;Categoría&#x27;, &#x27;Subcategoría&#x27;]]
 ];
 
-const API_VERSION_ = &quot;3.1.0&quot;;
+const API_VERSION_ = &quot;3.2.0&quot;;
+// El motor de fórmulas no cambia en el paso 4; conserva su sello de capacidad.
+const CAPACITY_VERSION_ = &quot;3.1.0&quot;;
 const INPUT_SCHEMA_ = {
   &quot;tMovimientos&quot;: {
     &quot;inputs&quot;: [
@@ -304,8 +306,11 @@ const PROCESS_FIELDS_ = {
     &quot;date&quot;,
     &quot;units&quot;,
     &quot;cost&quot;,
-    &quot;alias&quot;
+    &quot;alias&quot;,
+    &quot;isin&quot;,
+    &quot;referenceName&quot;
   ],
+  &quot;vincular_isin&quot;: [&quot;product&quot;, &quot;isin&quot;, &quot;referenceName&quot;, &quot;alias&quot;],
   &quot;objetivo&quot;: [
     &quot;name&quot;,
     &quot;amount&quot;,
@@ -461,7 +466,9 @@ function columnA1_(index) {
 const TECH_SCHEMA_ = {
   requests: [&#x27;_Finanzas_Solicitudes&#x27;, [&#x27;Solicitud&#x27;, &#x27;Huella&#x27;, &#x27;Fecha registro&#x27;, &#x27;Resultado&#x27;]],
   audit: [&#x27;_Finanzas_Auditoria&#x27;, [&#x27;Solicitud&#x27;, &#x27;Fecha registro&#x27;, &#x27;Tabla&#x27;, &#x27;Clave&#x27;, &#x27;Antes&#x27;, &#x27;Después&#x27;]],
-  observations: [&#x27;_Finanzas_Observaciones&#x27;, [&#x27;ID&#x27;, &#x27;Cuenta&#x27;, &#x27;Importe&#x27;, &#x27;Fecha&#x27;, &#x27;Hora&#x27;, &#x27;Alcance&#x27;, &#x27;Fuente&#x27;, &#x27;Fecha registro&#x27;]]
+  observations: [&#x27;_Finanzas_Observaciones&#x27;, [&#x27;ID&#x27;, &#x27;Cuenta&#x27;, &#x27;Importe&#x27;, &#x27;Fecha&#x27;, &#x27;Hora&#x27;, &#x27;Alcance&#x27;, &#x27;Fuente&#x27;, &#x27;Fecha registro&#x27;]],
+  funds: [&#x27;_Finanzas_Fondos&#x27;, [&#x27;Producto&#x27;, &#x27;ISIN&#x27;, &#x27;Nombre referencia&#x27;, &#x27;Fecha registro&#x27;]],
+  quotes: [&#x27;_Finanzas_Cotizaciones&#x27;, [&#x27;Consulta&#x27;, &#x27;Solicitud&#x27;, &#x27;Producto&#x27;, &#x27;ISIN&#x27;, &#x27;Fecha VL&#x27;, &#x27;VL EUR&#x27;, &#x27;Moneda clase&#x27;, &#x27;Proveedor&#x27;, &#x27;URL&#x27;, &#x27;Consultado el&#x27;, &#x27;Estado&#x27;, &#x27;Detalle&#x27;]]
 };
 const DATE_FIELDS_ = [&#x27;Fecha&#x27;, &#x27;Fecha base&#x27;, &#x27;Fecha saldo&#x27;];
 const MOVEMENT_TYPES_ = [&#x27;Ingreso&#x27;,&#x27;Gasto&#x27;,&#x27;Transferencia&#x27;,&#x27;Compra inversión&#x27;,&#x27;Venta inversión&#x27;,&#x27;Rendimiento inversión&#x27;,&#x27;Préstamo recibido&#x27;,&#x27;Devolución deuda&#x27;,&#x27;Cobro compartido&#x27;,&#x27;Devolución gasto&#x27;];
@@ -520,7 +527,7 @@ function locked_(callback) {
   try { return callback(); } finally { lock.releaseLock(); }
 }
 function apiError_(error) {
-  const codes=[&#x27;NOT_CONFIGURED&#x27;,&#x27;ACCESS_DENIED&#x27;,&#x27;INVALID_MODEL&#x27;,&#x27;NOT_INITIALIZED&#x27;,&#x27;INVALID_REQUEST&#x27;,&#x27;INVALID_DATA&#x27;,&#x27;NOT_FOUND&#x27;,&#x27;CONFLICT&#x27;,&#x27;REQUEST_CONFLICT&#x27;,&#x27;CAPACITY_REACHED&#x27;,&#x27;BUSY&#x27;,&#x27;SCHEMA_CONFLICT&#x27;,&#x27;WRITE_UNCERTAIN&#x27;];
+  const codes=[&#x27;NOT_CONFIGURED&#x27;,&#x27;ACCESS_DENIED&#x27;,&#x27;INVALID_MODEL&#x27;,&#x27;NOT_INITIALIZED&#x27;,&#x27;INVALID_REQUEST&#x27;,&#x27;INVALID_DATA&#x27;,&#x27;NOT_FOUND&#x27;,&#x27;CONFLICT&#x27;,&#x27;REQUEST_CONFLICT&#x27;,&#x27;CAPACITY_REACHED&#x27;,&#x27;BUSY&#x27;,&#x27;SCHEMA_CONFLICT&#x27;,&#x27;WRITE_UNCERTAIN&#x27;,&#x27;INVALID_ISIN&#x27;];
   const code=codes.indexOf(error.code || error.message)&gt;=0 ? (error.code||error.message) : &#x27;API_FAILED&#x27;;
   return {ok:false,error:code,message:error.code &amp;&amp; code!==&#x27;API_FAILED&#x27; ? error.message : code};
 }
@@ -562,7 +569,7 @@ function readState_(config) {
   });
   // Configuración técnica y entradas se leen en un mismo lote; nunca desde IDs enviados por el cliente.
   const response=Sheets.Spreadsheets.Values.batchGet(config.id,{ranges:specs.map(s=&gt;s.range),valueRenderOption:&#x27;UNFORMATTED_VALUE&#x27;,dateTimeRenderOption:&#x27;SERIAL_NUMBER&#x27;});
-  const tables={}, raw={}, technical={requests:[],audit:[],observations:[]},calculationErrors=[]; let parameters=[], supportSignature=null;
+  const tables={}, raw={}, technical=Object.fromEntries(Object.keys(TECH_SCHEMA_).map(k=&gt;[k,[]])),calculationErrors=[]; let parameters=[], supportSignature=null;
   specs.forEach((spec,i)=&gt;{
     const values=(response.valueRanges[i]||{}).values||[];
     if(spec.support){supportSignature=(values[0]||[])[0]||null;return;}
@@ -597,7 +604,7 @@ function readState_(config) {
 }
 function revision_(s) {
   const tables={};Object.keys(s.tables).forEach(name=&gt;tables[name]=s.tables[name].slice().sort((a,b)=&gt;rowKey_(name,a).localeCompare(rowKey_(name,b))));
-  return hash_({tables,settings:s.settings,observations:s.technical.observations});
+  return hash_({tables,settings:s.settings,observations:s.technical.observations,funds:s.technical.funds});
 }
 
 function tradeAmount_(r) {
@@ -780,6 +787,11 @@ function applyOperations_(initial,operations,requestId,now) {
       const r={};[&#x27;Grupo&#x27;,&#x27;Subgrupo&#x27;,&#x27;Categoría&#x27;,&#x27;Subcategoría&#x27;].forEach((h,i)=&gt;r[h]=required(o,[&#x27;group&#x27;,&#x27;subgroup&#x27;,&#x27;category&#x27;,&#x27;subcategory&#x27;][i]));putRow_(s,&#x27;tCategorias&#x27;,r,false);primary=r.Subcategoría;
     } else if (p===&#x27;producto&#x27;) {
       primary=&#x27;PRO-&#x27;+requestId+&#x27;-&#x27;+(index+1);putRow_(s,&#x27;tProductos&#x27;,{ID:primary,Producto:required(o,&#x27;name&#x27;),Cuenta:resolveReference_(s,&#x27;tCuentas&#x27;,required(o,&#x27;account&#x27;),aliases,&#x27;Cuenta&#x27;),Clase:required(o,&#x27;class&#x27;),&#x27;Fecha base&#x27;:serialDate_(required(o,&#x27;date&#x27;)),&#x27;Unidades base&#x27;:o.units===undefined?0:o.units,&#x27;Coste base&#x27;:o.cost===undefined?0:o.cost},false);
+      if(!blank_(o.isin)) bindFund_(s,primary,o.isin,o.referenceName||o.name,now);
+      else check_(blank_(o.referenceName),&#x27;El nombre de referencia necesita un ISIN.&#x27;);
+    } else if (p===&#x27;vincular_isin&#x27;) {
+      primary=resolveReference_(s,&#x27;tProductos&#x27;,required(o,&#x27;product&#x27;),aliases,&#x27;Producto&#x27;);
+      bindFund_(s,primary,required(o,&#x27;isin&#x27;),required(o,&#x27;referenceName&#x27;),now);
     } else if (p===&#x27;objetivo&#x27;) {
       primary=&#x27;OBJ-&#x27;+requestId+&#x27;-&#x27;+(index+1);putRow_(s,&#x27;tObjetivos&#x27;,{ID:primary,Objetivo:required(o,&#x27;name&#x27;),Meta:required(o,&#x27;amount&#x27;),Fecha:blank_(o.date)?null:serialDate_(o.date)},false);
     } else if (p===&#x27;asignacion&#x27;) {
@@ -883,8 +895,14 @@ function mutationRequests_(before,after,requestId,now,result) {
   }
   const addedObs=newObs.slice(oldObs.length);appendTechnical_(requests,before.tech.observations,oldObs,addedObs);
   addedObs.forEach(row=&gt;audit.push([requestId,now,&#x27;observaciones&#x27;,row[0],&#x27;null&#x27;,canonical_(row)]));
+  [&#x27;funds&#x27;,&#x27;quotes&#x27;].forEach(kind=&gt;{
+    const added=after.technical[kind].slice(before.technical[kind].length);
+    if(added.length&amp;&amp;!before.tech[kind]) fail_(&#x27;NOT_INITIALIZED&#x27;,&#x27;Ejecuta comprobarPaso4 para preparar cotizaciones.&#x27;);
+    if(added.length) appendTechnical_(requests,before.tech[kind],before.technical[kind],added);
+    added.forEach(row=&gt;audit.push([requestId,now,kind,row[0],&#x27;null&#x27;,canonical_(row)]));
+  });
   appendTechnical_(requests,before.tech.audit,before.technical.audit,audit);
-  appendTechnical_(requests,before.tech.requests,before.technical.requests,[[requestId,hash_(result.operations),now,JSON.stringify(result.response)]]);
+  appendTechnical_(requests,before.tech.requests,before.technical.requests,[[requestId,result.fingerprint||hash_(result.operations),now,JSON.stringify(result.response)]]);
   return requests;
 }
 
@@ -895,14 +913,17 @@ function initializeBackendUnlocked_(config) {
     const state=readState_(config), missing=Object.keys(TECH_SCHEMA_).filter(k=&gt;!state.tech[k]);
     if (!missing.length) return state;
     // Una creación incompleta o un nombre ocupado se investiga; no se sobrescriben hojas ajenas.
-    if (Object.keys(state.tech).length) fail_(&#x27;SCHEMA_CONFLICT&#x27;,&#x27;La configuración técnica está incompleta.&#x27;);
+    const base=[&#x27;requests&#x27;,&#x27;audit&#x27;,&#x27;observations&#x27;].filter(k=&gt;state.tech[k]);
+    if (base.length &amp;&amp; base.length!==3) fail_(&#x27;SCHEMA_CONFLICT&#x27;,&#x27;La configuración técnica está incompleta.&#x27;);
     const requests=[], ids=new Set(state.book.sheets.map(s=&gt;s.properties.sheetId));
     const now=new Date().toISOString();
     Object.keys(TECH_SCHEMA_).forEach((kind,i)=&gt;{
+      if(state.tech[kind]) return;
       const [title,headers]=TECH_SCHEMA_[kind];let id=1700000000+i;while(ids.has(id)) id++;ids.add(id);
       requests.push({addSheet:{properties:{sheetId:id,title,hidden:true,gridProperties:{rowCount:1000,columnCount:headers.length,frozenRowCount:1}}}});
       const rows=[headers];
       if(kind===&#x27;observations&#x27;) state.tables.tCuentas.filter(a=&gt;!blank_(a[&#x27;Saldo real&#x27;])).forEach(a=&gt;rows.push([&#x27;LEGACY-&#x27;+hash_([a.Cuenta,a[&#x27;Saldo real&#x27;],a[&#x27;Fecha saldo&#x27;]]).slice(0,24),a.Cuenta,a[&#x27;Saldo real&#x27;],a[&#x27;Fecha saldo&#x27;],null,&#x27;desconocido&#x27;,&#x27;origen_sin_hora&#x27;,now]));
+      if(kind===&#x27;funds&#x27;) state.tables.tProductos.filter(p=&gt;validIsin_(p.ID)).forEach(p=&gt;rows.push([p.ID,normalizeIsin_(p.ID),p.Producto,now]));
       requests.push({updateCells:{start:{sheetId:id,rowIndex:0,columnIndex:0},rows:rows.map(row=&gt;({values:row.map(cellValue_)})),fields:&#x27;userEnteredValue&#x27;}});
     });
     Sheets.Spreadsheets.batchUpdate({requests},config.id);return readState_(config);
@@ -910,7 +931,7 @@ function initializeBackendUnlocked_(config) {
 function diagnostics_(s) {
   const capacityReady=Object.keys(supportRanges_(s)).length===Object.keys(SUPPORT_NAMES_).length&amp;&amp;s.supportSignature===capacitySignature_(s);
   const calculationReady=!(s.calculationErrors||[]).length;
-  return {ok:true,apiVersion:API_VERSION_,environment:&#x27;test&#x27;,modelVersion:3,businessSheetCount:REQUIRED_SHEETS_.length,tableCount:TABLE_SCHEMA_.length,backendReady:Object.keys(s.tech).length===3&amp;&amp;capacityReady&amp;&amp;calculationReady,capacityReady,calculationReady,calculationErrors:s.calculationErrors||[],
+  return {ok:true,apiVersion:API_VERSION_,environment:&#x27;test&#x27;,modelVersion:3,businessSheetCount:REQUIRED_SHEETS_.length,tableCount:TABLE_SCHEMA_.length,backendReady:[&#x27;requests&#x27;,&#x27;audit&#x27;,&#x27;observations&#x27;].every(k=&gt;s.tech[k])&amp;&amp;capacityReady&amp;&amp;calculationReady,priceReady:Object.keys(TECH_SCHEMA_).every(k=&gt;s.tech[k]),priceProviders:[&#x27;VDOS / Quefondos&#x27;],capacityReady,calculationReady,calculationErrors:s.calculationErrors||[],
     rows:Object.fromEntries(Object.keys(s.tables).map(k=&gt;[k,{used:s.tables[k].length,capacity:s.raw[k].length}])),revision:s.revision,checkedAt:new Date().toISOString()};
 }
 function publicSnapshot_(s) {
@@ -933,14 +954,17 @@ function publicSnapshot_(s) {
   Object.keys(data).forEach(name=&gt;data[name].forEach(row=&gt;s.layout[name].headers.filter(h=&gt;INPUT_SCHEMA_[name].inputs.indexOf(h)&lt;0).forEach(h=&gt;{
     if(typeof row[h]===&#x27;string&#x27;&amp;&amp;/^#(?:REF!|VALUE!|DIV\/0!|N\/A|NAME\?|NUM!|ERROR!)/.test(row[h])) calculationErrors.push({table:name,key:rowKey_(name,row),column:h,error:row[h]});
   })));
-  return Object.assign(diagnostics_(s),{calculationState:calculationErrors.length?&#x27;needs_review&#x27;:&#x27;ready&#x27;,calculationErrors,settings:Object.fromEntries(Object.keys(s.settings).map(k=&gt;[k,isoDate_(s.settings[k])])),tables:data,observations});
+  return Object.assign(diagnostics_(s),{calculationState:calculationErrors.length?&#x27;needs_review&#x27;:&#x27;ready&#x27;,calculationErrors,settings:Object.fromEntries(Object.keys(s.settings).map(k=&gt;[k,isoDate_(s.settings[k])])),tables:data,observations,prices:priceSnapshot_(s)});
 }
 
 // Único punto remoto de la API. No se admiten IDs de libro o instrucciones de celda.
 function financialApi(request) {
   try {
     const config=authorizedConfig_();
-    if (!object_(request) || JSON.stringify(request).length&gt;60000 || Object.keys(request).some(k=&gt;[&#x27;action&#x27;,&#x27;requestId&#x27;,&#x27;expectedRevision&#x27;,&#x27;operations&#x27;].indexOf(k)&lt;0)) fail_(&#x27;INVALID_REQUEST&#x27;);
+    if (!object_(request) || JSON.stringify(request).length&gt;60000 || Object.keys(request).some(k=&gt;[&#x27;action&#x27;,&#x27;requestId&#x27;,&#x27;expectedRevision&#x27;,&#x27;operations&#x27;,&#x27;funds&#x27;,&#x27;products&#x27;].indexOf(k)&lt;0)) fail_(&#x27;INVALID_REQUEST&#x27;);
+    if(request.action===&#x27;quotePrices&#x27;) return quotePrices_(request);
+    if(request.action===&#x27;refreshPrices&#x27;) return refreshPrices_(config,request);
+    if(Object.keys(request).some(k=&gt;[&#x27;action&#x27;,&#x27;requestId&#x27;,&#x27;expectedRevision&#x27;,&#x27;operations&#x27;].indexOf(k)&lt;0)) fail_(&#x27;INVALID_REQUEST&#x27;);
     if (request.action===&#x27;read&#x27;||request.action===&#x27;diagnostics&#x27;) {
       const s=readState_(config);return request.action===&#x27;read&#x27;?publicSnapshot_(s):diagnostics_(s);
     }
@@ -952,7 +976,7 @@ function financialApi(request) {
     if(request.action!==&#x27;transact&#x27;||!uuid_(request.requestId)||typeof request.expectedRevision!==&#x27;string&#x27;||!Array.isArray(request.operations)||request.operations.length&lt;1||request.operations.length&gt;20) fail_(&#x27;INVALID_REQUEST&#x27;);
     const requestId=request.requestId.toLowerCase(), fingerprint=hash_(request.operations);
     return locked_(()=&gt;{
-      let before=readState_(config);if(Object.keys(before.tech).length!==3) fail_(&#x27;NOT_INITIALIZED&#x27;,&#x27;Ejecuta comprobarPaso3 desde el editor.&#x27;);
+      let before=readState_(config);if(![&#x27;requests&#x27;,&#x27;audit&#x27;,&#x27;observations&#x27;].every(k=&gt;before.tech[k])) fail_(&#x27;NOT_INITIALIZED&#x27;,&#x27;Ejecuta comprobarPaso3 desde el editor.&#x27;);
       const stored=before.technical.requests.find(r=&gt;r[0]===requestId);
       // La consulta de solicitudes precede al control de revisión: una respuesta perdida es reintentable.
       if(stored) {
@@ -979,7 +1003,7 @@ function financialApi(request) {
   } catch(error) {return apiError_(error);}
 }
 
-// Prepara tres hojas técnicas ocultas y comprueba lectura; no modifica registros financieros.
+// Prepara las hojas técnicas ocultas y comprueba lectura; no modifica registros financieros.
 function comprobarPaso3() {
   let result;try {const config=authorizedConfig_();result=locked_(()=&gt;diagnostics_(prepareCapacity_(config,initializeBackendUnlocked_(config))));} catch(error) {result=apiError_(error);}
   console.log(JSON.stringify(result));return result;
@@ -1166,7 +1190,7 @@ function supportFormulaRequests_(state) {
   requests.push(cellRequest_(calc.properties.sheetId,7,19,capacitySignature_(state)));
   return requests;
 }
-function capacitySignature_(state){return &#x27;API-&#x27;+API_VERSION_+&#x27;-A1-&#x27;+hash_({tables:Object.fromEntries(Object.keys(state.layout).map(k=&gt;[k,state.layout[k].range])),support:Object.fromEntries(Object.entries(supportRanges_(state)).map(([k,v])=&gt;[k,v.range]))});}
+function capacitySignature_(state){return &#x27;API-&#x27;+CAPACITY_VERSION_+&#x27;-A1-&#x27;+hash_({tables:Object.fromEntries(Object.keys(state.layout).map(k=&gt;[k,state.layout[k].range])),support:Object.fromEntries(Object.entries(supportRanges_(state)).map(([k,v])=&gt;[k,v.range]))});}
 function prepareCapacity_(config,before,desired) {
   desired=desired||before;
   let state=before,changed=false;
@@ -1177,6 +1201,177 @@ function prepareCapacity_(config,before,desired) {
   if(support.length){Sheets.Spreadsheets.batchUpdate({requests:support},config.id);state=readState_(config);changed=true;}
   if(changed||state.supportSignature!==capacitySignature_(state)){Sheets.Spreadsheets.batchUpdate({requests:supportFormulaRequests_(state)},config.id);state=readState_(config);}
   return state;
+}
+
+// Paso 4. La resolución depende del ISIN, nunca de una lista de fondos conocidos.
+const PRICE_LIMIT_ = 20;
+const PRICE_PROVIDER_ = &#x27;VDOS / Quefondos&#x27;;
+const PRICE_BASE_ = &#x27;https://www.quefondos.com/es/fondos/ficha/index.html?isin=&#x27;;
+
+function validIsin_(value) {
+  if(typeof value!==&#x27;string&#x27;) return false;
+  const isin=value.trim().toUpperCase();if(!/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(isin)) return false;
+  const digits=isin.replace(/[A-Z]/g,c=&gt;String(c.charCodeAt(0)-55));let sum=0;
+  for(let i=digits.length-1,odd=false;i&gt;=0;i--,odd=!odd){let n=Number(digits[i]);if(odd)n*=2;sum+=n&gt;9?n-9:n;}
+  return sum%10===0;
+}
+function normalizeIsin_(value) {
+  if(!validIsin_(value)) fail_(&#x27;INVALID_ISIN&#x27;,&#x27;ISIN inválido: revisa sus doce caracteres y dígito de control.&#x27;);
+  return value.trim().toUpperCase();
+}
+function fundBinding_(s,product) {
+  const row=s.technical.funds.slice().reverse().find(r=&gt;r[0]===product.ID);
+  if(row) return {product:product.ID,isin:normalizeIsin_(row[1]),referenceName:row[2]};
+  return validIsin_(product.ID)?{product:product.ID,isin:normalizeIsin_(product.ID),referenceName:product.Producto}:null;
+}
+function bindFund_(s,id,isin,name,now) {
+  check_(!!s.tech.funds,&#x27;Ejecuta comprobarPaso4 antes de vincular fondos.&#x27;);text_(name,&#x27;Nombre de referencia&#x27;);
+  const product=s.tables.tProductos.find(p=&gt;p.ID===id), normalized=normalizeIsin_(isin), current=fundBinding_(s,product);
+  check_(!current||current.isin===normalized,&#x27;Este producto ya identifica otro ISIN. Crea un producto nuevo para conservar su historial.&#x27;);
+  if(!current||current.referenceName!==name.trim()) s.technical.funds.push([id,normalized,name.trim(),now]);
+}
+function priceText_(html) {
+  const entities={amp:&#x27;&amp;&#x27;,lt:&#x27;&lt;&#x27;,gt:&#x27;&gt;&#x27;,quot:&#x27;&quot;&#x27;,apos:&quot;&#x27;&quot;,nbsp:&#x27; &#x27;,Uacute:&#x27;Ú&#x27;,uacute:&#x27;ú&#x27;,Oacute:&#x27;Ó&#x27;,oacute:&#x27;ó&#x27;,Aacute:&#x27;Á&#x27;,aacute:&#x27;á&#x27;,Eacute:&#x27;É&#x27;,eacute:&#x27;é&#x27;,Iacute:&#x27;Í&#x27;,iacute:&#x27;í&#x27;,ntilde:&#x27;ñ&#x27;,Ntilde:&#x27;Ñ&#x27;,uuml:&#x27;ü&#x27;,Uuml:&#x27;Ü&#x27;,middot:&#x27;·&#x27;,ndash:&#x27;–&#x27;,mdash:&#x27;—&#x27;};
+  return String(html).replace(/&lt;script\b[\s\S]*?&lt;\/script&gt;/gi,&#x27; &#x27;).replace(/&lt;style\b[\s\S]*?&lt;\/style&gt;/gi,&#x27; &#x27;).replace(/&lt;[^&gt;]*&gt;/g,&#x27; &#x27;)
+    .replace(/&amp;(#x[0-9a-f]+|#\d+|[A-Za-z]+);/gi,(all,e)=&gt;{if(e[0]===&#x27;#&#x27;){const n=e[1].toLowerCase()===&#x27;x&#x27;?parseInt(e.slice(2),16):Number(e.slice(1));return n&gt;0&amp;&amp;n&lt;=0x10ffff?String.fromCodePoint(n):&#x27; &#x27;;}return Object.prototype.hasOwnProperty.call(entities,e)?entities[e]:all;}).replace(/\s+/g,&#x27; &#x27;).trim();
+}
+function priceFailure_(code,message) { const e=new Error(message);e.priceCode=code;throw e; }
+function verifyFundName_(reference,actual) {
+  text_(reference,&#x27;Nombre de referencia&#x27;);
+  const normalize=v=&gt;v.normalize(&#x27;NFD&#x27;).replace(/[\u0300-\u036f]/g,&#x27;&#x27;).toLowerCase().replace(/[^a-z0-9]+/g,&#x27; &#x27;);
+  // El ISIN selecciona la clase. El nombre confirma la identidad; no sirve para elegir otra clase.
+  const r=normalize(reference), a=normalize(actual), currencies=[&#x27;eur&#x27;,&#x27;usd&#x27;,&#x27;gbp&#x27;,&#x27;chf&#x27;,&#x27;jpy&#x27;,&#x27;cad&#x27;,&#x27;aud&#x27;];
+  const currency=currencies.find(c=&gt;new RegExp(&#x27;\\b&#x27;+c+&#x27;\\b&#x27;).test(r));
+  if(currency&amp;&amp;!new RegExp(&#x27;\\b&#x27;+currency+&#x27;\\b&#x27;).test(a)) priceFailure_(&#x27;NAME_MISMATCH&#x27;,&#x27;La moneda indicada en el nombre no coincide con la clase de la fuente.&#x27;);
+  if(/\b(acc|acumulacion|accumulation)\b/.test(r)&amp;&amp;!/\b(acc|acumulacion|accumulation|cap)\b/.test(a)) priceFailure_(&#x27;NAME_MISMATCH&#x27;,&#x27;La referencia indica acumulación y la fuente no confirma esa clase.&#x27;);
+  if(/\b(dist|distribucion|income|inc)\b/.test(r)&amp;&amp;!/\b(dist|distribucion|income|inc)\b/.test(a)) priceFailure_(&#x27;NAME_MISMATCH&#x27;,&#x27;La referencia indica distribución y la fuente no confirma esa clase.&#x27;);
+  const share=r.match(/\b(?:class|clase)\s+([a-z0-9]{1,3})\b/)||r.match(/\b([a-z0-9]{1,3})\s+(?:acc|inc|dist|cap)\b/);
+  if(share&amp;&amp;!new RegExp(&#x27;\\b&#x27;+share[1]+&#x27;\\b&#x27;).test(a)) priceFailure_(&#x27;NAME_MISMATCH&#x27;,&#x27;La clase indicada en la referencia no coincide con la ficha.&#x27;);
+  const stop=new Set([&#x27;fund&#x27;,&#x27;funds&#x27;,&#x27;fondo&#x27;,&#x27;fondos&#x27;,&#x27;fi&#x27;,&#x27;sicav&#x27;,&#x27;de&#x27;,&#x27;del&#x27;,&#x27;the&#x27;,&#x27;a&#x27;,&#x27;p&#x27;,&#x27;acc&#x27;,&#x27;acumulacion&#x27;,&#x27;accumulation&#x27;,&#x27;inc&#x27;,&#x27;dist&#x27;,&#x27;distribucion&#x27;,&#x27;class&#x27;,&#x27;clase&#x27;,&#x27;index&#x27;,...currencies]);
+  const tokens=[...new Set(r.split(&#x27; &#x27;).filter(t=&gt;t.length&gt;1&amp;&amp;!stop.has(t)))], source=new Set(a.split(&#x27; &#x27;));
+  if(!tokens.length||tokens.filter(t=&gt;source.has(t)).length&lt;Math.min(2,tokens.length)) priceFailure_(&#x27;NAME_MISMATCH&#x27;,&#x27;El nombre de referencia no confirma el fondo del ISIN. Revisa el nombre, sin cambiar el ISIN por aproximación.&#x27;);
+}
+function parseFundPage_(html,isin,fetchedAt,today) {
+  const h1=html.match(/&lt;h1\b[^&gt;]*&gt;([\s\S]*?)&lt;\/h1&gt;/i), page=priceText_(html);
+  const identity=page.match(/\bISIN:\s*([A-Z0-9]{12})\b/), heading=h1&amp;&amp;priceText_(h1[1]);
+  if(!identity||!heading) priceFailure_(&#x27;FUND_NOT_FOUND&#x27;,&#x27;La fuente no ofrece una ficha verificable para este ISIN.&#x27;);
+  if(identity[1]!==isin||heading.indexOf(&#x27;(&#x27;+isin+&#x27;)&#x27;)&lt;0) priceFailure_(&#x27;IDENTITY_MISMATCH&#x27;,&#x27;La ficha recibida pertenece a otro ISIN.&#x27;);
+  const blocks=html.split(/&lt;h4\b[^&gt;]*&gt;/i), raw=blocks.find(b=&gt;/^Última valoración\b/i.test(priceText_(b.split(/&lt;\/h4&gt;/i)[0])));
+  if(!raw) priceFailure_(&#x27;SOURCE_FORMAT&#x27;,&#x27;La ficha ha cambiado: falta el bloque de última valoración.&#x27;);
+  const valuation=priceText_(raw), value=valuation.match(/Valor liquidativo:\s*([\d.,]+)\s+([A-Z]{3})\b/), date=valuation.match(/\bFecha:\s*(\d{2})\/(\d{2})\/(\d{4})\b/), currency=page.match(/\bDivisa:\s*([A-Z]{3})\b/);
+  if(!value||!date||!currency) priceFailure_(&#x27;SOURCE_FORMAT&#x27;,&#x27;La ficha no permite verificar precio, fecha y moneda.&#x27;);
+  if(value[2]!==&#x27;EUR&#x27;) priceFailure_(&#x27;UNSUPPORTED_CURRENCY&#x27;,&#x27;La fuente no publica este valor liquidativo en EUR.&#x27;);
+  if(!/^(?:\d+|\d{1,3}(?:\.\d{3})+),\d{1,12}$/.test(value[1])) priceFailure_(&#x27;INVALID_PRICE&#x27;,&#x27;Formato de valor liquidativo no reconocido.&#x27;);
+  const price=Number(value[1].replace(/\./g,&#x27;&#x27;).replace(&#x27;,&#x27;,&#x27;.&#x27;)), effectiveDate=date[3]+&#x27;-&#x27;+date[2]+&#x27;-&#x27;+date[1];
+  if(!Number.isFinite(price)||price&lt;=0||price&gt;1e12) priceFailure_(&#x27;INVALID_PRICE&#x27;,&#x27;Valor liquidativo fuera de rango.&#x27;);
+  let serial;try{serial=serialDate_(effectiveDate);}catch(error){priceFailure_(&#x27;INVALID_DATE&#x27;,&#x27;Fecha de valor liquidativo inexistente.&#x27;);}
+  const ageDays=serialDate_(today)-serial;
+  if(ageDays&lt;0) priceFailure_(&#x27;FUTURE_DATE&#x27;,&#x27;La fecha publicada es posterior al día actual de Madrid.&#x27;);
+  return {isin,name:heading.split(&#x27;(&#x27;+isin+&#x27;)&#x27;)[0].trim(),price,date:effectiveDate,quoteCurrency:&#x27;EUR&#x27;,classCurrency:currency[1],conversion:currency[1]===&#x27;EUR&#x27;?&#x27;none&#x27;:&#x27;provider_eur&#x27;,originalClassPrice:null,provider:PRICE_PROVIDER_,url:PRICE_BASE_+isin,fetchedAt,ageDays,warning:ageDays&gt;4?&#x27;PUBLICATION_DELAY&#x27;:null};
+}
+function fetchFundQuote_(fund) {
+  const checkedAt=new Date().toISOString();let isin;
+  try {
+    isin=normalizeIsin_(fund.isin);text_(fund.referenceName,&#x27;Nombre de referencia&#x27;);
+    const key=&#x27;nav-v1-&#x27;+isin;let cache=null,stored=null;
+    try{cache=CacheService.getScriptCache();stored=cache.get(key);}catch(ignored){}
+    let quote=stored?JSON.parse(stored):null;
+    if(!quote) {
+      const response=UrlFetchApp.fetch(PRICE_BASE_+isin,{method:&#x27;get&#x27;,followRedirects:false,muteHttpExceptions:true});
+      if(response.getResponseCode()!==200) priceFailure_(&#x27;SOURCE_UNAVAILABLE&#x27;,&#x27;La fuente no está disponible (HTTP &#x27;+response.getResponseCode()+&#x27;).&#x27;);
+      const html=response.getContentText();if(html.length&gt;1500000) priceFailure_(&#x27;SOURCE_FORMAT&#x27;,&#x27;La respuesta de la fuente supera el tamaño admitido.&#x27;);
+      quote=parseFundPage_(html,isin,checkedAt,Utilities.formatDate(new Date(),&#x27;Europe/Madrid&#x27;,&#x27;yyyy-MM-dd&#x27;));
+      try{if(cache)cache.put(key,JSON.stringify(quote),300);}catch(ignored){}
+    }
+    verifyFundName_(fund.referenceName,quote.name);
+    // La antigüedad se vuelve a calcular incluso al cruzar medianoche con caché.
+    quote.ageDays=serialDate_(Utilities.formatDate(new Date(),&#x27;Europe/Madrid&#x27;,&#x27;yyyy-MM-dd&#x27;))-serialDate_(quote.date);
+    if(quote.ageDays&lt;0) priceFailure_(&#x27;FUTURE_DATE&#x27;,&#x27;Fecha de cotización futura.&#x27;);
+    quote.warning=quote.ageDays&gt;4?&#x27;PUBLICATION_DELAY&#x27;:null;
+    return Object.assign({ok:true,referenceName:fund.referenceName,checkedAt,cached:!!stored},quote);
+  } catch(error) {
+    return {ok:false,isin:isin||fund.isin,referenceName:fund.referenceName,provider:PRICE_PROVIDER_,url:isin?PRICE_BASE_+isin:null,checkedAt,error:error.priceCode||([&#x27;INVALID_ISIN&#x27;,&#x27;INVALID_DATA&#x27;].indexOf(error.code)&gt;=0?error.code:&#x27;SOURCE_UNAVAILABLE&#x27;),message:error.priceCode||error.code?error.message:&#x27;No se pudo consultar la fuente. Se conserva el último precio válido.&#x27;};
+  }
+}
+function quotePrices_(request) {
+  if(Object.keys(request).some(k=&gt;[&#x27;action&#x27;,&#x27;funds&#x27;].indexOf(k)&lt;0)||!Array.isArray(request.funds)||!request.funds.length||request.funds.length&gt;PRICE_LIMIT_) fail_(&#x27;INVALID_REQUEST&#x27;,&#x27;Consulta de uno a veinte ISIN y nombres de referencia.&#x27;);
+  request.funds.forEach(f=&gt;{if(!object_(f)||Object.keys(f).some(k=&gt;[&#x27;isin&#x27;,&#x27;referenceName&#x27;].indexOf(k)&lt;0)) fail_(&#x27;INVALID_REQUEST&#x27;);});
+  const results=request.funds.map(fetchFundQuote_);
+  return {ok:true,apiVersion:API_VERSION_,environment:&#x27;test&#x27;,readOnly:true,complete:results.every(r=&gt;r.ok),results,checkedAt:new Date().toISOString()};
+}
+function priceSnapshot_(s) {
+  return s.tables.tProductos.map(product=&gt;{
+    const binding=fundBinding_(s,product), latest=s.tables.tPrecios.filter(p=&gt;p.Producto===product.ID).sort((a,b)=&gt;b.Fecha-a.Fecha)[0];
+    const attempt=s.technical.quotes.slice().reverse().find(r=&gt;r[2]===product.ID);
+    return {product:product.ID,name:product.Producto,isin:binding&amp;&amp;binding.isin,referenceName:binding&amp;&amp;binding.referenceName,lastValid:latest?{date:isoDate_(latest.Fecha),price:latest[&#x27;VL EUR&#x27;],source:latest.Fuente}:null,lastAttempt:attempt?{status:attempt[10],checkedAt:attempt[9],detail:JSON.parse(attempt[11])}:null,status:binding?&#x27;configured&#x27;:&#x27;ISIN_REQUIRED&#x27;};
+  });
+}
+function pricePlan_(state,selected,quotes,requestId,now) {
+  const operations=[], results=[];
+  selected.forEach((item,i)=&gt;{
+    const quote=quotes[i], result=Object.assign({product:item.product,status:&#x27;failed&#x27;},quote);
+    if(quote.ok) {
+      const date=serialDate_(quote.date), prices=state.tables.tPrecios.filter(p=&gt;p.Producto===item.product), latest=prices.reduce((max,p)=&gt;Math.max(max,p.Fecha),0), same=prices.find(p=&gt;p.Fecha===date);
+      if(date&lt;latest) result.status=&#x27;older&#x27;;
+      else if(same&amp;&amp;same[&#x27;VL EUR&#x27;]===quote.price) result.status=&#x27;unchanged&#x27;;
+      else if(same) {result.status=&#x27;needs_review&#x27;;result.error=&#x27;PRICE_CONFLICT&#x27;;result.message=&#x27;Ya existe otro precio para ese producto y fecha. Se conserva el guardado.&#x27;;}
+      else {result.status=&#x27;updated&#x27;;operations.push({process:&#x27;precio&#x27;,product:item.product,date:quote.date,price:quote.price,source:quote.provider+&#x27; | &#x27;+quote.isin+&#x27; | &#x27;+quote.url});}
+    }
+    results.push(result);
+  });
+  const applied=applyOperations_(state,operations,requestId,now);
+  results.forEach((r,i)=&gt;applied.state.technical.quotes.push([requestId+&#x27;-&#x27;+(i+1),requestId,r.product,r.isin||null,r.ok?r.date:null,r.ok?r.price:null,r.classCurrency||null,r.provider||null,r.url||null,r.checkedAt||now,r.status,JSON.stringify(r)]));
+  return {state:applied.state,operations,results};
+}
+function replayPrices_(s,id,fingerprint) {
+  const saved=s.technical.requests.find(r=&gt;r[0]===id);
+  if(!saved) return null;
+  if(saved[1]!==fingerprint) fail_(&#x27;REQUEST_CONFLICT&#x27;,&#x27;La solicitud ya existe con contenido distinto.&#x27;);
+  return Object.assign(JSON.parse(saved[3]),{replayed:true});
+}
+function refreshPrices_(config,request) {
+  if(Object.keys(request).some(k=&gt;[&#x27;action&#x27;,&#x27;requestId&#x27;,&#x27;expectedRevision&#x27;,&#x27;products&#x27;].indexOf(k)&lt;0)||!uuid_(request.requestId)||typeof request.expectedRevision!==&#x27;string&#x27;||(request.products!==undefined&amp;&amp;(!Array.isArray(request.products)||!request.products.length||request.products.length&gt;PRICE_LIMIT_||request.products.some(p=&gt;typeof p!==&#x27;string&#x27;)))) fail_(&#x27;INVALID_REQUEST&#x27;);
+  const requestId=request.requestId.toLowerCase(), fingerprint=hash_({action:&#x27;refreshPrices&#x27;,products:request.products||null});
+  const prepared=locked_(()=&gt;{
+    const state=readState_(config), replay=replayPrices_(state,requestId,fingerprint);if(replay) return {replay};
+    if(!Object.keys(TECH_SCHEMA_).every(k=&gt;state.tech[k])) fail_(&#x27;NOT_INITIALIZED&#x27;,&#x27;Ejecuta comprobarPaso4 desde el editor.&#x27;);
+    if(state.revision!==request.expectedRevision) fail_(&#x27;CONFLICT&#x27;,&#x27;El libro cambió; vuelve a leer antes de actualizar precios.&#x27;);
+    const ids=request.products?request.products.map(p=&gt;resolveReference_(state,&#x27;tProductos&#x27;,p,{},&#x27;Producto&#x27;)):state.tables.tProductos.map(p=&gt;p.ID);
+    if(ids.length&gt;PRICE_LIMIT_||new Set(ids).size!==ids.length) fail_(&#x27;INVALID_REQUEST&#x27;,&#x27;Selecciona hasta veinte productos distintos por actualización.&#x27;);
+    return {selected:ids.map(id=&gt;{const p=state.tables.tProductos.find(p=&gt;p.ID===id);return fundBinding_(state,p)||{product:id,isin:null,referenceName:p.Producto};})};
+  });
+  if(prepared.replay) return prepared.replay;
+  // La red se consulta fuera del bloqueo. La revisión se verifica otra vez antes del lote.
+  const quotes=prepared.selected.map(f=&gt;f.isin?fetchFundQuote_(f):{ok:false,error:&#x27;ISIN_REQUIRED&#x27;,message:&#x27;Vincula el ISIN y nombre de referencia de este producto.&#x27;,isin:null,referenceName:f.referenceName,checkedAt:new Date().toISOString()});
+  return locked_(()=&gt;{
+    let before=readState_(config);const replay=replayPrices_(before,requestId,fingerprint);if(replay) return replay;
+    if(before.revision!==request.expectedRevision) fail_(&#x27;CONFLICT&#x27;,&#x27;El libro cambió durante la consulta. No se han escrito precios.&#x27;);
+    const now=new Date().toISOString();let plan=pricePlan_(before,prepared.selected,quotes,requestId,now);
+    before=prepareCapacity_(config,before,plan.state);
+    if(before.revision!==request.expectedRevision) fail_(&#x27;CONFLICT&#x27;,&#x27;El libro cambió durante la preparación. No se han escrito precios.&#x27;);
+    plan=pricePlan_(before,prepared.selected,quotes,requestId,now);
+    const counts={};plan.results.forEach(r=&gt;counts[r.status]=(counts[r.status]||0)+1);
+    const response={ok:true,apiVersion:API_VERSION_,environment:&#x27;test&#x27;,requestId,revision:plan.state.revision,complete:plan.results.every(r=&gt;r.ok&amp;&amp;r.status!==&#x27;needs_review&#x27;),results:plan.results,counts,replayed:false,checkedAt:now};
+    const requests=mutationRequests_(before,plan.state,requestId,now,{operations:plan.operations,fingerprint,response});
+    try{Sheets.Spreadsheets.batchUpdate({requests},config.id);}
+    catch(error){try{const replay=replayPrices_(readState_(config),requestId,fingerprint);if(replay)return replay;}catch(ignored){}fail_(&#x27;WRITE_UNCERTAIN&#x27;,&#x27;Consulta o reintenta exactamente la misma solicitud de precios.&#x27;);}
+    return response;
+  });
+}
+// Pruebas de instalación: comprobar no escribe cotizaciones; actualizar sí guarda VL verificados.
+function comprobarPaso4() {
+  let result;try{const config=authorizedConfig_();result=locked_(()=&gt;{const s=prepareCapacity_(config,initializeBackendUnlocked_(config));return Object.assign(diagnostics_(s),{prices:priceSnapshot_(s)});});}catch(error){result=apiError_(error);}console.log(JSON.stringify(result));return result;
+}
+function probarFuentesPaso4() {
+  let result;try{const config=authorizedConfig_(), s=readState_(config), bindings=s.tables.tProductos.map(p=&gt;fundBinding_(s,p)).filter(Boolean);
+    const results=bindings.map(fetchFundQuote_);result={ok:true,apiVersion:API_VERSION_,environment:&#x27;test&#x27;,readOnly:true,complete:bindings.length&gt;0&amp;&amp;results.every(r=&gt;r.ok),unconfigured:s.tables.tProductos.length-bindings.length,results,checkedAt:new Date().toISOString()};
+  }catch(error){result=apiError_(error);}console.log(JSON.stringify(result));return result;
+}
+function actualizarPreciosPaso4() {
+  let result;try{const config=authorizedConfig_(), results=[];let state=readState_(config), ids=state.tables.tProductos.map(p=&gt;p.ID);
+    for(let i=0;i&lt;ids.length;i+=PRICE_LIMIT_){const response=refreshPrices_(config,{action:&#x27;refreshPrices&#x27;,requestId:Utilities.getUuid(),expectedRevision:state.revision,products:ids.slice(i,i+PRICE_LIMIT_)});results.push(response);state=readState_(config);}
+    result={ok:true,apiVersion:API_VERSION_,environment:&#x27;test&#x27;,complete:results.every(r=&gt;r.complete),batches:results,checkedAt:new Date().toISOString()};
+  }catch(error){result=apiError_(error);}console.log(JSON.stringify(result));return result;
 }
 </pre></details></section>
 <section class="code-section" aria-labelledby="file-1"><header><div><p class="eyebrow">ARCHIVO 2 DE 3</p><h2 id="file-1">Bridge.html</h2></div><button type="button" data-copy="code-1">Copiar código</button></header><p>Añade un archivo HTML llamado Bridge y pega todo este bloque.</p><details><summary>Ver código completo</summary><pre id="code-1" tabindex="0">&lt;!doctype html&gt;
@@ -1258,7 +1453,8 @@ function prepareCapacity_(config,before,desired) {
   },
   &quot;oauthScopes&quot;: [
     &quot;https://www.googleapis.com/auth/spreadsheets&quot;,
-    &quot;https://www.googleapis.com/auth/userinfo.email&quot;
+    &quot;https://www.googleapis.com/auth/userinfo.email&quot;,
+    &quot;https://www.googleapis.com/auth/script.external_request&quot;
   ],
   &quot;webapp&quot;: {
     &quot;access&quot;: &quot;MYSELF&quot;,
@@ -1266,5 +1462,4 @@ function prepareCapacity_(config,before,desired) {
   }
 }
 </pre></details></section>
-<section class="configuration"><p class="eyebrow">CONFIGURAR EN GOOGLE</p><h2>Las tres propiedades del proyecto</h2><p class="intro">En Configuración del proyecto → Propiedades del script, añade estas propiedades. Los valores privados se quedan en Google.</p><table><thead><tr><th scope="col">Propiedad</th><th scope="col">Valor</th></tr></thead><tbody><tr><td><code>TEST_SPREADSHEET_ID</code></td><td>ID de tu copia de pruebas. Está en el enlace de Sheets, entre /d/ y /edit.</td></tr><tr><td><code>OWNER_EMAIL</code></td><td>Correo de la cuenta propietaria del proyecto y del libro.</td></tr><tr><td><code>ENVIRONMENT</code></td><td><code>test</code></td></tr></tbody></table></section>
-<section class="configuration"><p class="eyebrow">ÚLTIMA PARTE</p><h2>Comprobar y publicar la conexión</h2><ol><li>Sustituye los tres archivos de tu proyecto existente por los bloques de esta página y guarda. Conserva TEST_SPREADSHEET_ID, OWNER_EMAIL y ENVIRONMENT=test.</li><li>En el editor, selecciona <strong>comprobarPaso3</strong> y pulsa Ejecutar. Autoriza los permisos actualizados si Google los solicita. Esta función prepara tres hojas técnicas ocultas, amplía tablas y cálculos y comprueba los datos. Conserva los registros financieros existentes.</li><li>Ejecuta <strong>probarTransaccionesPaso3</strong>. La prueba registra un gasto y una compra ficticios de 0,01 € en la copia de pruebas, verifica reintentos y correcciones, anula los registros y restaura los cortes de fechas. Al finalizar debe indicar <strong>financialInputsRestored: true</strong>. Debe indicar también investmentAndCashChecked: true. El historial técnico conserva la prueba.</li><li>Actualiza la implementación existente: Implementar → Gestionar implementaciones → lápiz → Nueva versión. Mantén Ejecutar como: Yo y acceso Solo yo.</li><li>En Finanzas → Conexión, pulsa <strong>Comprobar backend</strong>. Esta comprobación solo lee datos y debe indicar API 3.1.0 y doce tablas.</li></ol><p class="notice">No se solicitan IDs de operaciones. La referencia de esta comprobación se genera automáticamente. La API del paso 3 ya admite altas, correcciones y anulaciones. La selección de formularios de la app corresponde al paso 5.</p></section><footer>Modelo 3 · Libro completo · Sin datos financieros en este código<br><a href="https://developers.google.com/apps-script/concepts/deployments" target="_blank" rel="noopener noreferrer">Documentación de implementaciones de Google</a></footer></main></body></html>
+<section class="configuration"><p class="eyebrow">PASO 4 · API 3.2.0</p><h2>Comprobar fuentes y actualizar precios</h2><ol><li>Sustituye los tres archivos del proyecto existente por estos bloques y guarda. Conserva TEST_SPREADSHEET_ID, OWNER_EMAIL y ENVIRONMENT=test.</li><li>Ejecuta <strong>comprobarPaso4</strong>. Autoriza el permiso nuevo de consulta de fuentes si Google lo solicita. Debe indicar API 3.2.0, backendReady: true y priceReady: true. Añade dos hojas técnicas ocultas a las tres existentes y reconoce automáticamente los productos cuyo ID histórico es un ISIN válido. Conserva las diez pestañas y los datos financieros.</li><li>Ejecuta <strong>probarFuentesPaso4</strong>. Solo consulta: muestra por fondo ISIN, nombre, valor liquidativo, fecha efectiva y fuente. Un fallo devuelve su motivo y no borra precios. Los fondos nuevos se identifican por ISIN y nombre de referencia; no requieren modificar el código.</li><li>Ejecuta <strong>actualizarPreciosPaso4</strong>. Esta función sí guarda los nuevos precios verificados en la copia de pruebas y actualiza los cortes de valoración e informe cuando corresponde. No altera participaciones ni efectivo. Devuelve updated, unchanged, older, needs_review o failed por producto. No sustituye automáticamente un precio distinto de la misma fecha.</li><li>Actualiza la implementación: Implementar → Gestionar implementaciones → lápiz → Nueva versión. Mantén Ejecutar como: Yo y acceso Solo yo.</li><li>En Finanzas → Conexión, pulsa <strong>Comprobar backend</strong>. Debe indicar API 3.2.0 y doce tablas.</li></ol><p class="notice">Fuente genérica: VDOS / Quefondos, consultada por ISIN. La cobertura depende de sus fichas verificables y de que publique el VL en EUR; puede publicar con retraso. La fecha efectiva siempre se conserva. Para clases en otra divisa se registra por separado la moneda de la clase y la conversión a EUR que publica el proveedor. No se calcula un cambio de divisa propio. Si falta cobertura o hay un conflicto se conserva el último valor válido. El botón de precios y el alta de fondos en la interfaz corresponden al paso 5.</p></section><footer>Modelo 3 · Libro completo · Sin datos financieros en este código<br><a href="https://developers.google.com/apps-script/concepts/deployments" target="_blank" rel="noopener noreferrer">Documentación de implementaciones de Google</a></footer></main></body></html>

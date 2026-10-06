@@ -1,4 +1,4 @@
-// Pasos 2 y 3: conexión privada y API financiera sobre el libro existente.
+// Pasos 2, 3 y 4: conexión privada, API financiera y cotizaciones por ISIN.
 // Solo opera en TEST_SPREADSHEET_ID y ENVIRONMENT=test. No incluye datos personales.
 const CONNECTION_TYPE_ = 'finances.connection.v1';
 const APP_ORIGIN_ = 'https://manuuelmarin.github.io';
@@ -23,7 +23,9 @@ const TABLE_SCHEMA_ = [
   ['Configuración', 'tCategorias', ['Grupo', 'Subgrupo', 'Categoría', 'Subcategoría']]
 ];
 
-const API_VERSION_ = "3.1.0";
+const API_VERSION_ = "3.2.0";
+// El motor de fórmulas no cambia en el paso 4; conserva su sello de capacidad.
+const CAPACITY_VERSION_ = "3.1.0";
 const INPUT_SCHEMA_ = {
   "tMovimientos": {
     "inputs": [
@@ -300,8 +302,11 @@ const PROCESS_FIELDS_ = {
     "date",
     "units",
     "cost",
-    "alias"
+    "alias",
+    "isin",
+    "referenceName"
   ],
+  "vincular_isin": ["product", "isin", "referenceName", "alias"],
   "objetivo": [
     "name",
     "amount",
@@ -457,7 +462,9 @@ function columnA1_(index) {
 const TECH_SCHEMA_ = {
   requests: ['_Finanzas_Solicitudes', ['Solicitud', 'Huella', 'Fecha registro', 'Resultado']],
   audit: ['_Finanzas_Auditoria', ['Solicitud', 'Fecha registro', 'Tabla', 'Clave', 'Antes', 'Después']],
-  observations: ['_Finanzas_Observaciones', ['ID', 'Cuenta', 'Importe', 'Fecha', 'Hora', 'Alcance', 'Fuente', 'Fecha registro']]
+  observations: ['_Finanzas_Observaciones', ['ID', 'Cuenta', 'Importe', 'Fecha', 'Hora', 'Alcance', 'Fuente', 'Fecha registro']],
+  funds: ['_Finanzas_Fondos', ['Producto', 'ISIN', 'Nombre referencia', 'Fecha registro']],
+  quotes: ['_Finanzas_Cotizaciones', ['Consulta', 'Solicitud', 'Producto', 'ISIN', 'Fecha VL', 'VL EUR', 'Moneda clase', 'Proveedor', 'URL', 'Consultado el', 'Estado', 'Detalle']]
 };
 const DATE_FIELDS_ = ['Fecha', 'Fecha base', 'Fecha saldo'];
 const MOVEMENT_TYPES_ = ['Ingreso','Gasto','Transferencia','Compra inversión','Venta inversión','Rendimiento inversión','Préstamo recibido','Devolución deuda','Cobro compartido','Devolución gasto'];
@@ -516,7 +523,7 @@ function locked_(callback) {
   try { return callback(); } finally { lock.releaseLock(); }
 }
 function apiError_(error) {
-  const codes=['NOT_CONFIGURED','ACCESS_DENIED','INVALID_MODEL','NOT_INITIALIZED','INVALID_REQUEST','INVALID_DATA','NOT_FOUND','CONFLICT','REQUEST_CONFLICT','CAPACITY_REACHED','BUSY','SCHEMA_CONFLICT','WRITE_UNCERTAIN'];
+  const codes=['NOT_CONFIGURED','ACCESS_DENIED','INVALID_MODEL','NOT_INITIALIZED','INVALID_REQUEST','INVALID_DATA','NOT_FOUND','CONFLICT','REQUEST_CONFLICT','CAPACITY_REACHED','BUSY','SCHEMA_CONFLICT','WRITE_UNCERTAIN','INVALID_ISIN'];
   const code=codes.indexOf(error.code || error.message)>=0 ? (error.code||error.message) : 'API_FAILED';
   return {ok:false,error:code,message:error.code && code!=='API_FAILED' ? error.message : code};
 }
@@ -558,7 +565,7 @@ function readState_(config) {
   });
   // Configuración técnica y entradas se leen en un mismo lote; nunca desde IDs enviados por el cliente.
   const response=Sheets.Spreadsheets.Values.batchGet(config.id,{ranges:specs.map(s=>s.range),valueRenderOption:'UNFORMATTED_VALUE',dateTimeRenderOption:'SERIAL_NUMBER'});
-  const tables={}, raw={}, technical={requests:[],audit:[],observations:[]},calculationErrors=[]; let parameters=[], supportSignature=null;
+  const tables={}, raw={}, technical=Object.fromEntries(Object.keys(TECH_SCHEMA_).map(k=>[k,[]])),calculationErrors=[]; let parameters=[], supportSignature=null;
   specs.forEach((spec,i)=>{
     const values=(response.valueRanges[i]||{}).values||[];
     if(spec.support){supportSignature=(values[0]||[])[0]||null;return;}
@@ -593,7 +600,7 @@ function readState_(config) {
 }
 function revision_(s) {
   const tables={};Object.keys(s.tables).forEach(name=>tables[name]=s.tables[name].slice().sort((a,b)=>rowKey_(name,a).localeCompare(rowKey_(name,b))));
-  return hash_({tables,settings:s.settings,observations:s.technical.observations});
+  return hash_({tables,settings:s.settings,observations:s.technical.observations,funds:s.technical.funds});
 }
 
 function tradeAmount_(r) {
@@ -776,6 +783,11 @@ function applyOperations_(initial,operations,requestId,now) {
       const r={};['Grupo','Subgrupo','Categoría','Subcategoría'].forEach((h,i)=>r[h]=required(o,['group','subgroup','category','subcategory'][i]));putRow_(s,'tCategorias',r,false);primary=r.Subcategoría;
     } else if (p==='producto') {
       primary='PRO-'+requestId+'-'+(index+1);putRow_(s,'tProductos',{ID:primary,Producto:required(o,'name'),Cuenta:resolveReference_(s,'tCuentas',required(o,'account'),aliases,'Cuenta'),Clase:required(o,'class'),'Fecha base':serialDate_(required(o,'date')),'Unidades base':o.units===undefined?0:o.units,'Coste base':o.cost===undefined?0:o.cost},false);
+      if(!blank_(o.isin)) bindFund_(s,primary,o.isin,o.referenceName||o.name,now);
+      else check_(blank_(o.referenceName),'El nombre de referencia necesita un ISIN.');
+    } else if (p==='vincular_isin') {
+      primary=resolveReference_(s,'tProductos',required(o,'product'),aliases,'Producto');
+      bindFund_(s,primary,required(o,'isin'),required(o,'referenceName'),now);
     } else if (p==='objetivo') {
       primary='OBJ-'+requestId+'-'+(index+1);putRow_(s,'tObjetivos',{ID:primary,Objetivo:required(o,'name'),Meta:required(o,'amount'),Fecha:blank_(o.date)?null:serialDate_(o.date)},false);
     } else if (p==='asignacion') {
@@ -879,8 +891,14 @@ function mutationRequests_(before,after,requestId,now,result) {
   }
   const addedObs=newObs.slice(oldObs.length);appendTechnical_(requests,before.tech.observations,oldObs,addedObs);
   addedObs.forEach(row=>audit.push([requestId,now,'observaciones',row[0],'null',canonical_(row)]));
+  ['funds','quotes'].forEach(kind=>{
+    const added=after.technical[kind].slice(before.technical[kind].length);
+    if(added.length&&!before.tech[kind]) fail_('NOT_INITIALIZED','Ejecuta comprobarPaso4 para preparar cotizaciones.');
+    if(added.length) appendTechnical_(requests,before.tech[kind],before.technical[kind],added);
+    added.forEach(row=>audit.push([requestId,now,kind,row[0],'null',canonical_(row)]));
+  });
   appendTechnical_(requests,before.tech.audit,before.technical.audit,audit);
-  appendTechnical_(requests,before.tech.requests,before.technical.requests,[[requestId,hash_(result.operations),now,JSON.stringify(result.response)]]);
+  appendTechnical_(requests,before.tech.requests,before.technical.requests,[[requestId,result.fingerprint||hash_(result.operations),now,JSON.stringify(result.response)]]);
   return requests;
 }
 
@@ -891,14 +909,17 @@ function initializeBackendUnlocked_(config) {
     const state=readState_(config), missing=Object.keys(TECH_SCHEMA_).filter(k=>!state.tech[k]);
     if (!missing.length) return state;
     // Una creación incompleta o un nombre ocupado se investiga; no se sobrescriben hojas ajenas.
-    if (Object.keys(state.tech).length) fail_('SCHEMA_CONFLICT','La configuración técnica está incompleta.');
+    const base=['requests','audit','observations'].filter(k=>state.tech[k]);
+    if (base.length && base.length!==3) fail_('SCHEMA_CONFLICT','La configuración técnica está incompleta.');
     const requests=[], ids=new Set(state.book.sheets.map(s=>s.properties.sheetId));
     const now=new Date().toISOString();
     Object.keys(TECH_SCHEMA_).forEach((kind,i)=>{
+      if(state.tech[kind]) return;
       const [title,headers]=TECH_SCHEMA_[kind];let id=1700000000+i;while(ids.has(id)) id++;ids.add(id);
       requests.push({addSheet:{properties:{sheetId:id,title,hidden:true,gridProperties:{rowCount:1000,columnCount:headers.length,frozenRowCount:1}}}});
       const rows=[headers];
       if(kind==='observations') state.tables.tCuentas.filter(a=>!blank_(a['Saldo real'])).forEach(a=>rows.push(['LEGACY-'+hash_([a.Cuenta,a['Saldo real'],a['Fecha saldo']]).slice(0,24),a.Cuenta,a['Saldo real'],a['Fecha saldo'],null,'desconocido','origen_sin_hora',now]));
+      if(kind==='funds') state.tables.tProductos.filter(p=>validIsin_(p.ID)).forEach(p=>rows.push([p.ID,normalizeIsin_(p.ID),p.Producto,now]));
       requests.push({updateCells:{start:{sheetId:id,rowIndex:0,columnIndex:0},rows:rows.map(row=>({values:row.map(cellValue_)})),fields:'userEnteredValue'}});
     });
     Sheets.Spreadsheets.batchUpdate({requests},config.id);return readState_(config);
@@ -906,7 +927,7 @@ function initializeBackendUnlocked_(config) {
 function diagnostics_(s) {
   const capacityReady=Object.keys(supportRanges_(s)).length===Object.keys(SUPPORT_NAMES_).length&&s.supportSignature===capacitySignature_(s);
   const calculationReady=!(s.calculationErrors||[]).length;
-  return {ok:true,apiVersion:API_VERSION_,environment:'test',modelVersion:3,businessSheetCount:REQUIRED_SHEETS_.length,tableCount:TABLE_SCHEMA_.length,backendReady:Object.keys(s.tech).length===3&&capacityReady&&calculationReady,capacityReady,calculationReady,calculationErrors:s.calculationErrors||[],
+  return {ok:true,apiVersion:API_VERSION_,environment:'test',modelVersion:3,businessSheetCount:REQUIRED_SHEETS_.length,tableCount:TABLE_SCHEMA_.length,backendReady:['requests','audit','observations'].every(k=>s.tech[k])&&capacityReady&&calculationReady,priceReady:Object.keys(TECH_SCHEMA_).every(k=>s.tech[k]),priceProviders:['VDOS / Quefondos'],capacityReady,calculationReady,calculationErrors:s.calculationErrors||[],
     rows:Object.fromEntries(Object.keys(s.tables).map(k=>[k,{used:s.tables[k].length,capacity:s.raw[k].length}])),revision:s.revision,checkedAt:new Date().toISOString()};
 }
 function publicSnapshot_(s) {
@@ -929,14 +950,17 @@ function publicSnapshot_(s) {
   Object.keys(data).forEach(name=>data[name].forEach(row=>s.layout[name].headers.filter(h=>INPUT_SCHEMA_[name].inputs.indexOf(h)<0).forEach(h=>{
     if(typeof row[h]==='string'&&/^#(?:REF!|VALUE!|DIV\/0!|N\/A|NAME\?|NUM!|ERROR!)/.test(row[h])) calculationErrors.push({table:name,key:rowKey_(name,row),column:h,error:row[h]});
   })));
-  return Object.assign(diagnostics_(s),{calculationState:calculationErrors.length?'needs_review':'ready',calculationErrors,settings:Object.fromEntries(Object.keys(s.settings).map(k=>[k,isoDate_(s.settings[k])])),tables:data,observations});
+  return Object.assign(diagnostics_(s),{calculationState:calculationErrors.length?'needs_review':'ready',calculationErrors,settings:Object.fromEntries(Object.keys(s.settings).map(k=>[k,isoDate_(s.settings[k])])),tables:data,observations,prices:priceSnapshot_(s)});
 }
 
 // Único punto remoto de la API. No se admiten IDs de libro o instrucciones de celda.
 function financialApi(request) {
   try {
     const config=authorizedConfig_();
-    if (!object_(request) || JSON.stringify(request).length>60000 || Object.keys(request).some(k=>['action','requestId','expectedRevision','operations'].indexOf(k)<0)) fail_('INVALID_REQUEST');
+    if (!object_(request) || JSON.stringify(request).length>60000 || Object.keys(request).some(k=>['action','requestId','expectedRevision','operations','funds','products'].indexOf(k)<0)) fail_('INVALID_REQUEST');
+    if(request.action==='quotePrices') return quotePrices_(request);
+    if(request.action==='refreshPrices') return refreshPrices_(config,request);
+    if(Object.keys(request).some(k=>['action','requestId','expectedRevision','operations'].indexOf(k)<0)) fail_('INVALID_REQUEST');
     if (request.action==='read'||request.action==='diagnostics') {
       const s=readState_(config);return request.action==='read'?publicSnapshot_(s):diagnostics_(s);
     }
@@ -948,7 +972,7 @@ function financialApi(request) {
     if(request.action!=='transact'||!uuid_(request.requestId)||typeof request.expectedRevision!=='string'||!Array.isArray(request.operations)||request.operations.length<1||request.operations.length>20) fail_('INVALID_REQUEST');
     const requestId=request.requestId.toLowerCase(), fingerprint=hash_(request.operations);
     return locked_(()=>{
-      let before=readState_(config);if(Object.keys(before.tech).length!==3) fail_('NOT_INITIALIZED','Ejecuta comprobarPaso3 desde el editor.');
+      let before=readState_(config);if(!['requests','audit','observations'].every(k=>before.tech[k])) fail_('NOT_INITIALIZED','Ejecuta comprobarPaso3 desde el editor.');
       const stored=before.technical.requests.find(r=>r[0]===requestId);
       // La consulta de solicitudes precede al control de revisión: una respuesta perdida es reintentable.
       if(stored) {
@@ -975,7 +999,7 @@ function financialApi(request) {
   } catch(error) {return apiError_(error);}
 }
 
-// Prepara tres hojas técnicas ocultas y comprueba lectura; no modifica registros financieros.
+// Prepara las hojas técnicas ocultas y comprueba lectura; no modifica registros financieros.
 function comprobarPaso3() {
   let result;try {const config=authorizedConfig_();result=locked_(()=>diagnostics_(prepareCapacity_(config,initializeBackendUnlocked_(config))));} catch(error) {result=apiError_(error);}
   console.log(JSON.stringify(result));return result;
@@ -1162,7 +1186,7 @@ function supportFormulaRequests_(state) {
   requests.push(cellRequest_(calc.properties.sheetId,7,19,capacitySignature_(state)));
   return requests;
 }
-function capacitySignature_(state){return 'API-'+API_VERSION_+'-A1-'+hash_({tables:Object.fromEntries(Object.keys(state.layout).map(k=>[k,state.layout[k].range])),support:Object.fromEntries(Object.entries(supportRanges_(state)).map(([k,v])=>[k,v.range]))});}
+function capacitySignature_(state){return 'API-'+CAPACITY_VERSION_+'-A1-'+hash_({tables:Object.fromEntries(Object.keys(state.layout).map(k=>[k,state.layout[k].range])),support:Object.fromEntries(Object.entries(supportRanges_(state)).map(([k,v])=>[k,v.range]))});}
 function prepareCapacity_(config,before,desired) {
   desired=desired||before;
   let state=before,changed=false;
@@ -1173,4 +1197,175 @@ function prepareCapacity_(config,before,desired) {
   if(support.length){Sheets.Spreadsheets.batchUpdate({requests:support},config.id);state=readState_(config);changed=true;}
   if(changed||state.supportSignature!==capacitySignature_(state)){Sheets.Spreadsheets.batchUpdate({requests:supportFormulaRequests_(state)},config.id);state=readState_(config);}
   return state;
+}
+
+// Paso 4. La resolución depende del ISIN, nunca de una lista de fondos conocidos.
+const PRICE_LIMIT_ = 20;
+const PRICE_PROVIDER_ = 'VDOS / Quefondos';
+const PRICE_BASE_ = 'https://www.quefondos.com/es/fondos/ficha/index.html?isin=';
+
+function validIsin_(value) {
+  if(typeof value!=='string') return false;
+  const isin=value.trim().toUpperCase();if(!/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(isin)) return false;
+  const digits=isin.replace(/[A-Z]/g,c=>String(c.charCodeAt(0)-55));let sum=0;
+  for(let i=digits.length-1,odd=false;i>=0;i--,odd=!odd){let n=Number(digits[i]);if(odd)n*=2;sum+=n>9?n-9:n;}
+  return sum%10===0;
+}
+function normalizeIsin_(value) {
+  if(!validIsin_(value)) fail_('INVALID_ISIN','ISIN inválido: revisa sus doce caracteres y dígito de control.');
+  return value.trim().toUpperCase();
+}
+function fundBinding_(s,product) {
+  const row=s.technical.funds.slice().reverse().find(r=>r[0]===product.ID);
+  if(row) return {product:product.ID,isin:normalizeIsin_(row[1]),referenceName:row[2]};
+  return validIsin_(product.ID)?{product:product.ID,isin:normalizeIsin_(product.ID),referenceName:product.Producto}:null;
+}
+function bindFund_(s,id,isin,name,now) {
+  check_(!!s.tech.funds,'Ejecuta comprobarPaso4 antes de vincular fondos.');text_(name,'Nombre de referencia');
+  const product=s.tables.tProductos.find(p=>p.ID===id), normalized=normalizeIsin_(isin), current=fundBinding_(s,product);
+  check_(!current||current.isin===normalized,'Este producto ya identifica otro ISIN. Crea un producto nuevo para conservar su historial.');
+  if(!current||current.referenceName!==name.trim()) s.technical.funds.push([id,normalized,name.trim(),now]);
+}
+function priceText_(html) {
+  const entities={amp:'&',lt:'<',gt:'>',quot:'"',apos:"'",nbsp:' ',Uacute:'Ú',uacute:'ú',Oacute:'Ó',oacute:'ó',Aacute:'Á',aacute:'á',Eacute:'É',eacute:'é',Iacute:'Í',iacute:'í',ntilde:'ñ',Ntilde:'Ñ',uuml:'ü',Uuml:'Ü',middot:'·',ndash:'–',mdash:'—'};
+  return String(html).replace(/<script\b[\s\S]*?<\/script>/gi,' ').replace(/<style\b[\s\S]*?<\/style>/gi,' ').replace(/<[^>]*>/g,' ')
+    .replace(/&(#x[0-9a-f]+|#\d+|[A-Za-z]+);/gi,(all,e)=>{if(e[0]==='#'){const n=e[1].toLowerCase()==='x'?parseInt(e.slice(2),16):Number(e.slice(1));return n>0&&n<=0x10ffff?String.fromCodePoint(n):' ';}return Object.prototype.hasOwnProperty.call(entities,e)?entities[e]:all;}).replace(/\s+/g,' ').trim();
+}
+function priceFailure_(code,message) { const e=new Error(message);e.priceCode=code;throw e; }
+function verifyFundName_(reference,actual) {
+  text_(reference,'Nombre de referencia');
+  const normalize=v=>v.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ');
+  // El ISIN selecciona la clase. El nombre confirma la identidad; no sirve para elegir otra clase.
+  const r=normalize(reference), a=normalize(actual), currencies=['eur','usd','gbp','chf','jpy','cad','aud'];
+  const currency=currencies.find(c=>new RegExp('\\b'+c+'\\b').test(r));
+  if(currency&&!new RegExp('\\b'+currency+'\\b').test(a)) priceFailure_('NAME_MISMATCH','La moneda indicada en el nombre no coincide con la clase de la fuente.');
+  if(/\b(acc|acumulacion|accumulation)\b/.test(r)&&!/\b(acc|acumulacion|accumulation|cap)\b/.test(a)) priceFailure_('NAME_MISMATCH','La referencia indica acumulación y la fuente no confirma esa clase.');
+  if(/\b(dist|distribucion|income|inc)\b/.test(r)&&!/\b(dist|distribucion|income|inc)\b/.test(a)) priceFailure_('NAME_MISMATCH','La referencia indica distribución y la fuente no confirma esa clase.');
+  const share=r.match(/\b(?:class|clase)\s+([a-z0-9]{1,3})\b/)||r.match(/\b([a-z0-9]{1,3})\s+(?:acc|inc|dist|cap)\b/);
+  if(share&&!new RegExp('\\b'+share[1]+'\\b').test(a)) priceFailure_('NAME_MISMATCH','La clase indicada en la referencia no coincide con la ficha.');
+  const stop=new Set(['fund','funds','fondo','fondos','fi','sicav','de','del','the','a','p','acc','acumulacion','accumulation','inc','dist','distribucion','class','clase','index',...currencies]);
+  const tokens=[...new Set(r.split(' ').filter(t=>t.length>1&&!stop.has(t)))], source=new Set(a.split(' '));
+  if(!tokens.length||tokens.filter(t=>source.has(t)).length<Math.min(2,tokens.length)) priceFailure_('NAME_MISMATCH','El nombre de referencia no confirma el fondo del ISIN. Revisa el nombre, sin cambiar el ISIN por aproximación.');
+}
+function parseFundPage_(html,isin,fetchedAt,today) {
+  const h1=html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i), page=priceText_(html);
+  const identity=page.match(/\bISIN:\s*([A-Z0-9]{12})\b/), heading=h1&&priceText_(h1[1]);
+  if(!identity||!heading) priceFailure_('FUND_NOT_FOUND','La fuente no ofrece una ficha verificable para este ISIN.');
+  if(identity[1]!==isin||heading.indexOf('('+isin+')')<0) priceFailure_('IDENTITY_MISMATCH','La ficha recibida pertenece a otro ISIN.');
+  const blocks=html.split(/<h4\b[^>]*>/i), raw=blocks.find(b=>/^Última valoración\b/i.test(priceText_(b.split(/<\/h4>/i)[0])));
+  if(!raw) priceFailure_('SOURCE_FORMAT','La ficha ha cambiado: falta el bloque de última valoración.');
+  const valuation=priceText_(raw), value=valuation.match(/Valor liquidativo:\s*([\d.,]+)\s+([A-Z]{3})\b/), date=valuation.match(/\bFecha:\s*(\d{2})\/(\d{2})\/(\d{4})\b/), currency=page.match(/\bDivisa:\s*([A-Z]{3})\b/);
+  if(!value||!date||!currency) priceFailure_('SOURCE_FORMAT','La ficha no permite verificar precio, fecha y moneda.');
+  if(value[2]!=='EUR') priceFailure_('UNSUPPORTED_CURRENCY','La fuente no publica este valor liquidativo en EUR.');
+  if(!/^(?:\d+|\d{1,3}(?:\.\d{3})+),\d{1,12}$/.test(value[1])) priceFailure_('INVALID_PRICE','Formato de valor liquidativo no reconocido.');
+  const price=Number(value[1].replace(/\./g,'').replace(',','.')), effectiveDate=date[3]+'-'+date[2]+'-'+date[1];
+  if(!Number.isFinite(price)||price<=0||price>1e12) priceFailure_('INVALID_PRICE','Valor liquidativo fuera de rango.');
+  let serial;try{serial=serialDate_(effectiveDate);}catch(error){priceFailure_('INVALID_DATE','Fecha de valor liquidativo inexistente.');}
+  const ageDays=serialDate_(today)-serial;
+  if(ageDays<0) priceFailure_('FUTURE_DATE','La fecha publicada es posterior al día actual de Madrid.');
+  return {isin,name:heading.split('('+isin+')')[0].trim(),price,date:effectiveDate,quoteCurrency:'EUR',classCurrency:currency[1],conversion:currency[1]==='EUR'?'none':'provider_eur',originalClassPrice:null,provider:PRICE_PROVIDER_,url:PRICE_BASE_+isin,fetchedAt,ageDays,warning:ageDays>4?'PUBLICATION_DELAY':null};
+}
+function fetchFundQuote_(fund) {
+  const checkedAt=new Date().toISOString();let isin;
+  try {
+    isin=normalizeIsin_(fund.isin);text_(fund.referenceName,'Nombre de referencia');
+    const key='nav-v1-'+isin;let cache=null,stored=null;
+    try{cache=CacheService.getScriptCache();stored=cache.get(key);}catch(ignored){}
+    let quote=stored?JSON.parse(stored):null;
+    if(!quote) {
+      const response=UrlFetchApp.fetch(PRICE_BASE_+isin,{method:'get',followRedirects:false,muteHttpExceptions:true});
+      if(response.getResponseCode()!==200) priceFailure_('SOURCE_UNAVAILABLE','La fuente no está disponible (HTTP '+response.getResponseCode()+').');
+      const html=response.getContentText();if(html.length>1500000) priceFailure_('SOURCE_FORMAT','La respuesta de la fuente supera el tamaño admitido.');
+      quote=parseFundPage_(html,isin,checkedAt,Utilities.formatDate(new Date(),'Europe/Madrid','yyyy-MM-dd'));
+      try{if(cache)cache.put(key,JSON.stringify(quote),300);}catch(ignored){}
+    }
+    verifyFundName_(fund.referenceName,quote.name);
+    // La antigüedad se vuelve a calcular incluso al cruzar medianoche con caché.
+    quote.ageDays=serialDate_(Utilities.formatDate(new Date(),'Europe/Madrid','yyyy-MM-dd'))-serialDate_(quote.date);
+    if(quote.ageDays<0) priceFailure_('FUTURE_DATE','Fecha de cotización futura.');
+    quote.warning=quote.ageDays>4?'PUBLICATION_DELAY':null;
+    return Object.assign({ok:true,referenceName:fund.referenceName,checkedAt,cached:!!stored},quote);
+  } catch(error) {
+    return {ok:false,isin:isin||fund.isin,referenceName:fund.referenceName,provider:PRICE_PROVIDER_,url:isin?PRICE_BASE_+isin:null,checkedAt,error:error.priceCode||(['INVALID_ISIN','INVALID_DATA'].indexOf(error.code)>=0?error.code:'SOURCE_UNAVAILABLE'),message:error.priceCode||error.code?error.message:'No se pudo consultar la fuente. Se conserva el último precio válido.'};
+  }
+}
+function quotePrices_(request) {
+  if(Object.keys(request).some(k=>['action','funds'].indexOf(k)<0)||!Array.isArray(request.funds)||!request.funds.length||request.funds.length>PRICE_LIMIT_) fail_('INVALID_REQUEST','Consulta de uno a veinte ISIN y nombres de referencia.');
+  request.funds.forEach(f=>{if(!object_(f)||Object.keys(f).some(k=>['isin','referenceName'].indexOf(k)<0)) fail_('INVALID_REQUEST');});
+  const results=request.funds.map(fetchFundQuote_);
+  return {ok:true,apiVersion:API_VERSION_,environment:'test',readOnly:true,complete:results.every(r=>r.ok),results,checkedAt:new Date().toISOString()};
+}
+function priceSnapshot_(s) {
+  return s.tables.tProductos.map(product=>{
+    const binding=fundBinding_(s,product), latest=s.tables.tPrecios.filter(p=>p.Producto===product.ID).sort((a,b)=>b.Fecha-a.Fecha)[0];
+    const attempt=s.technical.quotes.slice().reverse().find(r=>r[2]===product.ID);
+    return {product:product.ID,name:product.Producto,isin:binding&&binding.isin,referenceName:binding&&binding.referenceName,lastValid:latest?{date:isoDate_(latest.Fecha),price:latest['VL EUR'],source:latest.Fuente}:null,lastAttempt:attempt?{status:attempt[10],checkedAt:attempt[9],detail:JSON.parse(attempt[11])}:null,status:binding?'configured':'ISIN_REQUIRED'};
+  });
+}
+function pricePlan_(state,selected,quotes,requestId,now) {
+  const operations=[], results=[];
+  selected.forEach((item,i)=>{
+    const quote=quotes[i], result=Object.assign({product:item.product,status:'failed'},quote);
+    if(quote.ok) {
+      const date=serialDate_(quote.date), prices=state.tables.tPrecios.filter(p=>p.Producto===item.product), latest=prices.reduce((max,p)=>Math.max(max,p.Fecha),0), same=prices.find(p=>p.Fecha===date);
+      if(date<latest) result.status='older';
+      else if(same&&same['VL EUR']===quote.price) result.status='unchanged';
+      else if(same) {result.status='needs_review';result.error='PRICE_CONFLICT';result.message='Ya existe otro precio para ese producto y fecha. Se conserva el guardado.';}
+      else {result.status='updated';operations.push({process:'precio',product:item.product,date:quote.date,price:quote.price,source:quote.provider+' | '+quote.isin+' | '+quote.url});}
+    }
+    results.push(result);
+  });
+  const applied=applyOperations_(state,operations,requestId,now);
+  results.forEach((r,i)=>applied.state.technical.quotes.push([requestId+'-'+(i+1),requestId,r.product,r.isin||null,r.ok?r.date:null,r.ok?r.price:null,r.classCurrency||null,r.provider||null,r.url||null,r.checkedAt||now,r.status,JSON.stringify(r)]));
+  return {state:applied.state,operations,results};
+}
+function replayPrices_(s,id,fingerprint) {
+  const saved=s.technical.requests.find(r=>r[0]===id);
+  if(!saved) return null;
+  if(saved[1]!==fingerprint) fail_('REQUEST_CONFLICT','La solicitud ya existe con contenido distinto.');
+  return Object.assign(JSON.parse(saved[3]),{replayed:true});
+}
+function refreshPrices_(config,request) {
+  if(Object.keys(request).some(k=>['action','requestId','expectedRevision','products'].indexOf(k)<0)||!uuid_(request.requestId)||typeof request.expectedRevision!=='string'||(request.products!==undefined&&(!Array.isArray(request.products)||!request.products.length||request.products.length>PRICE_LIMIT_||request.products.some(p=>typeof p!=='string')))) fail_('INVALID_REQUEST');
+  const requestId=request.requestId.toLowerCase(), fingerprint=hash_({action:'refreshPrices',products:request.products||null});
+  const prepared=locked_(()=>{
+    const state=readState_(config), replay=replayPrices_(state,requestId,fingerprint);if(replay) return {replay};
+    if(!Object.keys(TECH_SCHEMA_).every(k=>state.tech[k])) fail_('NOT_INITIALIZED','Ejecuta comprobarPaso4 desde el editor.');
+    if(state.revision!==request.expectedRevision) fail_('CONFLICT','El libro cambió; vuelve a leer antes de actualizar precios.');
+    const ids=request.products?request.products.map(p=>resolveReference_(state,'tProductos',p,{},'Producto')):state.tables.tProductos.map(p=>p.ID);
+    if(ids.length>PRICE_LIMIT_||new Set(ids).size!==ids.length) fail_('INVALID_REQUEST','Selecciona hasta veinte productos distintos por actualización.');
+    return {selected:ids.map(id=>{const p=state.tables.tProductos.find(p=>p.ID===id);return fundBinding_(state,p)||{product:id,isin:null,referenceName:p.Producto};})};
+  });
+  if(prepared.replay) return prepared.replay;
+  // La red se consulta fuera del bloqueo. La revisión se verifica otra vez antes del lote.
+  const quotes=prepared.selected.map(f=>f.isin?fetchFundQuote_(f):{ok:false,error:'ISIN_REQUIRED',message:'Vincula el ISIN y nombre de referencia de este producto.',isin:null,referenceName:f.referenceName,checkedAt:new Date().toISOString()});
+  return locked_(()=>{
+    let before=readState_(config);const replay=replayPrices_(before,requestId,fingerprint);if(replay) return replay;
+    if(before.revision!==request.expectedRevision) fail_('CONFLICT','El libro cambió durante la consulta. No se han escrito precios.');
+    const now=new Date().toISOString();let plan=pricePlan_(before,prepared.selected,quotes,requestId,now);
+    before=prepareCapacity_(config,before,plan.state);
+    if(before.revision!==request.expectedRevision) fail_('CONFLICT','El libro cambió durante la preparación. No se han escrito precios.');
+    plan=pricePlan_(before,prepared.selected,quotes,requestId,now);
+    const counts={};plan.results.forEach(r=>counts[r.status]=(counts[r.status]||0)+1);
+    const response={ok:true,apiVersion:API_VERSION_,environment:'test',requestId,revision:plan.state.revision,complete:plan.results.every(r=>r.ok&&r.status!=='needs_review'),results:plan.results,counts,replayed:false,checkedAt:now};
+    const requests=mutationRequests_(before,plan.state,requestId,now,{operations:plan.operations,fingerprint,response});
+    try{Sheets.Spreadsheets.batchUpdate({requests},config.id);}
+    catch(error){try{const replay=replayPrices_(readState_(config),requestId,fingerprint);if(replay)return replay;}catch(ignored){}fail_('WRITE_UNCERTAIN','Consulta o reintenta exactamente la misma solicitud de precios.');}
+    return response;
+  });
+}
+// Pruebas de instalación: comprobar no escribe cotizaciones; actualizar sí guarda VL verificados.
+function comprobarPaso4() {
+  let result;try{const config=authorizedConfig_();result=locked_(()=>{const s=prepareCapacity_(config,initializeBackendUnlocked_(config));return Object.assign(diagnostics_(s),{prices:priceSnapshot_(s)});});}catch(error){result=apiError_(error);}console.log(JSON.stringify(result));return result;
+}
+function probarFuentesPaso4() {
+  let result;try{const config=authorizedConfig_(), s=readState_(config), bindings=s.tables.tProductos.map(p=>fundBinding_(s,p)).filter(Boolean);
+    const results=bindings.map(fetchFundQuote_);result={ok:true,apiVersion:API_VERSION_,environment:'test',readOnly:true,complete:bindings.length>0&&results.every(r=>r.ok),unconfigured:s.tables.tProductos.length-bindings.length,results,checkedAt:new Date().toISOString()};
+  }catch(error){result=apiError_(error);}console.log(JSON.stringify(result));return result;
+}
+function actualizarPreciosPaso4() {
+  let result;try{const config=authorizedConfig_(), results=[];let state=readState_(config), ids=state.tables.tProductos.map(p=>p.ID);
+    for(let i=0;i<ids.length;i+=PRICE_LIMIT_){const response=refreshPrices_(config,{action:'refreshPrices',requestId:Utilities.getUuid(),expectedRevision:state.revision,products:ids.slice(i,i+PRICE_LIMIT_)});results.push(response);state=readState_(config);}
+    result={ok:true,apiVersion:API_VERSION_,environment:'test',complete:results.every(r=>r.complete),batches:results,checkedAt:new Date().toISOString()};
+  }catch(error){result=apiError_(error);}console.log(JSON.stringify(result));return result;
 }

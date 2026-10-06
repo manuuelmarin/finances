@@ -4,8 +4,10 @@ const serial=date=>Math.round((Date.parse(date+'T00:00:00Z')-Date.UTC(1899,11,30
 const clone=value=>JSON.parse(JSON.stringify(value));
 function runtime(options={}) {
   let book={sheets:[],namedRanges:[]}, grid=new Map(), busy=false;
-  const writes=[], logs=[];
+  const writes=[], logs=[], fetches=[], cache=new Map();
   const ctx=vm.createContext({console:{log:text=>logs.push(text)},Utilities:{getUuid:()=>crypto.randomUUID(),DigestAlgorithm:{SHA_256:'sha256'},Charset:{UTF_8:'utf8'},computeDigest:(algo,value)=>[...crypto.createHash(algo).update(value).digest()].map(b=>b>127?b-256:b)},
+    CacheService:{getScriptCache:()=>({get:key=>cache.get(key)||null,put:(key,value)=>cache.set(key,value)})},
+    UrlFetchApp:{fetch:(url,params)=>{fetches.push({url,params});const reply=typeof options.fetch==='function'?options.fetch(url,params):options.responses?.[url];if(!reply)throw Error('No fixture for URL');return {getResponseCode:()=>reply.status||200,getContentText:()=>reply.body};}},
     PropertiesService:{getScriptProperties:()=>({getProperty:name=>({TEST_SPREADSHEET_ID:'fixture-book',OWNER_EMAIL:'owner@example.test',ENVIRONMENT:'test',...options.properties})[name]})},
     Session:{getActiveUser:()=>({getEmail:()=>options.visitor===undefined?'owner@example.test':options.visitor})},
     LockService:{getScriptLock:()=>({tryLock:()=>{if(options.busy||busy)return false;busy=true;return true;},releaseLock:()=>{busy=false;}})},
@@ -63,6 +65,7 @@ function runtime(options={}) {
       return {replies:body.requests.map(()=>({}))};
     }}}
   });
+  ctx.Utilities.formatDate=(date,zone)=>new Intl.DateTimeFormat('en-CA',{timeZone:zone,year:'numeric',month:'2-digit',day:'2-digit'}).format(date);
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../../apps-script/Code.gs'),'utf8'),ctx);
   const schemas=JSON.parse(vm.runInContext('JSON.stringify(TABLE_SCHEMA_)',ctx));
   const inputSchema=JSON.parse(vm.runInContext('JSON.stringify(INPUT_SCHEMA_)',ctx));
@@ -110,7 +113,7 @@ function runtime(options={}) {
     }
     while(rows.length&&!rows.at(-1).length)rows.pop();return rows;
   }
-  return {ctx,writes,logs,options,schemas,inputSchema,
+  return {ctx,writes,logs,fetches,cache,options,schemas,inputSchema,
     state:()=>ctx.readState_({id:'fixture-book'}),
     init:()=>JSON.parse(JSON.stringify(ctx.comprobarPaso3())),
     api:request=>JSON.parse(JSON.stringify(ctx.financialApi(request))),
@@ -118,6 +121,7 @@ function runtime(options={}) {
     formulas:()=>[...grid].filter(([key,cell])=>cell.userEnteredValue&&cell.userEnteredValue.formulaValue&&Number(key.split(':')[0])!==calc).map(([key,cell])=>[key,cell.userEnteredValue.formulaValue]),
     cell:(sheetId,row,col)=>clone(grid.get([sheetId,row,col].join(':'))||{}),
     setInput:(name,index,field,value)=>{const spec=schemas.find(s=>s[1]===name), sheet=book.sheets.find(s=>s.properties.title===spec[0]), r=sheet.tables.find(t=>t.name===name).range;setValue(r.sheetId,r.startRowIndex+1+index,r.startColumnIndex+spec[2].indexOf(field),value);},
+    removeTechnical:title=>{const s=book.sheets.find(s=>s.properties.title===title);book.sheets=book.sheets.filter(s=>s.properties.title!==title);for(const key of grid.keys())if(key.startsWith(s.properties.sheetId+':'))grid.delete(key);},
     book:()=>clone(book)
   };
 }

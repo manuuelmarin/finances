@@ -20,3 +20,10 @@ test('Bridge valida origen, ventana, sesión y llamada antes de ejecutar la func
   for(const changed of [{origin:'https://example.com'},{source:{}},{data:{...valid.data,state:'another'}},{data:{...valid.data,callId:'invalid'}},{data:{...valid.data,type:'other'}}])listener({...valid,...changed});
   assert.equal(calls.length,0);listener(valid);assert.equal(calls.length,1);assert.equal(messages.at(-1).v.type,'finances.api.response.v1');assert.equal(messages.at(-1).origin,'https://manuuelmarin.github.io');
 });
+test('cliente prepara actualización con UUID automático y revisión, y conserva el sobre para reintentos',()=>{
+  const {FinanceApiClient}=require('../web/api.js'),crypto=require('node:crypto');
+  const client=new FinanceApiClient('https://script.google.com/macros/s/fixture-deployment/exec',{crypto});
+  assert.throws(()=>client.preparePrices(['Fondo A']),/READ_REQUIRED/);client.revision='book-revision';
+  const envelope=client.preparePrices(['Fondo A']);assert.equal(envelope.action,'refreshPrices');assert.equal(envelope.expectedRevision,'book-revision');assert.match(envelope.requestId,/^[0-9a-f-]{36}$/);assert.deepEqual(envelope.products,['Fondo A']);
+  const calls=[];client.request=body=>{calls.push(body);return body;};client.submit(envelope);client.submit(envelope);assert.equal(calls[0],calls[1]);client.quotePrices([{isin:'ES0112611001',referenceName:'Azvalor Internacional'}]);assert.equal(calls.at(-1).action,'quotePrices');client.requestStatus(envelope);assert.equal(calls.at(-1).requestId,envelope.requestId);
+});
