@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <base target="_top">
+  <style>
+    body { font: 17px/1.6 system-ui, sans-serif; margin: 0; background: #101b21; color: #e8f1ef; }
+    main { max-width: 440px; margin: 70px auto; padding: 24px; }
+    h1 { font-size: 26px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Finanzas</h1>
+    <p id="status" role="status">Comprobando la lectura…</p>
+    <p>Puedes volver a la página de Finanzas al terminar.</p>
+  </main>
+  <!-- Impresión con escape contextual: no insertar JSON sin escape en un script. -->
+  <div id="payload" hidden><?= payloadJson ?></div>
+  <div id="origin" hidden><?= appOrigin ?></div>
+  <script>
+    'use strict';
+    const payload = JSON.parse(document.getElementById('payload').textContent);
+    const appOrigin = document.getElementById('origin').textContent;
+    const status = document.getElementById('status');
+    try {
+      // HtmlService ejecuta este documento dentro de un iframe de Google.
+      const receiver = window.top.opener;
+      if (!receiver) throw new Error('NO_OPENER');
+      receiver.postMessage(payload, appOrigin);
+      status.textContent = payload.ok
+        ? 'Lectura completada. El resultado se ha enviado a Finanzas.'
+        : 'La lectura no se ha completado. Revisa el aviso en Finanzas.';
+    } catch (error) {
+      status.textContent = 'Vuelve a Finanzas y pulsa de nuevo Comprobar conexión. Si acabas de iniciar sesión en Google, deja esta sesión abierta.';
+    }
+  </script>
+</body>
+</html>
