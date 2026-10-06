@@ -1,0 +1,7 @@
+node_modules
+playwright-report
+test-results
+web/install.html
+web/sw.js
+package-lock.json
+quality-results

@@ -1,36 +1,89 @@
-name: Comprobar y publicar Finanzas
-
+name: Calidad y publicación de Finanzas
 on:
   push:
-    branches: [main]
-    paths: ['web/**', 'apps-script/**', 'tests/**', 'tools/**', '.github/workflows/pages.yml']
+    branches: ['**']
+  pull_request:
   workflow_dispatch:
-
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
 concurrency:
-  group: pages
+  group: finances-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
-  deploy:
+  quality:
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Instalar herramientas fijadas
+        run: npm ci --ignore-scripts
+      - name: Comprobar formato de los commits nuevos
+        if: github.event_name != 'workflow_dispatch'
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BASE: ${{ github.event.before }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            node tools/check-commits.cjs "$PR_BASE" "$PR_HEAD"
+          elif [ -n "$PUSH_BASE" ] && [ "$PUSH_BASE" != "0000000000000000000000000000000000000000" ]; then
+            node tools/check-commits.cjs "$PUSH_BASE" "$GITHUB_SHA"
+          else
+            BASE=$(git merge-base origin/main HEAD)
+            node tools/check-commits.cjs "$BASE" "$GITHUB_SHA"
+          fi
+      - name: Preparar instalador y versión de la PWA
+        run: npm run build
+      - name: Prettier · formato uniforme
+        run: npm run format:check
+      - name: ESLint · errores de código
+        run: npm run lint
+      - name: Pruebas de reglas, canal y recuperación
+        run: npm test
+      - name: Instalar Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Pruebas de navegador en ordenador y móvil
+        run: npm run test:browser
+      - name: Registrar resultados medibles
+        if: always()
+        run: |
+          node tools/quality-summary.cjs >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pruebas-navegador
+          path: |
+            playwright-report/
+            test-results/
+            quality-results/
+          retention-days: 14
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: quality
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v6
-      - name: Preparar código copiable de Google
-        run: node tools/build-install.cjs
-      - name: Comprobar conexión y cálculos
-        run: node --test tests/*.test.cjs
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - run: npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
           path: ./web
-      - name: Publicar en Pages
+      - name: Publicar versión comprobada
         id: deployment
         uses: actions/deploy-pages@v4
