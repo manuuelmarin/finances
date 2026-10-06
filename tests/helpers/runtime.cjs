@@ -3,26 +3,52 @@ const fs=require('node:fs'), path=require('node:path'), vm=require('node:vm'), c
 const serial=date=>Math.round((Date.parse(date+'T00:00:00Z')-Date.UTC(1899,11,30))/86400000);
 const clone=value=>JSON.parse(JSON.stringify(value));
 function runtime(options={}) {
-  let book={sheets:[]}, grid=new Map(), busy=false;
+  let book={sheets:[],namedRanges:[]}, grid=new Map(), busy=false;
   const writes=[], logs=[];
   const ctx=vm.createContext({console:{log:text=>logs.push(text)},Utilities:{getUuid:()=>crypto.randomUUID(),DigestAlgorithm:{SHA_256:'sha256'},Charset:{UTF_8:'utf8'},computeDigest:(algo,value)=>[...crypto.createHash(algo).update(value).digest()].map(b=>b>127?b-256:b)},
     PropertiesService:{getScriptProperties:()=>({getProperty:name=>({TEST_SPREADSHEET_ID:'fixture-book',OWNER_EMAIL:'owner@example.test',ENVIRONMENT:'test',...options.properties})[name]})},
     Session:{getActiveUser:()=>({getEmail:()=>options.visitor===undefined?'owner@example.test':options.visitor})},
     LockService:{getScriptLock:()=>({tryLock:()=>{if(options.busy||busy)return false;busy=true;return true;},releaseLock:()=>{busy=false;}})},
-    Sheets:{Spreadsheets:{get:()=>clone(book),Values:{batchGet:(id,request)=>({valueRanges:request.ranges.map(range=>({values:values(range)}))})},batchUpdate:(body,id)=>{
+    Sheets:{Spreadsheets:{get:()=>clone(book),Values:{batchGet:(id,request)=>({valueRanges:request.ranges.map(range=>({values:values(range,request.valueRenderOption)}))})},batchUpdate:(body,id)=>{
       if(id!=='fixture-book') throw Error('Wrong fixture id');
       writes.push(clone(body));if(options.failBeforeWrite) throw Error('Transport failure before application');
+      if(options.failFormulaMaintenanceOnce&&body.requests.some(r=>r.updateCells?.rows?.some(row=>row.values?.some(c=>c.userEnteredValue?.formulaValue)))){options.failFormulaMaintenanceOnce=false;throw Error('Formula maintenance interrupted before commit');}
       const nextBook=clone(book), nextGrid=new Map(grid);
       body.requests.forEach(request=>{
         if(request.addSheet) nextBook.sheets.push({properties:clone(request.addSheet.properties),tables:[]});
         else if(request.appendDimension) {
           const req=request.appendDimension, sheet=nextBook.sheets.find(s=>s.properties.sheetId===req.sheetId);sheet.properties.gridProperties.rowCount+=req.length;
+        } else if(request.insertDimension) {
+          const q=request.insertDimension.range,delta=q.endIndex-q.startIndex,sheet=nextBook.sheets.find(s=>s.properties.sheetId===q.sheetId);
+          if(q.dimension!=='ROWS')throw Error('Fixture only inserts rows');
+          const moved=[];for(const [key,cell] of nextGrid){const [sid,row,col]=key.split(':').map(Number);if(sid===q.sheetId&&row>=q.startIndex){moved.push([[sid,row+delta,col].join(':'),cell]);nextGrid.delete(key);}}
+          moved.forEach(([key,cell])=>nextGrid.set(key,cell));sheet.properties.gridProperties.rowCount+=delta;
+          [...sheet.tables.map(t=>t.range),...(nextBook.namedRanges||[]).map(n=>n.range).filter(r=>r.sheetId===q.sheetId)].forEach(r=>{if(r.startRowIndex>=q.startIndex){r.startRowIndex+=delta;r.endRowIndex+=delta;}else if(r.endRowIndex>q.startIndex)r.endRowIndex+=delta;});
+        } else if(request.updateTable) {
+          const q=request.updateTable.table,table=nextBook.sheets.flatMap(s=>s.tables).find(t=>t.tableId===q.tableId);table.range=clone(q.range);
+        } else if(request.addNamedRange) {
+          nextBook.namedRanges.push({...clone(request.addNamedRange.namedRange),namedRangeId:'named-'+nextBook.namedRanges.length});
+        } else if(request.updateNamedRange) {
+          const q=request.updateNamedRange.namedRange,n=nextBook.namedRanges.find(n=>n.namedRangeId===q.namedRangeId);n.range=clone(q.range);
+        } else if(request.copyPaste) {
+          const q=request.copyPaste,s=q.source,d=q.destination;
+          for(let r=d.startRowIndex;r<d.endRowIndex;r++)for(let c=d.startColumnIndex;c<d.endColumnIndex;c++){
+            const key=[d.sheetId,r,c].join(':'),source=nextGrid.get([s.sheetId,s.startRowIndex+(r-d.startRowIndex)%(s.endRowIndex-s.startRowIndex),s.startColumnIndex+(c-d.startColumnIndex)%(s.endColumnIndex-s.startColumnIndex)].join(':'))||{},current=clone(nextGrid.get(key)||{});
+            const field={PASTE_FORMAT:'userEnteredFormat',PASTE_DATA_VALIDATION:'dataValidation',PASTE_FORMULA:'userEnteredValue'}[q.pasteType];
+            if(source[field]&&(q.pasteType!=='PASTE_FORMULA'||source[field].formulaValue))current[field]=clone(source[field]);nextGrid.set(key,current);
+          }
+        } else if(request.setDataValidation) {
+          const q=request.setDataValidation,r=q.range;for(let row=r.startRowIndex;row<r.endRowIndex;row++)for(let col=r.startColumnIndex;col<r.endColumnIndex;col++){const key=[r.sheetId,row,col].join(':');nextGrid.set(key,{...nextGrid.get(key),dataValidation:clone(q.rule)});}
         } else if(request.updateCells) {
           const {start,rows}=request.updateCells, sheet=nextBook.sheets.find(s=>s.properties.sheetId===start.sheetId);
           if(!sheet||start.rowIndex+rows.length>sheet.properties.gridProperties.rowCount) throw Error('Invalid grid write');
           rows.forEach((row,ri)=>row.values.forEach((cell,ci)=>{
+            if(cell.userEnteredValue?.formulaValue&&/\bt[A-Za-z]+\[[^\]]+\]/.test(cell.userEnteredValue.formulaValue))throw Error('API parser does not accept imported table references');
             if(start.columnIndex+ci>=sheet.properties.gridProperties.columnCount)throw Error('Invalid column');
-            nextGrid.set([start.sheetId,start.rowIndex+ri,start.columnIndex+ci].join(':'),clone(cell));
+            const key=[start.sheetId,start.rowIndex+ri,start.columnIndex+ci].join(':'),result={...(nextGrid.get(key)||{}),...clone(cell)};
+            if(!cell.userEnteredValue){delete result.userEnteredValue;delete result.effectiveValue;}
+            else if(!cell.userEnteredValue.formulaValue)delete result.effectiveValue;
+            nextGrid.set(key,result);
           }));
         } else if(request.findReplace) {
           const r=request.findReplace;
@@ -44,7 +70,7 @@ function runtime(options={}) {
   const titles=JSON.parse(vm.runInContext('JSON.stringify(REQUIRED_SHEETS_)',ctx));
   book.sheets=titles.map((title,sheetId)=>({properties:{title,sheetId,gridProperties:{rowCount:1000,columnCount:26}},tables:schemas.filter(s=>s[0]===title).map(([,name,headers])=>{
     const [startRowIndex,startColumnIndex,endRowIndex]=positions[name];
-    return {name,range:{sheetId,startRowIndex,startColumnIndex,endRowIndex,endColumnIndex:startColumnIndex+headers.length},columnProperties:headers.map((columnName,columnIndex)=>({columnName,columnIndex}))};
+    return {name,tableId:'table-'+name,range:{sheetId,startRowIndex,startColumnIndex,endRowIndex,endColumnIndex:startColumnIndex+headers.length},columnProperties:headers.map((columnName,columnIndex)=>({columnName,columnIndex}))};
   })}));
   function setValue(sheetId,row,column,value){grid.set([sheetId,row,column].join(':'),{userEnteredValue:typeof value==='number'?{numberValue:value}:value===null?{}:{stringValue:value}});}
   schemas.forEach(([title,name,headers])=>{
@@ -66,15 +92,19 @@ function runtime(options={}) {
     const spec=schemas.find(s=>s[1]===name), sheet=book.sheets.find(s=>s.properties.title===spec[0]), range=sheet.tables.find(t=>t.name===name).range;
     rows.forEach((r,i)=>spec[2].forEach((h,j)=>{if(Object.prototype.hasOwnProperty.call(r,h))setValue(range.sheetId,range.startRowIndex+1+i,range.startColumnIndex+j,r[h]);}));
   });
+  // Plantillas de cálculo nativo. Solo se simula la estructura, no un segundo motor financiero.
+  const calc=book.sheets.find(s=>s.properties.title==='Cálculos').properties.sheetId, invest=book.sheets.find(s=>s.properties.title==='Inversiones').properties.sheetId;
+  const blocks=[[calc,7,1,['ID','Fecha','Tipo'],20,13],[calc,49,1,['Categoría','Gasto propio'],9,5],[calc,65,1,['Mes','Producto','Corte'],18,10],[calc,124,4,['Producto','Valor'],1,2],[invest,126,1,['Mes','Capital invertido','Valor de mercado','Resultado'],18,4],[calc,15,15,['Localización','Gasto propio'],5,2]];
+  blocks.forEach(([id,row,col,headers,count,width])=>{headers.forEach((h,i)=>setValue(id,row,col+i,h));for(let i=1;i<=count;i++)for(let j=0;j<width;j++)grid.set([id,row+i,col+j].join(':'),{userEnteredValue:{formulaValue:'=FIXTURE_SUPPORT('+i+')'},effectiveValue:{numberValue:i}});});
   function col(s){let n=0;for(const c of s)n=n*26+c.charCodeAt(0)-64;return n-1;}
-  function values(range){
+  function values(range,mode){
     const m=range.match(/^'((?:[^']|'')+)'!([A-Z]+)(\d+):([A-Z]+)(\d+)$/);if(!m)throw Error('Unsupported fixture A1 '+range);
     const sheet=book.sheets.find(s=>s.properties.title===m[1].replace(/''/g,"'"));if(!sheet)throw Error('Sheet missing');
     const rows=[];
     for(let row=Number(m[3])-1;row<Number(m[5]);row++){
       const cells=[];for(let c=col(m[2]);c<=col(m[4]);c++){
         const cell=grid.get([sheet.properties.sheetId,row,c].join(':'))||{}, v=cell.effectiveValue||cell.userEnteredValue||{};
-        cells.push(v.numberValue===undefined?(v.stringValue===undefined?'':v.stringValue):v.numberValue);
+        cells.push(mode==='FORMULA'&&cell.userEnteredValue?.formulaValue?cell.userEnteredValue.formulaValue:v.numberValue===undefined?(v.stringValue===undefined?'':v.stringValue):v.numberValue);
       }
       while(cells.length&&cells.at(-1)==='')cells.pop();rows.push(cells);
     }
@@ -85,7 +115,8 @@ function runtime(options={}) {
     init:()=>JSON.parse(JSON.stringify(ctx.comprobarPaso3())),
     api:request=>JSON.parse(JSON.stringify(ctx.financialApi(request))),
     transact:operations=>JSON.parse(JSON.stringify(ctx.financialApi({action:'transact',requestId:crypto.randomUUID(),expectedRevision:ctx.readState_({id:'fixture-book'}).revision,operations}))),
-    formulas:()=>[...grid].filter(([,cell])=>cell.userEnteredValue&&cell.userEnteredValue.formulaValue).map(([key,cell])=>[key,cell.userEnteredValue.formulaValue]),
+    formulas:()=>[...grid].filter(([key,cell])=>cell.userEnteredValue&&cell.userEnteredValue.formulaValue&&Number(key.split(':')[0])!==calc).map(([key,cell])=>[key,cell.userEnteredValue.formulaValue]),
+    cell:(sheetId,row,col)=>clone(grid.get([sheetId,row,col].join(':'))||{}),
     setInput:(name,index,field,value)=>{const spec=schemas.find(s=>s[1]===name), sheet=book.sheets.find(s=>s.properties.title===spec[0]), r=sheet.tables.find(t=>t.name===name).range;setValue(r.sheetId,r.startRowIndex+1+index,r.startColumnIndex+spec[2].indexOf(field),value);},
     book:()=>clone(book)
   };

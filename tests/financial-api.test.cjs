@@ -9,8 +9,8 @@ test('autoriza antes de cualquier lectura o escritura y mantiene el libro solo e
   const r=runtime();assert.equal(r.api({action:'read',spreadsheetId:'another'}).error,'INVALID_REQUEST');
 });
 test('preparación idempotente conserva entradas, fórmulas y observación antigua sin inventar una hora',()=>{
-  const r=runtime(), inputs=JSON.stringify(r.state().tables), formulas=r.formulas();assert.equal(r.init().ok,true);assert.equal(r.init().ok,true);
-  assert.equal(r.writes.length,1);assert.equal(r.book().sheets.length,13);assert.equal(JSON.stringify(r.state().tables),inputs);assert.deepEqual(r.formulas(),formulas);
+  const r=runtime(), inputs=JSON.stringify(r.state().tables);assert.equal(r.init().ok,true);const count=r.writes.length,formulas=r.formulas();assert.equal(r.init().ok,true);
+  assert.equal(r.writes.length,count);assert.equal(r.book().sheets.length,13);assert.equal(JSON.stringify(r.state().tables),inputs);assert.deepEqual(r.formulas(),formulas);
   const result=r.api({action:'read'});assert.equal(result.backendReady,true);assert.equal(result.observations[0].scope,'desconocido');assert.equal(result.observations[0].time,null);assert.equal(result.observations[0].difference,null);
 });
 test('un reintento persistido devuelve los mismos IDs sin duplicar; no se reutiliza la solicitud con otros datos',()=>{
@@ -76,16 +76,34 @@ test('no se escriben columnas calculadas, IDs manuales ni fechas inexistentes; t
   assert.equal(r.transact([{process:'corregir',table:'tProductos',key:{ID:'PRODUCT-A'},changes:{Valor:20}}]).error,'INVALID_DATA');assert.equal(r.transact([{process:'corregir',table:'tMovimientos',key:{ID:id},changes:{ID:'CAMBIO'}}]).error,'INVALID_DATA');
   assert.equal(r.state().tables.tMovimientos[0].Concepto,'=NO_ES_UNA_FORMULA()');
 });
-test('capacidad agotada se rechaza sin escribir fuera de las fórmulas preparadas ni registrar la solicitud',()=>{
-  const r=runtime();r.init();assert.equal(r.transact(Array.from({length:20},()=>expense())).ok,true);
-  const count=r.writes.length;assert.equal(r.transact([expense()]).error,'CAPACITY_REACHED');assert.equal(r.writes.length,count);assert.equal(r.state().tables.tMovimientos.length,20);assert.equal(r.state().technical.requests.length,1);
+test('capacidad agotada amplía tabla y cálculo; el reintento conserva una única solicitud',()=>{
+  const r=runtime();r.init();const cap=r.state().raw.tMovimientos.length;
+  for(let i=0;i<cap;i+=20)assert.equal(r.transact(Array.from({length:Math.min(20,cap-i)},()=>expense())).ok,true);
+  const envelope={action:'transact',requestId:crypto.randomUUID(),expectedRevision:r.state().revision,operations:[expense()]};
+  assert.equal(r.api(envelope).ok,true);assert.equal(r.api(envelope).replayed,true);const s=r.state();assert.equal(s.tables.tMovimientos.length,cap+1);assert.ok(s.raw.tMovimientos.length>cap);
+  const support=s.book.namedRanges.find(n=>n.name==='Finanzas_CalculoMovimientos');assert.equal(support.range.endRowIndex-support.range.startRowIndex,s.raw.tMovimientos.length);assert.equal(s.technical.requests.length,cap/20+1);
 });
 test('objetivos y asignaciones no producen efectivo; anulación no deja asignaciones huérfanas',()=>{
   const r=runtime();r.init();const result=r.transact([{process:'objetivo',name:'Meta ficticia',amount:100,alias:'meta'},{process:'asignacion',goal:'$meta',origin:'Cuenta A',amount:25}]);assert.equal(result.ok,true);assert.equal(r.state().tables.tMovimientos.length,0);
   assert.equal(r.transact([{process:'eliminar',table:'tObjetivos',key:{ID:result.results[0].id}}]).ok,true);assert.equal(r.state().tables.tAsignaciones.length,0);
 });
 test('prueba del editor comprueba altas, reintentos, corrección y anulación, restaurando las entradas',()=>{
-  const r=runtime();const result=JSON.parse(JSON.stringify(r.ctx.probarTransaccionesPaso3()));assert.equal(result.ok,true);assert.equal(result.financialInputsRestored,true);assert.equal(result.duplicatePrevented,true);assert.equal(r.state().tables.tMovimientos.length,0);
+  const r=runtime();const result=JSON.parse(JSON.stringify(r.ctx.probarTransaccionesPaso3()));assert.equal(result.ok,true);assert.equal(result.financialInputsRestored,true);assert.equal(result.duplicatePrevented,true);assert.equal(result.investmentAndCashChecked,true);assert.equal(r.state().tables.tMovimientos.length,0);
+});
+test('una preparación interrumpida se reanuda sin repetir crecimiento ni modificar datos',()=>{
+  const r=runtime({failFormulaMaintenanceOnce:true}),original=JSON.stringify(r.state().tables);assert.equal(r.init().ok,false);
+  const cap=r.state().raw.tMovimientos.length;assert.equal(r.init().ok,true);assert.equal(r.state().raw.tMovimientos.length,cap);assert.equal(JSON.stringify(r.state().tables),original);assert.equal(r.api({action:'diagnostics'}).capacityReady,true);
+});
+test('alta de un producto amplía el histórico mensual y admite lectura sin precio conocido',()=>{
+  const r=runtime();r.init();const result=r.transact([{process:'producto',name:'Fondo ficticio B',account:'Cuenta B',class:'Renta fija',date:'2025-01-01',units:0,cost:0}]);assert.equal(result.ok,true);
+  const state=r.state(),range=state.book.namedRanges.find(n=>n.name==='Finanzas_HistoricoProductos').range;assert.ok(range.endRowIndex-range.startRowIndex>=26);assert.equal(state.tables.tProductos.length,2);assert.equal(state.tables.tPrecios.length,1);
+  const writes=r.writes.flatMap(b=>b.requests).filter(r=>r.updateCells).flatMap(r=>r.updateCells.rows).flatMap(r=>r.values);assert.ok(writes.some(c=>c.userEnteredValue?.formulaValue?.includes('IF(COUNT(I')));assert.equal(writes.some(c=>/\bt[A-Za-z]+\[/.test(c.userEnteredValue?.formulaValue||'')),false);
+});
+test('alta de categoría con tabla llena mantiene referencias y amplía categorías del resumen',()=>{
+  const r=runtime();r.init();const cap=r.state().raw.tCategorias.length;
+  for(let i=2;i<cap;i++)for(const [field,value] of Object.entries({Grupo:'Gastos',Subgrupo:'Otros',Categoría:'Otros',Subcategoría:'Categoría ficticia '+i}))r.setInput('tCategorias',i,field,value);
+  assert.equal(r.transact([{process:'categoria',group:'Gastos',subgroup:'Otros',category:'Nueva categoría',subcategory:'Nuevo subgrupo'}]).ok,true);
+  const state=r.state(),range=state.book.namedRanges.find(n=>n.name==='Finanzas_CalculoCategorias').range;assert.equal(state.tables.tCategorias.length,cap+1);assert.ok(state.raw.tCategorias.length>cap);assert.equal(range.endRowIndex-range.startRowIndex,state.raw.tCategorias.length);
 });
 test('reutilizar un hueco de una anulación devuelve una revisión válida para la siguiente operación',()=>{
   const r=runtime();r.init();const first=r.transact([expense(),expense(),expense()]);assert.equal(first.ok,true);

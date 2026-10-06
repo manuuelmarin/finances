@@ -30,7 +30,7 @@ class FinanceApiClient {
         if (!acceptsConnectionMessage(event,this.session)) return;
         this.runtime.removeEventListener('message',listener);this.runtime.clearTimeout(timer);
         if (!event.data.ok) {this.close();reject(new Error(event.data.error));return;}
-        if (event.data.apiVersion!=='3.0.0') {this.close();reject(new Error('UPDATE_REQUIRED'));return;}
+        if (event.data.apiVersion!=='3.1.0') {this.close();reject(new Error('UPDATE_REQUIRED'));return;}
         this.session.source=event.source;this.session.origin=event.origin;resolve(event.data);
       };
       timer=this.runtime.setTimeout(()=>{this.runtime.removeEventListener('message',listener);this.close();reject(new Error('CONNECTION_TIMEOUT'));},90000);
@@ -77,6 +77,7 @@ if(typeof document!=='undefined') {
     try {
       await client.connect();const result=await client.diagnostics();
       if(!result.ok) output.textContent=result.message||result.error;
+      else if(result.calculationReady===false) output.textContent='Google responde, pero hay fórmulas que necesitan revisión. Consulta el resultado de comprobarPaso3.';
       else if(!result.backendReady) output.textContent='El código responde. Ejecuta comprobarPaso3 en Apps Script para preparar el backend.';
       else output.textContent='Backend verificado: API '+result.apiVersion+' · '+result.tableCount+' tablas · copia de pruebas. No se han registrado operaciones.';
     } catch(error) {output.textContent=error.message==='UPDATE_REQUIRED'?'Actualiza los tres archivos de Apps Script y publica una nueva versión.':error.message==='POPUP_BLOCKED'?'Permite abrir la ventana de Google y repite la comprobación.':'No se ha confirmado la lectura. Revisa la implementación y vuelve a comprobarla.';}

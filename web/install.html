@@ -27,7 +27,7 @@ const TABLE_SCHEMA_ = [
   [&#x27;Configuración&#x27;, &#x27;tCategorias&#x27;, [&#x27;Grupo&#x27;, &#x27;Subgrupo&#x27;, &#x27;Categoría&#x27;, &#x27;Subcategoría&#x27;]]
 ];
 
-const API_VERSION_ = &quot;3.0.0&quot;;
+const API_VERSION_ = &quot;3.1.0&quot;;
 const INPUT_SCHEMA_ = {
   &quot;tMovimientos&quot;: {
     &quot;inputs&quot;: [
@@ -538,15 +538,21 @@ function normalizeRow_(name,row) {
 }
 
 function readState_(config) {
-  const book=Sheets.Spreadsheets.get(config.id,{fields:&#x27;sheets(properties(sheetId,title,gridProperties),tables(name,range,columnProperties(columnIndex,columnName)))&#x27;});
+  const book=Sheets.Spreadsheets.get(config.id,{fields:&#x27;namedRanges,sheets(properties(sheetId,title,gridProperties),tables(tableId,name,range,columnProperties(columnIndex,columnName)))&#x27;});
   checkBookStructure_(book);
   const layout={}, specs=[];
   TABLE_SCHEMA_.forEach(([title,name,headers])=&gt;{
     const sheet=book.sheets.find(s=&gt;s.properties.title===title), table=sheet.tables.find(t=&gt;t.name===name);
     const range=Object.assign({startColumnIndex:0,startRowIndex:0},table.range);
-    layout[name]={title,headers,range}; specs.push({name,range:rangeA1_(title,range)});
+    layout[name]={title,headers,range,tableId:table.tableId}; specs.push({name,range:rangeA1_(title,range)});
   });
   const tech={};
+  const supportSheet=book.sheets.find(s=&gt;s.properties.title===&#x27;Cálculos&#x27;);
+  specs.push({support:true,range:&quot;&#x27;Cálculos&#x27;!T8:T8&quot;});
+  (book.namedRanges||[]).filter(n=&gt;Object.values(SUPPORT_NAMES_).indexOf(n.name)&gt;=0).forEach(n=&gt;{
+    const sheet=book.sheets.find(s=&gt;s.properties.sheetId===n.range.sheetId);
+    specs.push({calculation:n.name,range:rangeA1_(sheet.properties.title,n.range)});
+  });
   Object.keys(TECH_SCHEMA_).forEach(kind=&gt;{
     const [title,headers]=TECH_SCHEMA_[kind], sheet=book.sheets.find(s=&gt;s.properties.title===title);
     if (sheet) {
@@ -556,9 +562,11 @@ function readState_(config) {
   });
   // Configuración técnica y entradas se leen en un mismo lote; nunca desde IDs enviados por el cliente.
   const response=Sheets.Spreadsheets.Values.batchGet(config.id,{ranges:specs.map(s=&gt;s.range),valueRenderOption:&#x27;UNFORMATTED_VALUE&#x27;,dateTimeRenderOption:&#x27;SERIAL_NUMBER&#x27;});
-  const tables={}, raw={}, technical={requests:[],audit:[],observations:[]}; let parameters=[];
+  const tables={}, raw={}, technical={requests:[],audit:[],observations:[]},calculationErrors=[]; let parameters=[], supportSignature=null;
   specs.forEach((spec,i)=&gt;{
     const values=(response.valueRanges[i]||{}).values||[];
+    if(spec.support){supportSignature=(values[0]||[])[0]||null;return;}
+    if(spec.calculation){values.forEach((row,i)=&gt;row.forEach((v,j)=&gt;{if(typeof v===&#x27;string&#x27;&amp;&amp;/^#(?:REF!?|VALUE!?|DIV\/0!?|N\/A|NAME\?|NUM!?|ERROR!?)/.test(v))calculationErrors.push({block:spec.calculation,row:i+1,column:j+1,error:v});}));return;}
     if (spec.tech) {
       const headers=TECH_SCHEMA_[spec.tech][1];
       if (canonical_(values[0]||[])!==canonical_(headers)) fail_(&#x27;SCHEMA_CONFLICT&#x27;,&#x27;Cabecera técnica incompatible.&#x27;);
@@ -583,7 +591,7 @@ function readState_(config) {
   const params=Object.fromEntries(parameters.filter(r=&gt;!blank_(r[0])).map(r=&gt;[r[0],r[1]]));
   if (params[&#x27;Versión modelo&#x27;]!==3 || params.Moneda!==&#x27;EUR&#x27;) fail_(&#x27;INVALID_MODEL&#x27;);
   const settings={}; Object.keys(PARAMETER_NAMES_).forEach(k=&gt;settings[k]=serialDate_(params[PARAMETER_NAMES_[k]]));
-  const state={book,layout,tech,tables,raw,parameters,settings,technical};
+  const state={book,layout,tech,tables,raw,parameters,settings,technical,supportSignature,calculationErrors};
   validateFinancialState_(state);
   state.revision=revision_(state); return state;
 }
@@ -881,7 +889,9 @@ function mutationRequests_(before,after,requestId,now,result) {
 }
 
 function initializeBackend_(config) {
-  return locked_(()=&gt;{
+  return locked_(()=&gt;initializeBackendUnlocked_(config));
+}
+function initializeBackendUnlocked_(config) {
     const state=readState_(config), missing=Object.keys(TECH_SCHEMA_).filter(k=&gt;!state.tech[k]);
     if (!missing.length) return state;
     // Una creación incompleta o un nombre ocupado se investiga; no se sobrescriben hojas ajenas.
@@ -896,10 +906,11 @@ function initializeBackend_(config) {
       requests.push({updateCells:{start:{sheetId:id,rowIndex:0,columnIndex:0},rows:rows.map(row=&gt;({values:row.map(cellValue_)})),fields:&#x27;userEnteredValue&#x27;}});
     });
     Sheets.Spreadsheets.batchUpdate({requests},config.id);return readState_(config);
-  });
 }
 function diagnostics_(s) {
-  return {ok:true,apiVersion:API_VERSION_,environment:&#x27;test&#x27;,modelVersion:3,businessSheetCount:REQUIRED_SHEETS_.length,tableCount:TABLE_SCHEMA_.length,backendReady:Object.keys(s.tech).length===3,
+  const capacityReady=Object.keys(supportRanges_(s)).length===Object.keys(SUPPORT_NAMES_).length&amp;&amp;s.supportSignature===capacitySignature_(s);
+  const calculationReady=!(s.calculationErrors||[]).length;
+  return {ok:true,apiVersion:API_VERSION_,environment:&#x27;test&#x27;,modelVersion:3,businessSheetCount:REQUIRED_SHEETS_.length,tableCount:TABLE_SCHEMA_.length,backendReady:Object.keys(s.tech).length===3&amp;&amp;capacityReady&amp;&amp;calculationReady,capacityReady,calculationReady,calculationErrors:s.calculationErrors||[],
     rows:Object.fromEntries(Object.keys(s.tables).map(k=&gt;[k,{used:s.tables[k].length,capacity:s.raw[k].length}])),revision:s.revision,checkedAt:new Date().toISOString()};
 }
 function publicSnapshot_(s) {
@@ -918,7 +929,7 @@ function publicSnapshot_(s) {
     }
     return {id:row[0],account:row[1],amount:row[2],date:isoDate_(row[3]),time:row[4],scope:row[5],source:row[6],recordedAt:row[7],comparisonStatus:status,difference};
   });
-  const calculationErrors=[];
+  const calculationErrors=(s.calculationErrors||[]).slice();
   Object.keys(data).forEach(name=&gt;data[name].forEach(row=&gt;s.layout[name].headers.filter(h=&gt;INPUT_SCHEMA_[name].inputs.indexOf(h)&lt;0).forEach(h=&gt;{
     if(typeof row[h]===&#x27;string&#x27;&amp;&amp;/^#(?:REF!|VALUE!|DIV\/0!|N\/A|NAME\?|NUM!|ERROR!)/.test(row[h])) calculationErrors.push({table:name,key:rowKey_(name,row),column:h,error:row[h]});
   })));
@@ -941,7 +952,7 @@ function financialApi(request) {
     if(request.action!==&#x27;transact&#x27;||!uuid_(request.requestId)||typeof request.expectedRevision!==&#x27;string&#x27;||!Array.isArray(request.operations)||request.operations.length&lt;1||request.operations.length&gt;20) fail_(&#x27;INVALID_REQUEST&#x27;);
     const requestId=request.requestId.toLowerCase(), fingerprint=hash_(request.operations);
     return locked_(()=&gt;{
-      const before=readState_(config);if(Object.keys(before.tech).length!==3) fail_(&#x27;NOT_INITIALIZED&#x27;,&#x27;Ejecuta comprobarPaso3 desde el editor.&#x27;);
+      let before=readState_(config);if(Object.keys(before.tech).length!==3) fail_(&#x27;NOT_INITIALIZED&#x27;,&#x27;Ejecuta comprobarPaso3 desde el editor.&#x27;);
       const stored=before.technical.requests.find(r=&gt;r[0]===requestId);
       // La consulta de solicitudes precede al control de revisión: una respuesta perdida es reintentable.
       if(stored) {
@@ -949,7 +960,12 @@ function financialApi(request) {
         return Object.assign(JSON.parse(stored[3]),{replayed:true});
       }
       if(before.revision!==request.expectedRevision) fail_(&#x27;CONFLICT&#x27;,&#x27;El libro cambió. Vuelve a leer antes de preparar una nueva operación.&#x27;);
-      const now=new Date().toISOString(), applied=applyOperations_(before,request.operations,requestId,now);
+      const now=new Date().toISOString();let applied=applyOperations_(before,request.operations,requestId,now);
+      // La preparación de estructura no registra operaciones: las entradas, caja y solicitud
+      // siguen en un único lote. Un fallo aquí permite reintentar el mismo sobre sin duplicar.
+      before=prepareCapacity_(config,before,applied.state);
+      if(before.revision!==request.expectedRevision) fail_(&#x27;CONFLICT&#x27;,&#x27;El libro cambió durante la preparación. Vuelve a leer.&#x27;);
+      applied=applyOperations_(before,request.operations,requestId,now);
       const response={ok:true,apiVersion:API_VERSION_,environment:&#x27;test&#x27;,requestId,revision:applied.state.revision,results:applied.results,replayed:false,checkedAt:now};
       const requests=mutationRequests_(before,applied.state,requestId,now,{operations:request.operations,response});
       try { Sheets.Spreadsheets.batchUpdate({requests},config.id); }
@@ -965,11 +981,11 @@ function financialApi(request) {
 
 // Prepara tres hojas técnicas ocultas y comprueba lectura; no modifica registros financieros.
 function comprobarPaso3() {
-  let result;try {result=diagnostics_(initializeBackend_(authorizedConfig_()));} catch(error) {result=apiError_(error);}
+  let result;try {const config=authorizedConfig_();result=locked_(()=&gt;diagnostics_(prepareCapacity_(config,initializeBackendUnlocked_(config))));} catch(error) {result=apiError_(error);}
   console.log(JSON.stringify(result));return result;
 }
 
-// Solo pruebas: crea un gasto ficticio de 0,01 €, comprueba reintento y corrección, y lo anula.
+// Solo pruebas: gasto e inversión ficticios de 0,01 €, reintentos, correcciones y anulaciones.
 // El historial técnico conserva la prueba. Las entradas financieras finales deben quedar idénticas.
 function probarTransaccionesPaso3() {
   let id=null, config, initial, outcome;
@@ -987,13 +1003,180 @@ function probarTransaccionesPaso3() {
     const replay=send(operations,requestId,initial.revision);check_(replay.replayed&amp;&amp;replay.results[0].id===id,&#x27;Reintento duplicado.&#x27;);
     send([{process:&#x27;corregir&#x27;,table:&#x27;tMovimientos&#x27;,key:{ID:id},changes:{Importe:.02}}]);
     send([{process:&#x27;eliminar&#x27;,table:&#x27;tMovimientos&#x27;,key:{ID:id}}]);id=null;
+    const product=initial.tables.tProductos[0];let investmentAndCashChecked=false;
+    if(product){
+      const buyRequest=Utilities.getUuid(),buyOps=[{process:&#x27;compra&#x27;,date:isoDate_(initial.settings.asof),concept:&#x27;PRUEBA TÉCNICA INVERSIÓN — se anula automáticamente&#x27;,product:product.ID,units:.01,price:1,fee:0,location:&#x27;N/A&#x27;}];
+      id=&#x27;MOV-&#x27;+buyRequest.toLowerCase()+&#x27;-1&#x27;;
+      const bought=send(buyOps,buyRequest),tradeId=bought.results[0].id;
+      check_(send(buyOps,buyRequest,bought.revision).replayed,&#x27;Compra duplicada al reintentar.&#x27;);
+      let state=readState_(config),op=state.tables.tOperaciones.find(r=&gt;r.ID===tradeId),cash=state.tables.tMovimientos.find(m=&gt;m.ID===op.Movimiento);
+      check_(cash&amp;&amp;cash.Importe===.01,&#x27;Compra sin efectivo asociado.&#x27;);id=cash.ID;
+      send([{process:&#x27;corregir&#x27;,table:&#x27;tOperaciones&#x27;,key:{ID:tradeId},changes:{Precio:2}}]);
+      state=readState_(config);check_(state.tables.tMovimientos.find(m=&gt;m.ID===id).Importe===.02,&#x27;Corrección sin actualización de efectivo.&#x27;);
+      send([{process:&#x27;eliminar&#x27;,table:&#x27;tOperaciones&#x27;,key:{ID:tradeId}}]);id=null;
+      send([{process:&#x27;fechas&#x27;,start:isoDate_(initial.settings.start),asof:isoDate_(initial.settings.asof),valuation:isoDate_(initial.settings.valuation)}]);
+      investmentAndCashChecked=true;
+    }
     const final=readState_(config);check_(canonical_(initial.tables)===canonical_(final.tables)&amp;&amp;canonical_(initial.settings)===canonical_(final.settings),&#x27;Entradas financieras distintas después de la prueba.&#x27;);
-    outcome={ok:true,environment:&#x27;test&#x27;,apiVersion:API_VERSION_,duplicatePrevented:true,correctionChecked:true,cancellationChecked:true,financialInputsRestored:true,checkedAt:new Date().toISOString()};
+    outcome={ok:true,environment:&#x27;test&#x27;,apiVersion:API_VERSION_,duplicatePrevented:true,correctionChecked:true,cancellationChecked:true,investmentAndCashChecked,financialInputsRestored:true,checkedAt:new Date().toISOString()};
   } catch(error) {
     outcome=apiError_(error);
     if(id&amp;&amp;config) {try {const cleanup=financialApi({action:&#x27;transact&#x27;,requestId:Utilities.getUuid(),expectedRevision:readState_(config).revision,operations:[{process:&#x27;eliminar&#x27;,table:&#x27;tMovimientos&#x27;,key:{ID:id}}]});outcome.cleanupConfirmed=cleanup.ok;if(!cleanup.ok) outcome.testMovementToReview=id;}catch(ignored){outcome.cleanupConfirmed=false;outcome.testMovementToReview=id;}}
   }
   console.log(JSON.stringify(outcome));return outcome;
+}
+
+// Crecimiento del libro nativo: conserva las tablas, fórmulas, gráficos y validaciones.
+const SUPPORT_NAMES_={movements:&#x27;Finanzas_CalculoMovimientos&#x27;,categories:&#x27;Finanzas_CalculoCategorias&#x27;,history:&#x27;Finanzas_HistoricoProductos&#x27;,products:&#x27;Finanzas_GraficoProductos&#x27;,months:&#x27;Finanzas_MesesInversiones&#x27;,cities:&#x27;Finanzas_GraficoCiudades&#x27;};
+function supportRanges_(state) {
+  const named=state.book.namedRanges||[], out={};
+  Object.keys(SUPPORT_NAMES_).forEach(k=&gt;{const found=named.filter(n=&gt;n.name===SUPPORT_NAMES_[k]);if(found.length&gt;1)fail_(&#x27;SCHEMA_CONFLICT&#x27;);if(found.length)out[k]=found[0];});
+  return out;
+}
+function discoverSupport_(config,state) {
+  const existing=supportRanges_(state);if(Object.keys(existing).length===Object.keys(SUPPORT_NAMES_).length)return [];
+  const calc=state.book.sheets.find(s=&gt;s.properties.title===&#x27;Cálculos&#x27;), invest=state.book.sheets.find(s=&gt;s.properties.title===&#x27;Inversiones&#x27;);
+  const specs=[{sheet:calc,range:&quot;&#x27;Cálculos&#x27;!B1:Q&quot;+Math.min(calc.properties.gridProperties.rowCount,2000)}, {sheet:invest,range:&quot;&#x27;Inversiones&#x27;!B1:E&quot;+Math.min(invest.properties.gridProperties.rowCount,2000)}];
+  const data=Sheets.Spreadsheets.Values.batchGet(config.id,{ranges:specs.map(s=&gt;s.range),valueRenderOption:&#x27;FORMULA&#x27;}).valueRanges;
+  const definitions={movements:[0,0,[&#x27;ID&#x27;,&#x27;Fecha&#x27;,&#x27;Tipo&#x27;],13],categories:[0,0,[&#x27;Categoría&#x27;,&#x27;Gasto propio&#x27;],5],history:[0,0,[&#x27;Mes&#x27;,&#x27;Producto&#x27;,&#x27;Corte&#x27;],10],products:[0,3,[&#x27;Producto&#x27;,&#x27;Valor&#x27;],2],months:[1,0,[&#x27;Mes&#x27;,&#x27;Capital invertido&#x27;,&#x27;Valor de mercado&#x27;,&#x27;Resultado&#x27;],4],cities:[0,14,[&#x27;Localización&#x27;,&#x27;Gasto propio&#x27;],2]};
+  return Object.keys(definitions).filter(k=&gt;!existing[k]).map(kind=&gt;{
+    const [index,column,headers,width]=definitions[kind], rows=data[index].values||[];
+    const matches=[];rows.forEach((r,i)=&gt;{if(headers.every((h,j)=&gt;r[column+j]===h))matches.push(i);});
+    if(matches.length!==1)fail_(&#x27;SCHEMA_CONFLICT&#x27;,&#x27;No se localiza de forma única &#x27;+kind+&#x27;.&#x27;);
+    const start=matches[0]+1;let end=start;while(end&lt;rows.length&amp;&amp;!blank_((rows[end]||[])[column]))end++;
+    check_(end&gt;start,&#x27;Bloque de cálculo sin plantilla.&#x27;);
+    return {addNamedRange:{namedRange:{name:SUPPORT_NAMES_[kind],range:{sheetId:specs[index].sheet.properties.sheetId,startRowIndex:start,endRowIndex:end,startColumnIndex:column+1,endColumnIndex:column+1+width}}}};
+  });
+}
+function growBusinessRequests_(state,desired,minimum) {
+  const groups=new Map();
+  Object.keys(INPUT_SCHEMA_).forEach(name=&gt;{
+    const meta=state.layout[name], cap=state.raw[name].length, needed=Math.max(desired.tables[name].length,minimum||0);
+    if(needed&lt;=cap)return;
+    const delta=Math.ceil((needed-cap)/100)*100, key=meta.range.sheetId+&#x27;:&#x27;+(meta.range.endRowIndex-1);
+    groups.set(key,Math.max(groups.get(key)||0,delta));
+  });
+  const requests=[];
+  [...groups].map(([key,delta])=&gt;({id:Number(key.split(&#x27;:&#x27;)[0]),at:Number(key.split(&#x27;:&#x27;)[1]),delta})).sort((a,b)=&gt;a.id-b.id||b.at-a.at).forEach(g=&gt;{
+    requests.push({insertDimension:{range:{sheetId:g.id,dimension:&#x27;ROWS&#x27;,startIndex:g.at,endIndex:g.at+g.delta},inheritFromBefore:true}});
+    Object.keys(INPUT_SCHEMA_).forEach(name=&gt;{
+      const m=state.layout[name],r=m.range;if(r.sheetId!==g.id||g.at&lt;=r.startRowIndex||g.at&gt;=r.endRowIndex)return;
+      const source={sheetId:g.id,startRowIndex:g.at+g.delta,endRowIndex:g.at+g.delta+1,startColumnIndex:r.startColumnIndex||0,endColumnIndex:r.endColumnIndex};
+      const destination=Object.assign({},source,{startRowIndex:g.at,endRowIndex:g.at+g.delta});
+      [&#x27;PASTE_FORMAT&#x27;,&#x27;PASTE_DATA_VALIDATION&#x27;].forEach(pasteType=&gt;requests.push({copyPaste:{source,destination,pasteType,pasteOrientation:&#x27;NORMAL&#x27;}}));
+      m.headers.filter(h=&gt;INPUT_SCHEMA_[name].inputs.indexOf(h)&lt;0).forEach(h=&gt;{
+        const col=(r.startColumnIndex||0)+m.headers.indexOf(h);
+        requests.push({copyPaste:{source:Object.assign({},source,{startColumnIndex:col,endColumnIndex:col+1}),destination:Object.assign({},destination,{startColumnIndex:col,endColumnIndex:col+1}),pasteType:&#x27;PASTE_FORMULA&#x27;,pasteOrientation:&#x27;NORMAL&#x27;}});
+      });
+      // Rango explícito: también funciona si el servicio no autoamplía la tabla.
+      check_(!!m.tableId,&#x27;Tabla nativa sin identificador.&#x27;);
+      requests.push({updateTable:{table:{tableId:m.tableId,range:Object.assign({},r,{endRowIndex:r.endRowIndex+g.delta})},fields:&#x27;range&#x27;}});
+    });
+  });
+  return requests;
+}
+function monthSpan_(s) {
+  const bases=s.tables.tProductos.map(p=&gt;p[&#x27;Fecha base&#x27;]);
+  const first=new Date(Date.UTC(1899,11,30)+Math.min(s.settings.valuation,...bases)*86400000), last=new Date(Date.UTC(1899,11,30)+s.settings.valuation*86400000);
+  return Math.max(1,(last.getUTCFullYear()-first.getUTCFullYear())*12+last.getUTCMonth()-first.getUTCMonth()+1);
+}
+function growSupportRequests_(state,desired) {
+  const ranges=supportRanges_(state), needed={movements:state.raw.tMovimientos.length,categories:state.raw.tCategorias.length,products:state.raw.tProductos.length,history:Math.max(1,desired.tables.tProductos.length)*monthSpan_(desired),months:monthSpan_(desired),cities:ranges.cities.range.endRowIndex-ranges.cities.range.startRowIndex};
+  const requests=[];
+  Object.keys(ranges).map(k=&gt;({k,r:ranges[k].range,delta:needed[k]-(ranges[k].range.endRowIndex-ranges[k].range.startRowIndex)})).filter(g=&gt;g.delta&gt;0).sort((a,b)=&gt;a.r.sheetId-b.r.sheetId||b.r.endRowIndex-a.r.endRowIndex).forEach(g=&gt;{
+    const r=g.r,at=r.endRowIndex-1;
+    requests.push({insertDimension:{range:{sheetId:r.sheetId,dimension:&#x27;ROWS&#x27;,startIndex:at,endIndex:at+g.delta},inheritFromBefore:true}});
+    const source=Object.assign({},r,{startRowIndex:at+g.delta,endRowIndex:at+g.delta+1}),destination=Object.assign({},r,{startRowIndex:at,endRowIndex:at+g.delta});
+    requests.push({copyPaste:{source,destination,pasteType:&#x27;PASTE_FORMAT&#x27;,pasteOrientation:&#x27;NORMAL&#x27;}});
+    requests.push({updateNamedRange:{namedRange:{namedRangeId:ranges[g.k].namedRangeId,range:Object.assign({},r,{endRowIndex:r.endRowIndex+g.delta})},fields:&#x27;range&#x27;}});
+  });
+  return requests;
+}
+function formulaBlock_(range,rows,state) {return {updateCells:{start:{sheetId:range.sheetId,rowIndex:range.startRowIndex,columnIndex:range.startColumnIndex},rows:rows.map(row=&gt;({values:row.map(formulaValue=&gt;({userEnteredValue:{formulaValue:state?nativeFormula_(state,formulaValue):formulaValue}}))})),fields:&#x27;userEnteredValue&#x27;}};}
+function nativeFormula_(state,formula) {
+  // El parser de escritura por API requiere A1 aunque la importación conserve
+  // referencias de tabla. Las coordenadas se obtienen de las tablas actuales.
+  return formula.replace(/(t[A-Za-z]+)\[([^\]]+)\]/g,(whole,name,header)=&gt;{
+    const meta=state.layout[name];if(!meta)return whole;
+    const index=meta.headers.indexOf(header);check_(index&gt;=0,&#x27;Columna calculada desconocida.&#x27;);
+    const r=meta.range,col=columnA1_((r.startColumnIndex||0)+index);
+    return &quot;&#x27;&quot;+meta.title.replace(/&#x27;/g,&quot;&#x27;&#x27;&quot;)+&quot;&#x27;!$&quot;+col+&#x27;$&#x27;+(r.startRowIndex+2)+&#x27;:$&#x27;+col+&#x27;$&#x27;+r.endRowIndex;
+  });
+}
+function supportFormulaRequests_(state) {
+  const blocks=supportRanges_(state), requests=[];
+  const fill=(kind,make)=&gt;{const range=blocks[kind].range,rows=[];for(let i=range.startRowIndex;i&lt;range.endRowIndex;i++)rows.push(make(i+1,i-range.startRowIndex));requests.push(formulaBlock_(range,rows,state));};
+  const mr=blocks.movements.range, md=state.layout.tMovimientos.range.startRowIndex+2;
+  fill(&#x27;movements&#x27;,(r,index)=&gt;{
+    const source=md+index,guard=&#x27;Movimientos!B&#x27;+source+&#x27;=&quot;&quot;&#x27;;
+    const columns=[&#x27;B&#x27;,&#x27;C&#x27;,&#x27;D&#x27;,&#x27;F&#x27;];const out=columns.map(c=&gt;&#x27;=IF(OR(&#x27;+guard+&#x27;;Movimientos!&#x27;+c+source+&#x27;=&quot;&quot;);&quot;&quot;;Movimientos!&#x27;+c+source+&#x27;)&#x27;);
+    out.push(&#x27;=IF(E&#x27;+r+&#x27;=&quot;&quot;;&quot;&quot;;INDEX(tCategorias[Categoría];MATCH(E&#x27;+r+&#x27;;tCategorias[Subcategoría];0)))&#x27;);
+    [&#x27;G&#x27;,&#x27;H&#x27;,&#x27;I&#x27;,&#x27;J&#x27;].forEach(c=&gt;out.push(&#x27;=IF(OR(&#x27;+guard+&#x27;;Movimientos!&#x27;+c+source+&#x27;=&quot;&quot;);&quot;&quot;;Movimientos!&#x27;+c+source+&#x27;)&#x27;));
+    out.push(&#x27;=IF(B&#x27;+r+&#x27;=&quot;&quot;;&quot;&quot;;IF(OR(D&#x27;+r+&#x27;=&quot;Ingreso&quot;;D&#x27;+r+&#x27;=&quot;Rendimiento inversión&quot;);I&#x27;+r+&#x27;;0))&#x27;,
+      &#x27;=IF(B&#x27;+r+&#x27;=&quot;&quot;;&quot;&quot;;IF(D&#x27;+r+&#x27;=&quot;Gasto&quot;;I&#x27;+r+&#x27;-J&#x27;+r+&#x27;;IF(D&#x27;+r+&#x27;=&quot;Devolución gasto&quot;;-I&#x27;+r+&#x27;+J&#x27;+r+&#x27;;0)))&#x27;,
+      &#x27;=IF(B&#x27;+r+&#x27;=&quot;&quot;;&quot;&quot;;IF(D&#x27;+r+&#x27;=&quot;Gasto&quot;;J&#x27;+r+&#x27;;IF(D&#x27;+r+&#x27;=&quot;Cobro compartido&quot;;-I&#x27;+r+&#x27;;IF(D&#x27;+r+&#x27;=&quot;Devolución gasto&quot;;-J&#x27;+r+&#x27;;0))))&#x27;,
+      &#x27;=IF(B&#x27;+r+&#x27;=&quot;&quot;;&quot;&quot;;IF(G&#x27;+r+&#x27;&lt;&gt;&quot;&quot;;G&#x27;+r+&#x27;;H&#x27;+r+&#x27;))&#x27;);return out;
+  });
+  const ref=c=&gt;&quot;&#x27;Cálculos&#x27;!$&quot;+c+&#x27;$&#x27;+(mr.startRowIndex+1)+&#x27;:$&#x27;+c+&#x27;$&#x27;+mr.endRowIndex;
+  const city=blocks.cities.range,move=state.layout.tMovimientos.range,loc=&quot;&#x27;Movimientos&#x27;!$K$&quot;+(move.startRowIndex+2)+&#x27;:$K$&#x27;+move.endRowIndex,cityRows=[];
+  for(let r=city.startRowIndex+1;r&lt;=city.endRowIndex;r++){
+    const label=columnA1_(city.startColumnIndex)+r,sum=&#x27;SUMIFS(&#x27;+ref(&#x27;L&#x27;)+&#x27;;&#x27;+ref(&#x27;C&#x27;)+&#x27;;&quot;&gt;=&quot;&amp;$C$4;&#x27;+ref(&#x27;C&#x27;)+&#x27;;&quot;&lt;&quot;&amp;$D$4;&#x27;+loc+&#x27;;&#x27;+label;
+    cityRows.push([&#x27;=IF(&#x27;+label+&#x27;=&quot;&quot;;&quot;&quot;;IF(\&#x27;Resumen financiero\&#x27;!$Q$4=&quot;Todas&quot;;&#x27;+sum+&#x27;);&#x27;+sum+&#x27;;&#x27;+ref(&#x27;N&#x27;)+&#x27;;\&#x27;Resumen financiero\&#x27;!$Q$4)))&#x27;]);
+  }
+  requests.push(formulaBlock_(Object.assign({},city,{startColumnIndex:city.startColumnIndex+1}),cityRows,state));
+  fill(&#x27;categories&#x27;,(r,index)=&gt;{
+    const label=&#x27;=IFERROR(INDEX(UNIQUE(FILTER(tCategorias[Categoría];tCategorias[Grupo]=&quot;Gastos&quot;));&#x27;+(index+1)+&#x27;);&quot;&quot;)&#x27;;
+    const sum=&#x27;SUMIFS(&#x27;+ref(&#x27;L&#x27;)+&#x27;;&#x27;+ref(&#x27;F&#x27;)+&#x27;;B&#x27;+r+&#x27;;&#x27;+ref(&#x27;C&#x27;)+&#x27;;&quot;&gt;=&quot;&amp;$C$4;&#x27;+ref(&#x27;C&#x27;)+&#x27;;&quot;&lt;&quot;&amp;$D$4&#x27;;
+    return [label,&#x27;=IF(B&#x27;+r+&#x27;=&quot;&quot;;&quot;&quot;;IF(\&#x27;Resumen financiero\&#x27;!$Q$4=&quot;Todas&quot;;&#x27;+sum+&#x27;);&#x27;+sum+&#x27;;&#x27;+ref(&#x27;N&#x27;)+&#x27;;\&#x27;Resumen financiero\&#x27;!$Q$4)))&#x27;,&#x27;=&quot;&quot;&#x27;,label,&#x27;=IF(COUNT(C&#x27;+r+&#x27;)=0;&quot;&quot;;MAX(0;C&#x27;+r+&#x27;))&#x27;];
+  });
+  fill(&#x27;products&#x27;,(r,index)=&gt;[&#x27;=IFERROR(INDEX(FILTER(tProductos[Producto];tProductos[ID]&lt;&gt;&quot;&quot;);&#x27;+(index+1)+&#x27;);&quot;&quot;)&#x27;,&#x27;=IF(E&#x27;+r+&#x27;=&quot;&quot;;&quot;&quot;;INDEX(tProductos[Valor];MATCH(E&#x27;+r+&#x27;;tProductos[Producto];0)))&#x27;]);
+  const first=&#x27;DATE(YEAR(IF(COUNT(tProductos[Fecha base])=0;\&#x27;Configuración\&#x27;!$C$8;MIN(tProductos[Fecha base])));MONTH(IF(COUNT(tProductos[Fecha base])=0;\&#x27;Configuración\&#x27;!$C$8;MIN(tProductos[Fecha base])));1)&#x27;;
+  fill(&#x27;history&#x27;,(r,index)=&gt;{
+    const date=&#x27;EDATE(&#x27;+first+&#x27;;INT(&#x27;+index+&#x27;/MAX(1;COUNTA(tProductos[ID]))))&#x27;;
+    const base=h=&gt;&#x27;INDEX(tProductos[&#x27;+h+&#x27;];MATCH(C&#x27;+r+&#x27;;tProductos[ID];0))&#x27;;
+    const sum=(column,type)=&gt;&#x27;SUMIFS(tOperaciones[&#x27;+column+&#x27;];tOperaciones[Producto];C&#x27;+r+&#x27;;tOperaciones[Fecha];&quot;&gt;=&quot;&amp;&#x27;+base(&#x27;Fecha base&#x27;)+&#x27;;tOperaciones[Fecha];&quot;&lt;=&quot;&amp;D&#x27;+r+&#x27;;tOperaciones[Tipo];&quot;&#x27;+type+&#x27;&quot;)&#x27;;
+    return [&#x27;=IF(&#x27;+date+&#x27;&gt;EOMONTH(\&#x27;Configuración\&#x27;!$C$8;0);&quot;&quot;;&#x27;+date+&#x27;)&#x27;,
+      &#x27;=IF(B&#x27;+r+&#x27;=&quot;&quot;;&quot;&quot;;IFERROR(INDEX(FILTER(tProductos[ID];tProductos[ID]&lt;&gt;&quot;&quot;);MOD(&#x27;+index+&#x27;;MAX(1;COUNTA(tProductos[ID])))+1);&quot;&quot;))&#x27;,
+      &#x27;=IF(C&#x27;+r+&#x27;=&quot;&quot;;&quot;&quot;;MIN(EOMONTH(B&#x27;+r+&#x27;;0);\&#x27;Configuración\&#x27;!$C$8))&#x27;,
+      &#x27;=IF(C&#x27;+r+&#x27;=&quot;&quot;;0;IF(D&#x27;+r+&#x27;&lt;&#x27;+base(&#x27;Fecha base&#x27;)+&#x27;;0;1))&#x27;,
+      &#x27;=IF(E&#x27;+r+&#x27;=0;&quot;&quot;;&#x27;+base(&#x27;Unidades base&#x27;)+&#x27;+&#x27;+sum(&#x27;Participaciones&#x27;,&#x27;Compra&#x27;)+&#x27;-&#x27;+sum(&#x27;Participaciones&#x27;,&#x27;Venta&#x27;)+&#x27;)&#x27;,
+      &#x27;=IF(E&#x27;+r+&#x27;=0;&quot;&quot;;&#x27;+base(&#x27;Coste base&#x27;)+&#x27;+&#x27;+sum(&#x27;Importe&#x27;,&#x27;Compra&#x27;)+&#x27;-&#x27;+sum(&#x27;Importe&#x27;,&#x27;Venta&#x27;)+&#x27;)&#x27;,
+      &#x27;=IF(E&#x27;+r+&#x27;=0;&quot;&quot;;MAXIFS(tPrecios[Fecha];tPrecios[Producto];C&#x27;+r+&#x27;;tPrecios[Fecha];&quot;&lt;=&quot;&amp;D&#x27;+r+&#x27;))&#x27;,
+      &#x27;=IF(OR(E&#x27;+r+&#x27;=0;H&#x27;+r+&#x27;=0);&quot;&quot;;SUMIFS(tPrecios[VL EUR];tPrecios[Producto];C&#x27;+r+&#x27;;tPrecios[Fecha];H&#x27;+r+&#x27;))&#x27;,
+      &#x27;=IF(E&#x27;+r+&#x27;=0;&quot;&quot;;IF(F&#x27;+r+&#x27;=0;0;IF(COUNT(I&#x27;+r+&#x27;)=0;&quot;&quot;;F&#x27;+r+&#x27;*I&#x27;+r+&#x27;)))&#x27;,
+      &#x27;=IF(COUNT(J&#x27;+r+&#x27;)=0;0;1)&#x27;];
+  });
+  const hr=blocks.history.range, hs=hr.startRowIndex+1,he=hr.endRowIndex;
+  const historyRef=c=&gt;&quot;&#x27;Cálculos&#x27;!$&quot;+c+&#x27;$&#x27;+hs+&#x27;:$&#x27;+c+&#x27;$&#x27;+he;
+  fill(&#x27;months&#x27;,(r,index)=&gt;{
+    const date=&#x27;EDATE(&#x27;+first+&#x27;;&#x27;+index+&#x27;)&#x27;,blank=date+&#x27;&gt;EOMONTH(\&#x27;Configuración\&#x27;!$C$8;0)&#x27;;
+    const total=(value,coverage)=&gt;&#x27;=IF(&#x27;+blank+&#x27;;&quot;&quot;;IF(Inversiones!$D$4=&quot;Todos&quot;;IF(SUMIFS(&#x27;+historyRef(coverage)+&#x27;;&#x27;+historyRef(&#x27;B&#x27;)+&#x27;;&#x27;+date+&#x27;)=COUNTA(tProductos[ID]);SUMIFS(&#x27;+historyRef(value)+&#x27;;&#x27;+historyRef(&#x27;B&#x27;)+&#x27;;&#x27;+date+&#x27;);&quot;&quot;);IF(SUMIFS(&#x27;+historyRef(coverage)+&#x27;;&#x27;+historyRef(&#x27;B&#x27;)+&#x27;;&#x27;+date+&#x27;;&#x27;+historyRef(&#x27;C&#x27;)+&#x27;;\&#x27;Cálculos\&#x27;!$I$4)=1;SUMIFS(&#x27;+historyRef(value)+&#x27;;&#x27;+historyRef(&#x27;B&#x27;)+&#x27;;&#x27;+date+&#x27;;&#x27;+historyRef(&#x27;C&#x27;)+&#x27;;\&#x27;Cálculos\&#x27;!$I$4);&quot;&quot;)))&#x27;;
+    return [&#x27;=IF(&#x27;+blank+&#x27;;&quot;&quot;;TEXT(&#x27;+date+&#x27;;&quot;mmm yyyy&quot;))&#x27;,total(&#x27;G&#x27;,&#x27;E&#x27;),total(&#x27;J&#x27;,&#x27;K&#x27;),&#x27;=IF(COUNT(C&#x27;+r+&#x27;;D&#x27;+r+&#x27;)&lt;2;&quot;&quot;;D&#x27;+r+&#x27;-C&#x27;+r+&#x27;)&#x27;];
+  });
+  const calc=state.book.sheets.find(s=&gt;s.properties.title===&#x27;Cálculos&#x27;), cr=calc.properties.gridProperties.rowCount;
+  const movement=state.layout.tMovimientos.range;
+  requests.push({setDataValidation:{range:{sheetId:movement.sheetId,startRowIndex:movement.startRowIndex+1,endRowIndex:movement.endRowIndex,startColumnIndex:movement.startColumnIndex+10,endColumnIndex:movement.startColumnIndex+11},rule:{condition:{type:&#x27;CUSTOM_FORMULA&#x27;,values:[{userEnteredValue:&#x27;=OR(L&#x27;+(movement.startRowIndex+2)+&#x27;=&quot;&quot;;AND($D&#x27;+(movement.startRowIndex+2)+&#x27;=&quot;Gasto&quot;;OR(L&#x27;+(movement.startRowIndex+2)+&#x27;=&quot;Sí&quot;;L&#x27;+(movement.startRowIndex+2)+&#x27;=&quot;No&quot;)))&#x27;}]},strict:true,inputMessage:&#x27;Sí o No solo en gastos.&#x27;}}});
+  // Los selectores nuevos usan columnas vacías, lejos del gráfico por ciudad.
+  const selectors={ListaFiltroCuentas:[19,&#x27;=&quot;Todas&quot;&#x27;,&#x27;=IFERROR(FILTER(tCuentas[Cuenta];tCuentas[Cuenta]&lt;&gt;&quot;&quot;);&quot;&quot;)&#x27;],ListaFiltroProductos:[20,&#x27;=&quot;Todos&quot;&#x27;,&#x27;=IFERROR(FILTER(tProductos[Producto];tProductos[ID]&lt;&gt;&quot;&quot;);&quot;&quot;)&#x27;]};
+  Object.keys(selectors).forEach(name=&gt;{
+    const [col,firstFormula,listFormula]=selectors[name];requests.push(formulaBlock_({sheetId:calc.properties.sheetId,startRowIndex:8,startColumnIndex:col},[[firstFormula],[listFormula]],state));
+    const found=(state.book.namedRanges||[]).find(n=&gt;n.name===name),range={sheetId:calc.properties.sheetId,startRowIndex:8,endRowIndex:cr,startColumnIndex:col,endColumnIndex:col+1};
+    requests.push(found?{updateNamedRange:{namedRange:{namedRangeId:found.namedRangeId,range},fields:&#x27;range&#x27;}}:{addNamedRange:{namedRange:{name,range}}});
+  });
+  requests.push(cellRequest_(calc.properties.sheetId,7,19,capacitySignature_(state)));
+  return requests;
+}
+function capacitySignature_(state){return &#x27;API-&#x27;+API_VERSION_+&#x27;-A1-&#x27;+hash_({tables:Object.fromEntries(Object.keys(state.layout).map(k=&gt;[k,state.layout[k].range])),support:Object.fromEntries(Object.entries(supportRanges_(state)).map(([k,v])=&gt;[k,v.range]))});}
+function prepareCapacity_(config,before,desired) {
+  desired=desired||before;
+  let state=before,changed=false;
+  const anchors=discoverSupport_(config,state);if(anchors.length){Sheets.Spreadsheets.batchUpdate({requests:anchors},config.id);state=readState_(config);changed=true;}
+  const business=growBusinessRequests_(state,desired,state.supportSignature?0:100);
+  if(business.length){Sheets.Spreadsheets.batchUpdate({requests:business},config.id);state=readState_(config);changed=true;}
+  const support=growSupportRequests_(state,desired);
+  if(support.length){Sheets.Spreadsheets.batchUpdate({requests:support},config.id);state=readState_(config);changed=true;}
+  if(changed||state.supportSignature!==capacitySignature_(state)){Sheets.Spreadsheets.batchUpdate({requests:supportFormulaRequests_(state)},config.id);state=readState_(config);}
+  return state;
 }
 </pre></details></section>
 <section class="code-section" aria-labelledby="file-1"><header><div><p class="eyebrow">ARCHIVO 2 DE 3</p><h2 id="file-1">Bridge.html</h2></div><button type="button" data-copy="code-1">Copiar código</button></header><p>Añade un archivo HTML llamado Bridge y pega todo este bloque.</p><details><summary>Ver código completo</summary><pre id="code-1" tabindex="0">&lt;!doctype html&gt;
@@ -1084,4 +1267,4 @@ function probarTransaccionesPaso3() {
 }
 </pre></details></section>
 <section class="configuration"><p class="eyebrow">CONFIGURAR EN GOOGLE</p><h2>Las tres propiedades del proyecto</h2><p class="intro">En Configuración del proyecto → Propiedades del script, añade estas propiedades. Los valores privados se quedan en Google.</p><table><thead><tr><th scope="col">Propiedad</th><th scope="col">Valor</th></tr></thead><tbody><tr><td><code>TEST_SPREADSHEET_ID</code></td><td>ID de tu copia de pruebas. Está en el enlace de Sheets, entre /d/ y /edit.</td></tr><tr><td><code>OWNER_EMAIL</code></td><td>Correo de la cuenta propietaria del proyecto y del libro.</td></tr><tr><td><code>ENVIRONMENT</code></td><td><code>test</code></td></tr></tbody></table></section>
-<section class="configuration"><p class="eyebrow">ÚLTIMA PARTE</p><h2>Comprobar y publicar la conexión</h2><ol><li>Sustituye los tres archivos de tu proyecto existente por los bloques de esta página y guarda. Conserva TEST_SPREADSHEET_ID, OWNER_EMAIL y ENVIRONMENT=test.</li><li>En el editor, selecciona <strong>comprobarPaso3</strong> y pulsa Ejecutar. Autoriza los permisos actualizados si Google los solicita. Esta función crea tres hojas técnicas ocultas y comprueba los datos; no registra movimientos financieros.</li><li>Ejecuta <strong>probarTransaccionesPaso3</strong>. La prueba registra un gasto ficticio de 0,01 € en la copia de pruebas, verifica un reintento y una corrección y lo anula. Al finalizar debe indicar <strong>financialInputsRestored: true</strong>. El historial técnico conserva la prueba.</li><li>Actualiza la implementación existente: Implementar → Gestionar implementaciones → lápiz → Nueva versión. Mantén Ejecutar como: Yo y acceso Solo yo.</li><li>En Finanzas → Conexión, pulsa <strong>Comprobar backend</strong>. Esta comprobación solo lee datos y debe indicar API 3.0.0 y doce tablas.</li></ol><p class="notice">No se solicitan IDs de operaciones. La referencia de esta comprobación se genera automáticamente. Las altas y los cambios financieros se implementarán en el siguiente paso.</p></section><footer>Modelo 3 · Libro completo · Sin datos financieros en este código<br><a href="https://developers.google.com/apps-script/concepts/deployments" target="_blank" rel="noopener noreferrer">Documentación de implementaciones de Google</a></footer></main></body></html>
+<section class="configuration"><p class="eyebrow">ÚLTIMA PARTE</p><h2>Comprobar y publicar la conexión</h2><ol><li>Sustituye los tres archivos de tu proyecto existente por los bloques de esta página y guarda. Conserva TEST_SPREADSHEET_ID, OWNER_EMAIL y ENVIRONMENT=test.</li><li>En el editor, selecciona <strong>comprobarPaso3</strong> y pulsa Ejecutar. Autoriza los permisos actualizados si Google los solicita. Esta función prepara tres hojas técnicas ocultas, amplía tablas y cálculos y comprueba los datos. Conserva los registros financieros existentes.</li><li>Ejecuta <strong>probarTransaccionesPaso3</strong>. La prueba registra un gasto y una compra ficticios de 0,01 € en la copia de pruebas, verifica reintentos y correcciones, anula los registros y restaura los cortes de fechas. Al finalizar debe indicar <strong>financialInputsRestored: true</strong>. Debe indicar también investmentAndCashChecked: true. El historial técnico conserva la prueba.</li><li>Actualiza la implementación existente: Implementar → Gestionar implementaciones → lápiz → Nueva versión. Mantén Ejecutar como: Yo y acceso Solo yo.</li><li>En Finanzas → Conexión, pulsa <strong>Comprobar backend</strong>. Esta comprobación solo lee datos y debe indicar API 3.1.0 y doce tablas.</li></ol><p class="notice">No se solicitan IDs de operaciones. La referencia de esta comprobación se genera automáticamente. La API del paso 3 ya admite altas, correcciones y anulaciones. La selección de formularios de la app corresponde al paso 5.</p></section><footer>Modelo 3 · Libro completo · Sin datos financieros en este código<br><a href="https://developers.google.com/apps-script/concepts/deployments" target="_blank" rel="noopener noreferrer">Documentación de implementaciones de Google</a></footer></main></body></html>
