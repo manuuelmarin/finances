@@ -46,8 +46,36 @@ test('rechaza mensajes ajenos, manipulados y respuestas fuera de una solicitud a
   assert.equal(acceptsConnectionMessage(goodMessage(), null), false);
 });
 
+// Cabeceras de la importación revisada; IDs de pestaña ficticios, sin datos financieros.
+function sampleBook() {
+  const titles = ['Resumen financiero', 'Movimientos', 'Inversiones', 'Cuentas', 'Salario',
+    'Objetivos', 'Inflación', 'Hipoteca', 'Configuración', 'Cálculos'];
+  const tables = [
+    ['Movimientos', 'tMovimientos', ['ID', 'Fecha', 'Tipo', 'Concepto', 'Subcategoría', 'Origen', 'Destino', 'Importe', 'Recuperable', 'Localización', 'Recurrente'], 7, 1, 28],
+    ['Inversiones', 'tProductos', ['ID', 'Producto', 'Cuenta', 'Clase', 'Fecha base', 'Unidades base', 'Coste base', 'Participaciones', 'Aportado neto', 'Valor', 'Resultado', 'Rentabilidad', 'Peso'], 28, 1, 49],
+    ['Inversiones', 'tOperaciones', ['ID', 'Fecha', 'Producto', 'Tipo', 'Participaciones', 'Precio', 'Comisión', 'Retención', 'Importe', 'Movimiento'], 54, 1, 85],
+    ['Inversiones', 'tPrecios', ['Producto', 'Fecha', 'VL EUR', 'Fuente'], 90, 1, 121],
+    ['Cuentas', 'tCuentas', ['Cuenta', 'Saldo inicial', 'Saldo real', 'Fecha saldo', 'Saldo calculado'], 7, 1, 28],
+    ['Cuentas', 'tDeudas', ['ID', 'Acreedor', 'Saldo inicial', 'Saldo pendiente'], 7, 7, 28],
+    ['Cuentas', 'tVinculos', ['Movimiento', 'Vinculado a', 'Fecha', 'Tipo', 'Importe'], 33, 1, 54],
+    ['Salario', 'tNominas', ['Movimiento', 'Fecha cobro', 'Neto', 'Bruto', 'Cotización', 'IRPF', 'Otras deducciones'], 7, 1, 28],
+    ['Objetivos', 'tObjetivos', ['ID', 'Objetivo', 'Meta', 'Fecha', 'Asignado', 'Pendiente', 'Avance'], 7, 1, 13],
+    ['Objetivos', 'tAsignaciones', ['Objetivo', 'Origen', 'Importe'], 18, 1, 29],
+    ['Configuración', 'tParametros', ['Parámetro', 'Valor'], 4, 1, 10],
+    ['Configuración', 'tCategorias', ['Grupo', 'Subgrupo', 'Categoría', 'Subcategoría'], 13, 1, 34]
+  ];
+  return { sheets: titles.map((title, sheetId) => ({ properties: { title, sheetId },
+    tables: tables.filter(table => table[0] === title).map(([, name, headers, row, column, end]) => ({
+      name, range: { sheetId, startRowIndex: row, endRowIndex: end,
+        startColumnIndex: column, endColumnIndex: column + headers.length },
+      columnProperties: headers.map((columnName, columnIndex) => columnIndex === 0
+        ? { columnName } : { columnName, columnIndex })
+    }))
+  })) };
+}
+
 function runBackend({ visitor = 'owner@example.test', properties = {}, failure = null,
-  version = 3, request = {} } = {}) {
+  version = 3, request = {}, book = sampleBook(), parameters = null } = {}) {
   const calls = [];
   let rendered;
   const props = { TEST_SPREADSHEET_ID: 'fixture-book', OWNER_EMAIL: 'owner@example.test',
@@ -63,9 +91,12 @@ function runBackend({ visitor = 'owner@example.test', properties = {}, failure =
       get(id, options) {
         calls.push({ id, options });
         if (failure) throw new Error(failure);
-        return { sheets: Array.from({ length: 10 }, (_, i) => ({ properties: { sheetId: i } })) };
+        return book;
       },
-      Values: { get(id, range, options) { calls.push({ id, range, options }); return { values: [[version]] }; } }
+      Values: { get(id, range, options) {
+        calls.push({ id, range, options });
+        return { values: parameters || [['Moneda', 'EUR'], ['Versión modelo', version]] };
+      } }
     } }
   });
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../apps-script/Code.gs'), 'utf8'), context);
@@ -82,7 +113,7 @@ test('el servidor lee el libro configurado y no admite cambiarlo desde el client
   assert.equal(origin, 'https://manuuelmarin.github.io');
   assert.equal(calls.length, 2);
   assert.equal(calls.every(call => call.id === 'fixture-book'), true);
-  assert.equal(calls[1].range, "'Configuración'!C10");
+  assert.equal(calls[1].range, "'Configuración'!B6:C10");
   assert.deepEqual(Object.keys(result).sort(), ['checkedAt', 'environment', 'modelVersion', 'ok', 'sheetCount', 'state', 'type']);
 });
 
@@ -100,10 +131,50 @@ test('no publica errores internos ni permite dar por buena una versión vacía',
   const { result } = runBackend({ failure: 'Private failure with fixture-book and owner@example.test' });
   assert.equal(result.error, 'READ_FAILED');
   assert.equal(JSON.stringify(result).includes('fixture-book'), false);
-  for (const version of ['', null, 'not-a-version', 0, -1]) {
+  for (const version of ['', null, 'not-a-version', 0, -1, 2, 4]) {
     const outcome = runBackend({ version }).result;
     assert.equal(outcome.ok, false);
     assert.equal(outcome.error, 'INVALID_MODEL');
+  }
+});
+
+test('no confunde diez pestañas arbitrarias o tablas incompatibles con el libro válido', () => {
+  const changes = [
+    book => { book.sheets[0].properties.title = 'Otro resumen'; },
+    book => { book.sheets[1].tables = []; },
+    book => { book.sheets[2].tables[0].columnProperties[0].columnName = 'Identificador'; },
+    book => { book.sheets[2].tables[1].range.endColumnIndex += 1; },
+    book => { book.sheets[8].tables[0].columnProperties[1].columnIndex = 0; }
+  ];
+  for (const change of changes) {
+    const book = sampleBook();
+    change(book);
+    const { result, calls } = runBackend({ book });
+    assert.equal(result.ok, false);
+    assert.equal(result.error, 'INVALID_MODEL');
+    assert.equal(calls.length, 1);
+  }
+});
+
+test('encuentra la versión al mover la tabla, cambiar el orden de sus filas y añadir una pestaña', () => {
+  const book = sampleBook();
+  const parameters = book.sheets[8].tables[0];
+  Object.assign(parameters.range, { startRowIndex: 30, endRowIndex: 36,
+    startColumnIndex: 26, endColumnIndex: 28 });
+  book.sheets.reverse();
+  book.sheets.push({ properties: { title: 'Notas', sheetId: 10 }, tables: [] });
+  const { result, calls } = runBackend({ book,
+    parameters: [['Versión modelo', 3], ['Moneda', 'EUR']] });
+  assert.equal(result.ok, true);
+  assert.equal(result.sheetCount, 11);
+  assert.equal(calls[1].range, "'Configuración'!AA32:AB36");
+});
+
+test('rechaza una versión ausente o duplicada en la tabla de parámetros', () => {
+  for (const parameters of [[['Moneda', 'EUR']], [['Versión modelo', 3], ['Versión modelo', 3]]]) {
+    const { result } = runBackend({ parameters });
+    assert.equal(result.ok, false);
+    assert.equal(result.error, 'INVALID_MODEL');
   }
 });
 
