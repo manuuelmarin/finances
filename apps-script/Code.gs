@@ -22,6 +22,20 @@ const TABLE_SCHEMA_ = [
   ['Configuración', 'tCategorias', ['Grupo', 'Subgrupo', 'Categoría', 'Subcategoría']]
 ];
 
+// Ejecutar desde el editor para autorizar y comprobar la instalación.
+// Solo imprime un resumen seguro; no exige una referencia manual de solicitud.
+function comprobarInstalacion() {
+  let result;
+  try {
+    result = readConnection_();
+  } catch (error) {
+    const codes = ['NOT_CONFIGURED', 'ACCESS_DENIED', 'INVALID_MODEL'];
+    result = { ok: false, error: codes.indexOf(error.message) >= 0 ? error.message : 'READ_FAILED' };
+  }
+  console.log(JSON.stringify(result));
+  return result;
+}
+
 function doGet(e) {
   const state = String(e && e.parameter && e.parameter.state || '');
   let result = { type: CONNECTION_TYPE_, state: state, ok: false };

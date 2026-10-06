@@ -1,9 +1,9 @@
-name: Publicar comprobación de conexión
+name: Comprobar y publicar Finanzas
 
 on:
   push:
     branches: [main]
-    paths: ['web/**', '.github/workflows/pages.yml']
+    paths: ['web/**', 'apps-script/**', 'tests/**', 'tools/**', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 permissions:
@@ -23,6 +23,10 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v6
+      - name: Preparar código copiable de Google
+        run: node tools/build-install.cjs
+      - name: Comprobar conexión y cálculos
+        run: node --test tests/*.test.cjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:

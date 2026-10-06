@@ -12,9 +12,10 @@
 </head>
 <body>
   <main>
-    <h1>Finanzas</h1>
+    <h1>Finanzas · Conexión</h1>
     <p id="status" role="status">Comprobando la lectura…</p>
-    <p>Puedes volver a la página de Finanzas al terminar.</p>
+    <p id="detail">Puedes volver a la página de Finanzas al terminar.</p>
+    <a href="https://manuuelmarin.github.io/finances/#connection" style="color:#b6e5ba">Volver a Finanzas</a>
   </main>
   <!-- Impresión con escape contextual: no insertar JSON sin escape en un script. -->
   <div id="payload" hidden><?= payloadJson ?></div>
@@ -24,16 +25,27 @@
     const payload = JSON.parse(document.getElementById('payload').textContent);
     const appOrigin = document.getElementById('origin').textContent;
     const status = document.getElementById('status');
+    const detail = document.getElementById('detail');
+    const errors = {
+      INVALID_REQUEST: 'Abre Finanzas y pulsa Comprobar conexión. Abrir este enlace directamente no inicia la prueba.',
+      NOT_CONFIGURED: 'Revisa las tres propiedades del script: TEST_SPREADSHEET_ID, OWNER_EMAIL y ENVIRONMENT.',
+      ACCESS_DENIED: 'Accede con la cuenta propietaria configurada en el proyecto.',
+      INVALID_MODEL: 'Revisa la copia de pruebas: deben estar las diez pestañas y las doce tablas del modelo 3.',
+      READ_FAILED: 'Revisa el servicio avanzado Sheets, los permisos y el acceso a la copia de pruebas.'
+    };
+    status.textContent = payload.ok
+      ? 'Lectura de Google completada.'
+      : 'La comprobación necesita revisión.';
+    detail.textContent = payload.ok
+      ? 'Modelo ' + payload.modelVersion + ' · ' + payload.sheetCount + ' pestañas. Vuelve a Finanzas para comprobar que ha recibido la respuesta.'
+      : (errors[payload.error] || errors.READ_FAILED);
     try {
       // HtmlService ejecuta este documento dentro de un iframe de Google.
       const receiver = window.top.opener;
-      if (!receiver) throw new Error('NO_OPENER');
-      receiver.postMessage(payload, appOrigin);
-      status.textContent = payload.ok
-        ? 'Lectura completada. El resultado se ha enviado a Finanzas.'
-        : 'La lectura no se ha completado. Revisa el aviso en Finanzas.';
+      if (receiver) receiver.postMessage(payload, appOrigin);
+      else if (payload.ok) detail.textContent += ' Si acabas de iniciar sesión, repite la prueba desde Finanzas con esta sesión abierta.';
     } catch (error) {
-      status.textContent = 'Vuelve a Finanzas y pulsa de nuevo Comprobar conexión. Si acabas de iniciar sesión en Google, deja esta sesión abierta.';
+      detail.textContent += ' No se ha podido comunicar el resultado a la ventana anterior; vuelve a Finanzas y repite la prueba.';
     }
   </script>
 </body>

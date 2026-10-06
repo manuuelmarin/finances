@@ -27,6 +27,7 @@ test('solo acepta el despliegue HTTPS de producción de Apps Script', () => {
 
 test('acepta la lectura del iframe de Google dentro de la ventana solicitada', () => {
   assert.equal(acceptsConnectionMessage(goodMessage(), pending), true);
+  assert.equal(acceptsConnectionMessage({ ...goodMessage(), origin: 'https://script.googleusercontent.com' }, pending), true);
 });
 
 test('rechaza mensajes ajenos, manipulados y respuestas fuera de una solicitud activa', () => {
@@ -39,6 +40,8 @@ test('rechaza mensajes ajenos, manipulados y respuestas fuera de una solicitud a
     { data: { ...goodMessage().data, state: 'another-request' } },
     { data: { ...goodMessage().data, sheetCount: 0 } },
     { data: { ...goodMessage().data, modelVersion: '3' } },
+    { data: { ...goodMessage().data, modelVersion: 2 } },
+    { data: { ...goodMessage().data, sheetCount: 9 } },
     { data: { ...goodMessage().data, environment: 'production' } },
     { data: { ...goodMessage().data, checkedAt: 'invalid' } }
   ];

@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="referrer" content="no-referrer"><title>Finanzas · Instalar conexión</title><style>
+:root{color-scheme:dark;--ink:#10191b;--panel:#172325;--line:#2d3f3e;--text:#efeee5;--muted:#a4b6ad;--mint:#b9d6bf;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}*{box-sizing:border-box}body{margin:0;background:var(--ink);color:var(--text);line-height:1.65}main{max-width:1000px;margin:auto;padding:36px 32px 70px}a{color:var(--mint);text-underline-offset:4px}.back{display:inline-flex;padding:8px 0;margin-bottom:30px;text-decoration:none}.eyebrow{font-size:11px;letter-spacing:.16em;color:var(--mint);font-weight:650;margin:0 0 10px}h1{font-weight:500;letter-spacing:-.045em;font-size:clamp(32px,5vw,54px);line-height:1.12;margin:0 0 20px}h2{font-size:22px;font-weight:500;margin:0;color:var(--text);letter-spacing:-.025em}.intro{color:var(--muted);max-width:650px;font-size:17px}.code-section{margin:28px 0;border:1px solid var(--line);padding:25px;background:var(--panel);border-radius:12px}.code-section header{display:flex;gap:20px;align-items:center;justify-content:space-between}.code-section>p{color:var(--muted);font-size:14px}button{border:0;padding:12px 18px;border-radius:8px;min-height:44px;background:var(--mint);color:#142019;font:inherit;font-size:14px;font-weight:650;cursor:pointer}button:focus-visible,a:focus-visible,summary:focus-visible,pre:focus-visible{outline:3px solid #e1eddf;outline-offset:4px}summary{cursor:pointer;padding:8px 0;color:var(--mint);font-size:14px}pre{white-space:pre;overflow:auto;max-height:450px;padding:18px;border:1px solid var(--line);background:var(--ink);font:12px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace;border-radius:6px}ol{padding-left:25px;color:var(--muted)}li{padding:8px 0}strong{color:var(--text)}table{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed}td,th{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}th{color:var(--mint);font-weight:500}td:first-child,th:first-child{width:48%}code{font-family:ui-monospace,monospace;font-size:.9em}.notice{padding:18px 20px;border-left:2px solid var(--mint);background:#162123;color:var(--muted);font-size:14px;margin:24px 0}#copy-status{color:var(--mint);font-size:14px;min-height:24px}.configuration{margin-top:44px}footer{margin-top:45px;padding-top:20px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}@media(max-width:580px){main{padding:24px 18px 50px}.code-section{padding:20px 16px}.code-section header{align-items:flex-start;flex-direction:column;gap:14px}.code-section header button{width:100%}td,th{padding:12px 6px;font-size:12px}}
+</style><script src="install.js" defer></script></head><body><main><a class="back" href="./#connection">← Volver a Finanzas</a><p class="eyebrow">GOOGLE SHEETS · CONEXIÓN PRIVADA</p><h1>Tu libro.<br>Una conexión sencilla.</h1><p class="intro">Copia estos tres archivos en tu proyecto de Apps Script. Esta versión comprueba la copia de pruebas de tu libro completo, con acceso privado y de lectura.</p><p class="notice">Conserva una copia del código actual del proyecto antes de sustituirlo. La app financiera completa se construirá después de confirmar la conexión.</p><p id="copy-status" role="status" aria-live="polite"></p>
+<section class="code-section" aria-labelledby="file-0"><header><div><p class="eyebrow">ARCHIVO 1 DE 3</p><h2 id="file-0">Code.gs</h2></div><button type="button" data-copy="code-0">Copiar código</button></header><p>Sustituye todo el contenido de Code.gs por este código.</p><details><summary>Ver código completo</summary><pre id="code-0" tabindex="0">// Paso 2: comprobación de lectura. Las propiedades se configuran en Apps Script.
+const CONNECTION_TYPE_ = &#x27;finances.connection.v1&#x27;;
+const APP_ORIGIN_ = &#x27;https://manuuelmarin.github.io&#x27;;
+const MODEL_VERSION_ = 3;
+const REQUIRED_SHEETS_ = [
+  &#x27;Resumen financiero&#x27;, &#x27;Movimientos&#x27;, &#x27;Inversiones&#x27;, &#x27;Cuentas&#x27;, &#x27;Salario&#x27;,
+  &#x27;Objetivos&#x27;, &#x27;Inflación&#x27;, &#x27;Hipoteca&#x27;, &#x27;Configuración&#x27;, &#x27;Cálculos&#x27;
+];
+// Esquema del libro completo. No contiene datos personales ni IDs del libro.
+const TABLE_SCHEMA_ = [
+  [&#x27;Movimientos&#x27;, &#x27;tMovimientos&#x27;, [&#x27;ID&#x27;, &#x27;Fecha&#x27;, &#x27;Tipo&#x27;, &#x27;Concepto&#x27;, &#x27;Subcategoría&#x27;, &#x27;Origen&#x27;, &#x27;Destino&#x27;, &#x27;Importe&#x27;, &#x27;Recuperable&#x27;, &#x27;Localización&#x27;, &#x27;Recurrente&#x27;]],
+  [&#x27;Inversiones&#x27;, &#x27;tProductos&#x27;, [&#x27;ID&#x27;, &#x27;Producto&#x27;, &#x27;Cuenta&#x27;, &#x27;Clase&#x27;, &#x27;Fecha base&#x27;, &#x27;Unidades base&#x27;, &#x27;Coste base&#x27;, &#x27;Participaciones&#x27;, &#x27;Aportado neto&#x27;, &#x27;Valor&#x27;, &#x27;Resultado&#x27;, &#x27;Rentabilidad&#x27;, &#x27;Peso&#x27;]],
+  [&#x27;Inversiones&#x27;, &#x27;tOperaciones&#x27;, [&#x27;ID&#x27;, &#x27;Fecha&#x27;, &#x27;Producto&#x27;, &#x27;Tipo&#x27;, &#x27;Participaciones&#x27;, &#x27;Precio&#x27;, &#x27;Comisión&#x27;, &#x27;Retención&#x27;, &#x27;Importe&#x27;, &#x27;Movimiento&#x27;]],
+  [&#x27;Inversiones&#x27;, &#x27;tPrecios&#x27;, [&#x27;Producto&#x27;, &#x27;Fecha&#x27;, &#x27;VL EUR&#x27;, &#x27;Fuente&#x27;]],
+  [&#x27;Cuentas&#x27;, &#x27;tCuentas&#x27;, [&#x27;Cuenta&#x27;, &#x27;Saldo inicial&#x27;, &#x27;Saldo real&#x27;, &#x27;Fecha saldo&#x27;, &#x27;Saldo calculado&#x27;]],
+  [&#x27;Cuentas&#x27;, &#x27;tDeudas&#x27;, [&#x27;ID&#x27;, &#x27;Acreedor&#x27;, &#x27;Saldo inicial&#x27;, &#x27;Saldo pendiente&#x27;]],
+  [&#x27;Cuentas&#x27;, &#x27;tVinculos&#x27;, [&#x27;Movimiento&#x27;, &#x27;Vinculado a&#x27;, &#x27;Fecha&#x27;, &#x27;Tipo&#x27;, &#x27;Importe&#x27;]],
+  [&#x27;Salario&#x27;, &#x27;tNominas&#x27;, [&#x27;Movimiento&#x27;, &#x27;Fecha cobro&#x27;, &#x27;Neto&#x27;, &#x27;Bruto&#x27;, &#x27;Cotización&#x27;, &#x27;IRPF&#x27;, &#x27;Otras deducciones&#x27;]],
+  [&#x27;Objetivos&#x27;, &#x27;tObjetivos&#x27;, [&#x27;ID&#x27;, &#x27;Objetivo&#x27;, &#x27;Meta&#x27;, &#x27;Fecha&#x27;, &#x27;Asignado&#x27;, &#x27;Pendiente&#x27;, &#x27;Avance&#x27;]],
+  [&#x27;Objetivos&#x27;, &#x27;tAsignaciones&#x27;, [&#x27;Objetivo&#x27;, &#x27;Origen&#x27;, &#x27;Importe&#x27;]],
+  [&#x27;Configuración&#x27;, &#x27;tParametros&#x27;, [&#x27;Parámetro&#x27;, &#x27;Valor&#x27;]],
+  [&#x27;Configuración&#x27;, &#x27;tCategorias&#x27;, [&#x27;Grupo&#x27;, &#x27;Subgrupo&#x27;, &#x27;Categoría&#x27;, &#x27;Subcategoría&#x27;]]
+];
+
+// Ejecutar desde el editor para autorizar y comprobar la instalación.
+// Solo imprime un resumen seguro; no exige una referencia manual de solicitud.
+function comprobarInstalacion() {
+  let result;
+  try {
+    result = readConnection_();
+  } catch (error) {
+    const codes = [&#x27;NOT_CONFIGURED&#x27;, &#x27;ACCESS_DENIED&#x27;, &#x27;INVALID_MODEL&#x27;];
+    result = { ok: false, error: codes.indexOf(error.message) &gt;= 0 ? error.message : &#x27;READ_FAILED&#x27; };
+  }
+  console.log(JSON.stringify(result));
+  return result;
+}
+
+function doGet(e) {
+  const state = String(e &amp;&amp; e.parameter &amp;&amp; e.parameter.state || &#x27;&#x27;);
+  let result = { type: CONNECTION_TYPE_, state: state, ok: false };
+  try {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(state)) {
+      throw new Error(&#x27;INVALID_REQUEST&#x27;);
+    }
+    result = Object.assign(result, readConnection_());
+  } catch (error) {
+    // No devolver excepciones de Google: pueden contener identificadores privados.
+    const codes = [&#x27;INVALID_REQUEST&#x27;, &#x27;NOT_CONFIGURED&#x27;, &#x27;ACCESS_DENIED&#x27;, &#x27;INVALID_MODEL&#x27;];
+    result.error = codes.indexOf(error.message) &gt;= 0 ? error.message : &#x27;READ_FAILED&#x27;;
+  }
+  const template = HtmlService.createTemplateFromFile(&#x27;Bridge&#x27;);
+  template.payloadJson = JSON.stringify(result);
+  template.appOrigin = APP_ORIGIN_;
+  return template.evaluate().setTitle(&#x27;Finanzas · Lectura de prueba&#x27;);
+}
+
+function readConnection_() {
+  const properties = PropertiesService.getScriptProperties();
+  const spreadsheetId = properties.getProperty(&#x27;TEST_SPREADSHEET_ID&#x27;);
+  const owner = (properties.getProperty(&#x27;OWNER_EMAIL&#x27;) || &#x27;&#x27;).trim().toLowerCase();
+  if (!spreadsheetId || !owner || properties.getProperty(&#x27;ENVIRONMENT&#x27;) !== &#x27;test&#x27;) {
+    throw new Error(&#x27;NOT_CONFIGURED&#x27;);
+  }
+  // Comprobar al visitante, no solo la identidad que ejecuta el despliegue.
+  const visitor = Session.getActiveUser().getEmail().trim().toLowerCase();
+  if (!visitor || visitor !== owner) throw new Error(&#x27;ACCESS_DENIED&#x27;);
+
+  // Servicio avanzado Sheets, con permiso OAuth exclusivo de lectura.
+  // Localizar tablas por nombre evita depender de sus filas actuales.
+  const book = Sheets.Spreadsheets.get(spreadsheetId, {
+    fields: &#x27;sheets(properties(sheetId,title),tables(name,range,columnProperties(columnIndex,columnName)))&#x27;
+  });
+  const parametersRange = checkBookStructure_(book);
+  const values = Sheets.Spreadsheets.Values.get(spreadsheetId, parametersRange, {
+    valueRenderOption: &#x27;UNFORMATTED_VALUE&#x27;
+  });
+  const versions = (values.values || []).filter(row =&gt; row[0] === &#x27;Versión modelo&#x27;);
+  if (versions.length !== 1) throw new Error(&#x27;INVALID_MODEL&#x27;);
+  const modelVersion = Number(versions[0][1]);
+  const sheetCount = (book.sheets || []).length;
+  if (modelVersion !== MODEL_VERSION_) {
+    throw new Error(&#x27;INVALID_MODEL&#x27;);
+  }
+  return {
+    ok: true,
+    environment: &#x27;test&#x27;,
+    modelVersion: modelVersion,
+    sheetCount: sheetCount,
+    checkedAt: new Date().toISOString()
+  };
+}
+
+function checkBookStructure_(book) {
+  const sheets = book.sheets || [];
+  const byTitle = new Map(sheets.map(sheet =&gt; [sheet.properties.title, sheet]));
+  if (REQUIRED_SHEETS_.some(title =&gt; !byTitle.has(title))) throw new Error(&#x27;INVALID_MODEL&#x27;);
+  let parametersRange;
+  TABLE_SCHEMA_.forEach(([title, name, headers]) =&gt; {
+    const sheet = byTitle.get(title);
+    const matches = (sheet.tables || []).filter(table =&gt; table.name === name);
+    if (matches.length !== 1) throw new Error(&#x27;INVALID_MODEL&#x27;);
+    const table = matches[0];
+    const range = table.range || {};
+    const firstRow = range.startRowIndex === undefined ? 0 : range.startRowIndex;
+    const firstColumn = range.startColumnIndex === undefined ? 0 : range.startColumnIndex;
+    if (range.sheetId !== sheet.properties.sheetId ||
+        ![firstRow, firstColumn, range.endRowIndex, range.endColumnIndex].every(Number.isSafeInteger) ||
+        firstRow &lt; 0 || firstColumn &lt; 0 || range.endRowIndex &lt;= firstRow + 1 ||
+        range.endColumnIndex - firstColumn !== headers.length) throw new Error(&#x27;INVALID_MODEL&#x27;);
+    const columns = new Map();
+    (table.columnProperties || []).forEach(column =&gt; {
+      const index = column.columnIndex === undefined ? 0 : column.columnIndex;
+      if (!Number.isSafeInteger(index) || index &lt; 0 || index &gt;= headers.length || columns.has(index)) {
+        throw new Error(&#x27;INVALID_MODEL&#x27;);
+      }
+      columns.set(index, column.columnName);
+    });
+    if (headers.some((header, index) =&gt; columns.get(index) !== header)) throw new Error(&#x27;INVALID_MODEL&#x27;);
+    if (name === &#x27;tParametros&#x27;) {
+      const quotedTitle = &quot;&#x27;&quot; + title.replace(/&#x27;/g, &quot;&#x27;&#x27;&quot;) + &quot;&#x27;&quot;;
+      parametersRange = quotedTitle + &#x27;!&#x27; + columnA1_(firstColumn) + (firstRow + 2) +
+        &#x27;:&#x27; + columnA1_(range.endColumnIndex - 1) + range.endRowIndex;
+    }
+  });
+  return parametersRange;
+}
+
+function columnA1_(index) {
+  let column = &#x27;&#x27;;
+  for (let value = index + 1; value &gt; 0; value = Math.floor((value - 1) / 26)) {
+    column = String.fromCharCode(65 + (value - 1) % 26) + column;
+  }
+  return column;
+}
+</pre></details></section>
+<section class="code-section" aria-labelledby="file-1"><header><div><p class="eyebrow">ARCHIVO 2 DE 3</p><h2 id="file-1">Bridge.html</h2></div><button type="button" data-copy="code-1">Copiar código</button></header><p>Añade un archivo HTML llamado Bridge y pega todo este bloque.</p><details><summary>Ver código completo</summary><pre id="code-1" tabindex="0">&lt;!doctype html&gt;
+&lt;html lang=&quot;es&quot;&gt;
+&lt;head&gt;
+  &lt;meta charset=&quot;utf-8&quot;&gt;
+  &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+  &lt;base target=&quot;_top&quot;&gt;
+  &lt;style&gt;
+    body { font: 17px/1.6 system-ui, sans-serif; margin: 0; background: #101b21; color: #e8f1ef; }
+    main { max-width: 440px; margin: 70px auto; padding: 24px; }
+    h1 { font-size: 26px; }
+  &lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;main&gt;
+    &lt;h1&gt;Finanzas · Conexión&lt;/h1&gt;
+    &lt;p id=&quot;status&quot; role=&quot;status&quot;&gt;Comprobando la lectura…&lt;/p&gt;
+    &lt;p id=&quot;detail&quot;&gt;Puedes volver a la página de Finanzas al terminar.&lt;/p&gt;
+    &lt;a href=&quot;https://manuuelmarin.github.io/finances/#connection&quot; style=&quot;color:#b6e5ba&quot;&gt;Volver a Finanzas&lt;/a&gt;
+  &lt;/main&gt;
+  &lt;!-- Impresión con escape contextual: no insertar JSON sin escape en un script. --&gt;
+  &lt;div id=&quot;payload&quot; hidden&gt;&lt;?= payloadJson ?&gt;&lt;/div&gt;
+  &lt;div id=&quot;origin&quot; hidden&gt;&lt;?= appOrigin ?&gt;&lt;/div&gt;
+  &lt;script&gt;
+    &#x27;use strict&#x27;;
+    const payload = JSON.parse(document.getElementById(&#x27;payload&#x27;).textContent);
+    const appOrigin = document.getElementById(&#x27;origin&#x27;).textContent;
+    const status = document.getElementById(&#x27;status&#x27;);
+    const detail = document.getElementById(&#x27;detail&#x27;);
+    const errors = {
+      INVALID_REQUEST: &#x27;Abre Finanzas y pulsa Comprobar conexión. Abrir este enlace directamente no inicia la prueba.&#x27;,
+      NOT_CONFIGURED: &#x27;Revisa las tres propiedades del script: TEST_SPREADSHEET_ID, OWNER_EMAIL y ENVIRONMENT.&#x27;,
+      ACCESS_DENIED: &#x27;Accede con la cuenta propietaria configurada en el proyecto.&#x27;,
+      INVALID_MODEL: &#x27;Revisa la copia de pruebas: deben estar las diez pestañas y las doce tablas del modelo 3.&#x27;,
+      READ_FAILED: &#x27;Revisa el servicio avanzado Sheets, los permisos y el acceso a la copia de pruebas.&#x27;
+    };
+    status.textContent = payload.ok
+      ? &#x27;Lectura de Google completada.&#x27;
+      : &#x27;La comprobación necesita revisión.&#x27;;
+    detail.textContent = payload.ok
+      ? &#x27;Modelo &#x27; + payload.modelVersion + &#x27; · &#x27; + payload.sheetCount + &#x27; pestañas. Vuelve a Finanzas para comprobar que ha recibido la respuesta.&#x27;
+      : (errors[payload.error] || errors.READ_FAILED);
+    try {
+      // HtmlService ejecuta este documento dentro de un iframe de Google.
+      const receiver = window.top.opener;
+      if (receiver) receiver.postMessage(payload, appOrigin);
+      else if (payload.ok) detail.textContent += &#x27; Si acabas de iniciar sesión, repite la prueba desde Finanzas con esta sesión abierta.&#x27;;
+    } catch (error) {
+      detail.textContent += &#x27; No se ha podido comunicar el resultado a la ventana anterior; vuelve a Finanzas y repite la prueba.&#x27;;
+    }
+  &lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+</pre></details></section>
+<section class="code-section" aria-labelledby="file-2"><header><div><p class="eyebrow">ARCHIVO 3 DE 3</p><h2 id="file-2">appsscript.json</h2></div><button type="button" data-copy="code-2">Copiar código</button></header><p>En Configuración del proyecto, activa Mostrar archivo de manifiesto appsscript.json en el editor. Sustituye su contenido por este bloque.</p><details><summary>Ver código completo</summary><pre id="code-2" tabindex="0">{
+  &quot;timeZone&quot;: &quot;Europe/Madrid&quot;,
+  &quot;runtimeVersion&quot;: &quot;V8&quot;,
+  &quot;dependencies&quot;: {
+    &quot;enabledAdvancedServices&quot;: [
+      { &quot;userSymbol&quot;: &quot;Sheets&quot;, &quot;version&quot;: &quot;v4&quot;, &quot;serviceId&quot;: &quot;sheets&quot; }
+    ]
+  },
+  &quot;oauthScopes&quot;: [
+    &quot;https://www.googleapis.com/auth/spreadsheets.readonly&quot;,
+    &quot;https://www.googleapis.com/auth/userinfo.email&quot;
+  ],
+  &quot;webapp&quot;: {
+    &quot;access&quot;: &quot;MYSELF&quot;,
+    &quot;executeAs&quot;: &quot;USER_DEPLOYING&quot;
+  }
+}
+</pre></details></section>
+<section class="configuration"><p class="eyebrow">CONFIGURAR EN GOOGLE</p><h2>Las tres propiedades del proyecto</h2><p class="intro">En Configuración del proyecto → Propiedades del script, añade estas propiedades. Los valores privados se quedan en Google.</p><table><thead><tr><th scope="col">Propiedad</th><th scope="col">Valor</th></tr></thead><tbody><tr><td><code>TEST_SPREADSHEET_ID</code></td><td>ID de tu copia de pruebas. Está en el enlace de Sheets, entre /d/ y /edit.</td></tr><tr><td><code>OWNER_EMAIL</code></td><td>Correo de la cuenta propietaria del proyecto y del libro.</td></tr><tr><td><code>ENVIRONMENT</code></td><td><code>test</code></td></tr></tbody></table></section>
+<section class="configuration"><p class="eyebrow">ÚLTIMA PARTE</p><h2>Comprobar y publicar la conexión</h2><ol><li><strong>Guarda los tres archivos.</strong> El manifiesto incluye el servicio avanzado Sheets v4 y permisos de lectura e identificación por correo. Con el proyecto Cloud predeterminado, Sheets se activa al añadir el servicio; si usas Cloud estándar, activa también Google Sheets API allí.</li><li><strong>Ejecuta comprobarInstalacion</strong> desde el selector de funciones del editor. Autoriza con tu cuenta y revisa el registro de ejecución: debe indicar <code>ok: true</code>, <code>modelVersion: 3</code> y <code>sheetCount: 10</code>.</li><li><strong>Actualiza tu implementación existente.</strong> Ve a Implementar → Gestionar implementaciones → selecciona tu aplicación web → Editar (lápiz) → Versión: Nueva versión. Revisa <strong>Ejecutar como: Yo</strong> y <strong>Quién tiene acceso: Solo yo</strong>. Pulsa Implementar. Guardar el código sin actualizar la implementación conserva la versión anterior de /exec.</li><li><strong>Copia su URL terminada en /exec.</strong> Vuelve a Finanzas → Conexión → Configurar conexión. Pégala y guárdala. Solo se guarda en ese navegador; no se incorpora al repositorio.</li><li><strong>Pulsa Comprobar conexión.</strong> Si acabas de iniciar sesión, vuelve a pulsar con Google ya abierto. Solo el aviso «Lectura de Sheets recibida» en Finanzas confirma que la página ha recibido la respuesta.</li></ol><p class="notice">No se solicitan IDs de operaciones. La referencia de esta comprobación se genera automáticamente. Las altas y los cambios financieros se implementarán en el siguiente paso.</p></section><footer>Modelo 3 · Libro completo · Sin datos financieros en este código<br><a href="https://developers.google.com/apps-script/concepts/deployments" target="_blank" rel="noopener noreferrer">Documentación de implementaciones de Google</a></footer></main></body></html>
