@@ -30,7 +30,7 @@ class FinanceApiClient {
         if (!acceptsConnectionMessage(event,this.session)) return;
         this.runtime.removeEventListener('message',listener);this.runtime.clearTimeout(timer);
         if (!event.data.ok) {this.close();reject(new Error(event.data.error));return;}
-        if (event.data.apiVersion!=='3.1.0') {this.close();reject(new Error('UPDATE_REQUIRED'));return;}
+        if (event.data.apiVersion!=='3.2.0') {this.close();reject(new Error('UPDATE_REQUIRED'));return;}
         this.session.source=event.source;this.session.origin=event.origin;resolve(event.data);
       };
       timer=this.runtime.setTimeout(()=>{this.runtime.removeEventListener('message',listener);this.close();reject(new Error('CONNECTION_TIMEOUT'));},90000);
@@ -56,6 +56,11 @@ class FinanceApiClient {
   }
   async read() {return this.request({action:'read'});}
   async diagnostics() {return this.request({action:'diagnostics'});}
+  quotePrices(funds) {return this.request({action:'quotePrices',funds});}
+  preparePrices(products) {
+    if(!this.revision) throw new Error('READ_REQUIRED');
+    return JSON.parse(JSON.stringify({action:'refreshPrices',requestId:this.runtime.crypto.randomUUID(),expectedRevision:this.revision,...(products?{products}:{})}));
+  }
   prepare(operations) {
     if (!this.revision) throw new Error('READ_REQUIRED');
     // Conservar este objeto sin cambios si se pierde la respuesta.

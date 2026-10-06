@@ -185,7 +185,8 @@ test('los permisos permiten la API de datos y el despliegue continúa privado', 
   const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '../apps-script/appsscript.json')));
   assert.deepEqual(manifest.oauthScopes, [
     'https://www.googleapis.com/auth/spreadsheets',
-    'https://www.googleapis.com/auth/userinfo.email'
+    'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/script.external_request'
   ]);
   assert.equal(manifest.webapp.access, 'MYSELF');
   assert.equal(manifest.webapp.executeAs, 'USER_DEPLOYING');
