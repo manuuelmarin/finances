@@ -149,3 +149,14 @@ test('cada implementación tiene un almacén separado; el bloqueo de pestañas e
   await q.run(client);
   assert.equal(calls.length, 0);
 });
+test('el cliente nuevo conserva sobres compatibles con el backend anterior de pruebas', async () => {
+  const { q, client } = setup();
+  const snapshot = await client.read();
+  delete snapshot.supportsBookBinding;
+  await q.saveSnapshot(snapshot);
+  await q.enqueue([expense(1)], 'Legacy');
+  assert.equal(
+    Object.hasOwn((await q.get()).queue[0].envelope, 'bookKey'),
+    false,
+  );
+});

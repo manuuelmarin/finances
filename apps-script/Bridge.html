@@ -49,13 +49,13 @@
         INVALID_REQUEST:
           'Abre Finanzas y pulsa Comprobar conexión. Abrir este enlace directamente no inicia la prueba.',
         NOT_CONFIGURED:
-          'Revisa las tres propiedades del script: TEST_SPREADSHEET_ID, OWNER_EMAIL y ENVIRONMENT.',
+          'Revisa OWNER_EMAIL, ENVIRONMENT y el identificador del libro seleccionado en las propiedades del script.',
         ACCESS_DENIED:
           'Accede con la cuenta propietaria configurada en el proyecto.',
         INVALID_MODEL:
-          'Revisa la copia de pruebas: deben estar las diez pestañas y las doce tablas del modelo 3.',
+          'Revisa el libro conectado: deben estar las diez pestañas y las doce tablas del modelo 3.',
         READ_FAILED:
-          'Revisa el servicio avanzado Sheets, los permisos y el acceso a la copia de pruebas.',
+          'Revisa el servicio avanzado Sheets, los permisos y el acceso al libro conectado.',
       };
       status.textContent = payload.ok
         ? 'Lectura de Google completada.'

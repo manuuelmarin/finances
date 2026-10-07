@@ -1,5 +1,5 @@
 // Pasos 2, 3 y 4: conexión privada, API financiera y cotizaciones por ISIN.
-// Solo opera en TEST_SPREADSHEET_ID y ENVIRONMENT=test. No incluye datos personales.
+// Libros privados separados por ENVIRONMENT; no incluye datos personales.
 const CONNECTION_TYPE_ = 'finances.connection.v1';
 const APP_ORIGIN_ = 'https://manuuelmarin.github.io';
 const MODEL_VERSION_ = 3;
@@ -113,6 +113,7 @@ const TABLE_SCHEMA_ = [
 ];
 
 const API_VERSION_ = '3.3.0';
+const BUILD_VERSION_ = '3.4.0';
 // El motor de fórmulas no cambia en el paso 4; conserva su sello de capacidad.
 const CAPACITY_VERSION_ = '3.1.0';
 const INPUT_SCHEMA_ = {
@@ -370,28 +371,36 @@ function doGet(e) {
     result.error =
       codes.indexOf(error.message) >= 0 ? error.message : 'READ_FAILED';
   }
+  try {
+    const template = bridgeTemplate_();
+    template.payloadJson = JSON.stringify(result);
+    template.appOrigin = APP_ORIGIN_;
+    return template.evaluate().setTitle('Finanzas · Tu libro');
+  } catch (error) {
+    return HtmlService.createHtmlOutput(
+      '<!doctype html><html lang="es"><meta charset="utf-8"><title>Finanzas · Revisar Bridge</title>' +
+        '<h1>Revisa Bridge.html</h1><p>Este archivo debe contener el bloque HTML del archivo 2 de 3. ' +
+        'Copia Bridge.html, guarda y publica una Nueva versión de la implementación existente.</p>' +
+        '<a href="https://manuuelmarin.github.io/finances/install.html">Abrir instalador</a></html>',
+    );
+  }
+}
+function bridgeTemplate_() {
   const template = HtmlService.createTemplateFromFile('Bridge');
-  template.payloadJson = JSON.stringify(result);
-  template.appOrigin = APP_ORIGIN_;
-  return template.evaluate().setTitle('Finanzas · Lectura de prueba');
+  const raw = template.getRawContent();
+  if (
+    !/^\s*<!doctype html>/i.test(raw) ||
+    !/id=["']payload["']/.test(raw) ||
+    !/id=["']origin["']/.test(raw) ||
+    raw.indexOf('google.script.run') < 0
+  )
+    throw new Error('BRIDGE_INVALID');
+  return template;
 }
 
 function readConnection_() {
-  const properties = PropertiesService.getScriptProperties();
-  const spreadsheetId = properties.getProperty('TEST_SPREADSHEET_ID');
-  const owner = (properties.getProperty('OWNER_EMAIL') || '')
-    .trim()
-    .toLowerCase();
-  if (
-    !spreadsheetId ||
-    !owner ||
-    properties.getProperty('ENVIRONMENT') !== 'test'
-  ) {
-    throw new Error('NOT_CONFIGURED');
-  }
-  // Comprobar al visitante, no solo la identidad que ejecuta el despliegue.
-  const visitor = Session.getActiveUser().getEmail().trim().toLowerCase();
-  if (!visitor || visitor !== owner) throw new Error('ACCESS_DENIED');
+  const config = authorizedConfig_(),
+    spreadsheetId = config.id;
 
   // Esta función usa solo lecturas. El manifiesto permite además las escrituras de la API del paso 3.
   // Localizar tablas por nombre evita depender de sus filas actuales.
@@ -420,11 +429,13 @@ function readConnection_() {
   }
   return {
     ok: true,
-    environment: 'test',
+    environment: config.environment,
     modelVersion: modelVersion,
     sheetCount: sheetCount,
     checkedAt: new Date().toISOString(),
     apiVersion: API_VERSION_,
+    buildVersion: BUILD_VERSION_,
+    supportsBookBinding: true,
     backendReady: [
       '_Finanzas_Solicitudes',
       '_Finanzas_Auditoria',
@@ -674,14 +685,33 @@ function recurrence_(v) {
 function authorizedConfig_() {
   const p = PropertiesService.getScriptProperties(),
     owner = (p.getProperty('OWNER_EMAIL') || '').trim().toLowerCase();
-  const id = p.getProperty('TEST_SPREADSHEET_ID');
-  if (!id || !owner || p.getProperty('ENVIRONMENT') !== 'test')
+  const environment = p.getProperty('ENVIRONMENT'),
+    testId = (p.getProperty('TEST_SPREADSHEET_ID') || '').trim(),
+    productionId = (p.getProperty('PRODUCTION_SPREADSHEET_ID') || '').trim(),
+    id = environment === 'production' ? productionId : testId;
+  if (
+    !testId ||
+    !id ||
+    !owner ||
+    !['test', 'production'].includes(environment) ||
+    (environment === 'production' && productionId === testId)
+  )
     fail_('NOT_CONFIGURED');
   const visitor = (Session.getActiveUser().getEmail() || '')
     .trim()
     .toLowerCase();
   if (!visitor || visitor !== owner) fail_('ACCESS_DENIED');
-  return { id, owner };
+  return { id, owner, environment };
+}
+function checkRequestBook_(request, state) {
+  if (request.bookKey === undefined && state.environment === 'test') return;
+  if (!request.bookKey)
+    fail_('READ_REQUIRED', 'Lee el libro antes de preparar la solicitud.');
+  if (request.bookKey !== state.bookKey)
+    fail_(
+      'BOOK_CHANGED',
+      'La solicitud pertenece a otro libro. Conserva el pendiente y abre su implementación original.',
+    );
 }
 function locked_(callback) {
   const lock = LockService.getScriptLock();
@@ -712,6 +742,9 @@ function apiError_(error) {
     'SCHEMA_CONFLICT',
     'WRITE_UNCERTAIN',
     'INVALID_ISIN',
+    'READ_REQUIRED',
+    'BOOK_CHANGED',
+    'TEST_ONLY',
   ];
   const code =
     codes.indexOf(error.code || error.message) >= 0
@@ -932,6 +965,7 @@ function readState_(config) {
     (k) => (settings[k] = serialDate_(params[PARAMETER_NAMES_[k]])),
   );
   const state = {
+    environment: config.environment || 'test',
     book,
     layout,
     tech,
@@ -2194,7 +2228,9 @@ function diagnostics_(s) {
   return {
     ok: true,
     apiVersion: API_VERSION_,
-    environment: 'test',
+    buildVersion: BUILD_VERSION_,
+    supportsBookBinding: true,
+    environment: s.environment,
     modelVersion: 3,
     businessSheetCount: REQUIRED_SHEETS_.length,
     tableCount: TABLE_SCHEMA_.length,
@@ -2304,29 +2340,33 @@ function publicSnapshot_(s) {
 
 // Resumen leído del motor nativo, con cabeceras verificadas; nunca un motor paralelo.
 function nativeSummary_(s, data) {
-  const labels = [
-    'Patrimonio neto',
-    'Efectivo',
-    'Inversiones',
-    'Deuda',
-    'Ingresos',
-    'Gastos propios',
-    'Ahorro',
-    'Tasa de ahorro',
+  const groups = [
+    ['Patrimonio neto', 'Efectivo', 'Inversiones', 'Deuda'],
+    ['Ingresos', 'Gastos propios', 'Ahorro', 'Tasa de ahorro'],
   ];
-  const metrics = labels.map((label) => {
-    const matches = [];
-    (s.summaryValues || []).forEach((row, i) =>
-      row.forEach((v, j) => {
-        if (v === label) matches.push({ i, j });
-      }),
-    );
-    const cell = matches.length === 1 ? matches[0] : null;
-    const value = cell && (s.summaryValues[cell.i + 1] || [])[cell.j];
-    return {
-      label,
-      value: typeof value === 'number' && Number.isFinite(value) ? value : null,
-    };
+  const rows = s.summaryValues || [];
+  // Identificar las dos filas de tarjetas completas. Las tablas/gráficas inferiores
+  // reutilizan Ingresos, Ahorro y Efectivo; sus cabeceras no son tarjetas duplicadas.
+  const metrics = groups.flatMap((labels) => {
+    const matches = rows
+      .map((row, i) => ({ row, i }))
+      .filter(({ row }) => labels.every((label) => row.includes(label)));
+    const header = matches.length === 1 ? matches[0] : null;
+    return labels.map((label) => {
+      const columns = header
+        ? header.row.reduce((out, value, j) => {
+            if (value === label) out.push(j);
+            return out;
+          }, [])
+        : [];
+      const value =
+        columns.length === 1 && (rows[header.i + 1] || [])[columns[0]];
+      return {
+        label,
+        value:
+          typeof value === 'number' && Number.isFinite(value) ? value : null,
+      };
+    });
   });
   const filters = {};
   ['Año', 'Periodo', 'Cuenta'].forEach((label) => {
@@ -2354,6 +2394,7 @@ function nativeSummary_(s, data) {
     metrics,
     filters,
     missingPrices,
+    missingMetrics: metrics.filter((m) => m.value === null).map((m) => m.label),
     complete: !missingPrices.length && metrics.every((m) => m.value !== null),
     settings: Object.fromEntries(
       Object.keys(s.settings).map((k) => [k, isoDate_(s.settings[k])]),
@@ -2377,18 +2418,24 @@ function financialApi(request) {
             'operations',
             'funds',
             'products',
+            'bookKey',
           ].indexOf(k) < 0,
       )
     )
       fail_('INVALID_REQUEST');
-    if (request.action === 'quotePrices') return quotePrices_(request);
+    if (request.action === 'quotePrices') return quotePrices_(request, config);
     if (request.action === 'refreshPrices')
       return refreshPrices_(config, request);
     if (
       Object.keys(request).some(
         (k) =>
-          ['action', 'requestId', 'expectedRevision', 'operations'].indexOf(k) <
-          0,
+          [
+            'action',
+            'requestId',
+            'expectedRevision',
+            'operations',
+            'bookKey',
+          ].indexOf(k) < 0,
       )
     )
       fail_('INVALID_REQUEST');
@@ -2396,12 +2443,14 @@ function financialApi(request) {
       const s = readState_(config);
       return request.action === 'read' ? publicSnapshot_(s) : diagnostics_(s);
     }
+    if (request.action === 'acceptance') return closureReport_(config);
     if (request.action === 'requestStatus') {
       if (!uuid_(request.requestId)) fail_('INVALID_REQUEST');
-      const s = readState_(config),
-        row = s.technical.requests.find(
-          (r) => r[0] === request.requestId.toLowerCase(),
-        );
+      const s = readState_(config);
+      checkRequestBook_(request, s);
+      const row = s.technical.requests.find(
+        (r) => r[0] === request.requestId.toLowerCase(),
+      );
       return row
         ? Object.assign(JSON.parse(row[3]), { replayed: true })
         : { ok: true, found: false };
@@ -2419,6 +2468,7 @@ function financialApi(request) {
       fingerprint = hash_(request.operations);
     return locked_(() => {
       let before = readState_(config);
+      checkRequestBook_(request, before);
       if (!['requests', 'audit', 'observations'].every((k) => before.tech[k]))
         fail_('NOT_INITIALIZED', 'Ejecuta comprobarPaso3 desde el editor.');
       const stored = before.technical.requests.find((r) => r[0] === requestId);
@@ -2455,7 +2505,8 @@ function financialApi(request) {
       const response = {
         ok: true,
         apiVersion: API_VERSION_,
-        environment: 'test',
+        buildVersion: BUILD_VERSION_,
+        environment: config.environment,
         requestId,
         revision: applied.state.revision,
         results: applied.results,
@@ -2527,6 +2578,11 @@ function probarTransaccionesPaso3() {
   }
   try {
     config = authorizedConfig_();
+    if (config.environment !== 'test')
+      fail_(
+        'TEST_ONLY',
+        'Las transacciones ficticias solo se ejecutan en pruebas.',
+      );
     initial = initializeBackend_(config);
     const account = initial.tables.tCuentas[0],
       category = initial.tables.tCategorias.find((c) => c.Grupo === 'Gastos');
@@ -2629,6 +2685,7 @@ function probarTransaccionesPaso3() {
       ok: true,
       environment: 'test',
       apiVersion: API_VERSION_,
+      buildVersion: BUILD_VERSION_,
       duplicatePrevented: true,
       correctionChecked: true,
       cancellationChecked: true,
@@ -3611,19 +3668,31 @@ function parseFundPage_(html, isin, fetchedAt, today) {
       html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i) ||
       html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i),
     page = priceText_(html);
-  const identity = page.match(/\bISIN\s*:\s*([A-Z0-9]{12})\b/i),
-    heading = h1 && priceText_(h1[1]);
+  const identity = page.match(/\bISIN\s*:\s*([A-Z0-9]{12})\b/i);
+  let heading = h1 && priceText_(h1[1]);
+  const headingIsin = heading && heading.match(/\(([A-Z0-9]{12})\)/);
+  if (
+    (identity && identity[1] !== isin) ||
+    (headingIsin && headingIsin[1] !== isin)
+  )
+    priceFailure_(
+      'IDENTITY_MISMATCH',
+      'La ficha recibida pertenece a otro ISIN.',
+    );
+  if (!headingIsin) {
+    // La ficha móvil publica el nombre en h2 dentro del informe y el ISIN
+    // en Otras características; h1/title solo dicen «Características».
+    const report = html.match(
+      /<div\b[^>]*class=["'][^"']*\binforme\b[^"']*["'][^>]*>\s*<h2\b[^>]*>([\s\S]*?)<\/h2>/i,
+    );
+    heading = report ? priceText_(report[1]) : null;
+  }
   if (!identity || !heading)
     priceFailure_(
       /no se (?:ha encontrado|encuentra)|fondo no encontrado/i.test(page)
         ? 'FUND_NOT_FOUND'
         : 'SOURCE_FORMAT',
       'La respuesta no contiene una identidad de fondo verificable. Consulta el diagnóstico de la fuente; se conserva el precio anterior.',
-    );
-  if (identity[1] !== isin || heading.indexOf('(' + isin + ')') < 0)
-    priceFailure_(
-      'IDENTITY_MISMATCH',
-      'La ficha recibida pertenece a otro ISIN.',
     );
   const blocks = html.split(/<h4\b[^>]*>/i),
     raw = blocks.find((b) =>
@@ -3692,7 +3761,7 @@ function fetchFundQuote_(fund) {
   try {
     isin = normalizeIsin_(fund.isin);
     text_(fund.referenceName, 'Nombre de referencia');
-    const key = 'nav-v2-' + isin;
+    const key = 'nav-v3-' + isin;
     let cache = null,
       stored = null;
     try {
@@ -3701,39 +3770,62 @@ function fetchFundQuote_(fund) {
     } catch (ignored) {}
     let quote = stored ? JSON.parse(stored) : null;
     if (!quote) {
-      const response = UrlFetchApp.fetch(PRICE_BASE_ + isin, {
-        method: 'get',
-        followRedirects: false,
-        muteHttpExceptions: true,
-      });
-      if (response.getResponseCode() !== 200)
-        priceFailure_(
-          'SOURCE_UNAVAILABLE',
-          'La fuente no está disponible (HTTP ' +
-            response.getResponseCode() +
-            ').',
-        );
-      const html = response.getContentText('UTF-8');
-      const title = html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i);
-      responseInfo = {
-        httpStatus: response.getResponseCode(),
-        length: html.length,
-        title: title ? priceText_(title[1]).slice(0, 180) : null,
-        containsRequestedIsin: html.indexOf(isin) >= 0,
-        hasIdentityLabel: /\bISIN\s*:/i.test(priceText_(html)),
-        fingerprint: hash_(html),
-      };
-      if (html.length > 1500000)
-        priceFailure_(
-          'SOURCE_FORMAT',
-          'La respuesta de la fuente supera el tamaño admitido.',
-        );
-      quote = parseFundPage_(
-        html,
-        isin,
-        checkedAt,
-        Utilities.formatDate(new Date(), 'Europe/Madrid', 'yyyy-MM-dd'),
-      );
+      const urls = [
+        PRICE_BASE_ + isin,
+        'https://www.quefondos.com/m/es/fondos/ficha/index.html?isin=' + isin,
+      ];
+      const attempts = [];
+      for (let index = 0; index < urls.length; index++) {
+        const response = UrlFetchApp.fetch(urls[index], {
+          method: 'get',
+          followRedirects: false,
+          muteHttpExceptions: true,
+        });
+        if (response.getResponseCode() !== 200)
+          priceFailure_(
+            'SOURCE_UNAVAILABLE',
+            'La fuente no está disponible (HTTP ' +
+              response.getResponseCode() +
+              ').',
+          );
+        const html = response.getContentText('UTF-8');
+        const title = html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i);
+        responseInfo = {
+          httpStatus: response.getResponseCode(),
+          length: html.length,
+          title: title ? priceText_(title[1]).slice(0, 180) : null,
+          containsRequestedIsin: html.indexOf(isin) >= 0,
+          hasIdentityLabel: /\bISIN\s*:/i.test(priceText_(html)),
+          fingerprint: hash_(html),
+          url: urls[index],
+          hasValuationBlock: /Última valoración/i.test(priceText_(html)),
+          hasNavLabel: /Valor liquidativo\s*:/i.test(priceText_(html)),
+          hasCurrencyLabel: /Divisa\s*:/i.test(priceText_(html)),
+        };
+        attempts.push(Object.assign({}, responseInfo));
+        responseInfo.attempts = attempts;
+        if (html.length > 1500000)
+          priceFailure_(
+            'SOURCE_FORMAT',
+            'La respuesta de la fuente supera el tamaño admitido.',
+          );
+        try {
+          quote = parseFundPage_(
+            html,
+            isin,
+            checkedAt,
+            Utilities.formatDate(new Date(), 'Europe/Madrid', 'yyyy-MM-dd'),
+          );
+          quote.url = urls[index];
+          verifyFundName_(fund.referenceName, quote.name);
+          break;
+        } catch (error) {
+          // Solo una variante de formato permite consultar la ficha móvil oficial.
+          // ISIN/clase/nombre/precio/fecha incoherentes se rechazan sin sustitución.
+          if (error.priceCode !== 'SOURCE_FORMAT' || index === urls.length - 1)
+            throw error;
+        }
+      }
       try {
         if (cache) cache.put(key, JSON.stringify(quote), 300);
       } catch (ignored) {}
@@ -3777,7 +3869,7 @@ function fetchFundQuote_(fund) {
     };
   }
 }
-function quotePrices_(request) {
+function quotePrices_(request, config) {
   if (
     Object.keys(request).some((k) => ['action', 'funds'].indexOf(k) < 0) ||
     !Array.isArray(request.funds) ||
@@ -3799,7 +3891,8 @@ function quotePrices_(request) {
   return {
     ok: true,
     apiVersion: API_VERSION_,
-    environment: 'test',
+    buildVersion: BUILD_VERSION_,
+    environment: config.environment,
     readOnly: true,
     complete: results.every((r) => r.ok),
     results,
@@ -3906,7 +3999,13 @@ function refreshPrices_(config, request) {
   if (
     Object.keys(request).some(
       (k) =>
-        ['action', 'requestId', 'expectedRevision', 'products'].indexOf(k) < 0,
+        [
+          'action',
+          'requestId',
+          'expectedRevision',
+          'products',
+          'bookKey',
+        ].indexOf(k) < 0,
     ) ||
     !uuid_(request.requestId) ||
     typeof request.expectedRevision !== 'string' ||
@@ -3923,8 +4022,9 @@ function refreshPrices_(config, request) {
       products: request.products || null,
     });
   const prepared = locked_(() => {
-    const state = readState_(config),
-      replay = replayPrices_(state, requestId, fingerprint);
+    const state = readState_(config);
+    checkRequestBook_(request, state);
+    const replay = replayPrices_(state, requestId, fingerprint);
     if (replay) return { replay };
     if (!Object.keys(TECH_SCHEMA_).every((k) => state.tech[k]))
       fail_('NOT_INITIALIZED', 'Ejecuta comprobarPaso4 desde el editor.');
@@ -3972,6 +4072,7 @@ function refreshPrices_(config, request) {
   );
   return locked_(() => {
     let before = readState_(config);
+    checkRequestBook_(request, before);
     const replay = replayPrices_(before, requestId, fingerprint);
     if (replay) return replay;
     if (before.revision !== request.expectedRevision)
@@ -3995,7 +4096,8 @@ function refreshPrices_(config, request) {
     const response = {
       ok: true,
       apiVersion: API_VERSION_,
-      environment: 'test',
+      buildVersion: BUILD_VERSION_,
+      environment: config.environment,
       requestId,
       revision: plan.state.revision,
       complete: plan.results.every((r) => r.ok && r.status !== 'needs_review'),
@@ -4055,7 +4157,8 @@ function probarFuentesPaso4() {
     result = {
       ok: true,
       apiVersion: API_VERSION_,
-      environment: 'test',
+      buildVersion: BUILD_VERSION_,
+      environment: config.environment,
       readOnly: true,
       complete: bindings.length > 0 && results.every((r) => r.ok),
       unconfigured: s.tables.tProductos.length - bindings.length,
@@ -4080,6 +4183,7 @@ function actualizarPreciosPaso4() {
         action: 'refreshPrices',
         requestId: Utilities.getUuid(),
         expectedRevision: state.revision,
+        bookKey: state.bookKey,
         products: ids.slice(i, i + PRICE_LIMIT_),
       });
       results.push(response);
@@ -4088,7 +4192,8 @@ function actualizarPreciosPaso4() {
     result = {
       ok: true,
       apiVersion: API_VERSION_,
-      environment: 'test',
+      buildVersion: BUILD_VERSION_,
+      environment: config.environment,
       complete: results.every((r) => r.complete),
       batches: results,
       checkedAt: new Date().toISOString(),
@@ -4109,16 +4214,85 @@ function comprobarPaso5() {
     result = {
       ok: snap.ok,
       apiVersion: API_VERSION_,
-      environment: 'test',
+      buildVersion: BUILD_VERSION_,
+      environment: s.environment,
       backendReady: snap.backendReady,
-      calculationReady: snap.calculationReady,
+      calculationReady: snap.calculationReady && !snap.calculationErrors.length,
       calculationErrors: snap.calculationErrors,
       summaryReady: snap.summary.complete,
       missingPrices: snap.summary.missingPrices,
+      missingMetrics: snap.summary.missingMetrics,
+      bridgeReady: (() => {
+        try {
+          bridgeTemplate_();
+          return true;
+        } catch (error) {
+          return false;
+        }
+      })(),
       tableCount: snap.tableCount,
       rows: snap.rows,
       revision: snap.revision,
     };
+  } catch (error) {
+    result = apiError_(error);
+  }
+  console.log(JSON.stringify(result));
+  return result;
+}
+
+// Solo lectura: comprueba estructura, resumen y consulta real de fuentes, sin guardar precios.
+function closureReport_(config) {
+  const before = readState_(config),
+    snap = publicSnapshot_(before);
+  let bridgeReady = false;
+  try {
+    bridgeTemplate_();
+    bridgeReady = true;
+  } catch (error) {}
+  const results = before.tables.tProductos.map((product) => {
+    const binding = fundBinding_(before, product);
+    return binding
+      ? fetchFundQuote_(binding)
+      : {
+          ok: false,
+          referenceName: product.Producto,
+          error: 'ISIN_REQUIRED',
+          message: 'Configura el ISIN y nombre de referencia de este producto.',
+        };
+  });
+  const after = readState_(config),
+    stable = before.revision === after.revision,
+    checks = {
+      backend: snap.backendReady,
+      calculations: snap.calculationReady && !snap.calculationErrors.length,
+      summary: snap.summary.complete,
+      bridge: bridgeReady,
+      sources: results.every((result) => result.ok),
+      stable,
+    };
+  return {
+    ok: true,
+    apiVersion: API_VERSION_,
+    buildVersion: BUILD_VERSION_,
+    environment: config.environment,
+    bookKey: before.bookKey,
+    readOnly: true,
+    technicalReady: Object.values(checks).every(Boolean),
+    checks,
+    revision: before.revision,
+    settings: snap.settings,
+    missingMetrics: snap.summary.missingMetrics,
+    missingPrices: snap.summary.missingPrices,
+    calculationErrors: snap.calculationErrors,
+    results,
+    checkedAt: new Date().toISOString(),
+  };
+}
+function comprobarCierre() {
+  let result;
+  try {
+    result = closureReport_(authorizedConfig_());
   } catch (error) {
     result = apiError_(error);
   }

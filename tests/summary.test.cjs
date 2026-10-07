@@ -45,7 +45,7 @@ test('posición sin precio al corte oculta inversión y patrimonio, mantiene efe
 });
 test('cabeceras ausentes, duplicadas, fórmulas con error o blancos no se convierten en cero', () => {
   const { r, s, data } = fixture();
-  s.summaryValues.push(['Efectivo'], [0]);
+  s.summaryValues[1].push('Efectivo');
   s.summaryValues[4][0] = '#REF!';
   const result = r.ctx.nativeSummary_(s, data);
   assert.equal(result.metrics.find((m) => m.label === 'Efectivo').value, null);
@@ -54,4 +54,32 @@ test('cabeceras ausentes, duplicadas, fórmulas con error o blancos no se convie
   const read = r.api({ action: 'read' });
   assert.match(read.bookKey, /^[0-9a-f]{64}$/);
   assert.equal(read.bookKey.includes('fixture-book'), false);
+});
+
+test('las cabeceras del resumen mensual no ocultan las tarjetas nativas', () => {
+  const { r, s, data } = fixture();
+  s.summaryValues.push(
+    ['Resumen mensual'],
+    [],
+    ['Mes', 'Ingresos', 'Gastos', 'Ahorro', 'Efectivo'],
+    ['oct', 999, 111, 888, 777],
+  );
+  const result = r.ctx.nativeSummary_(s, data);
+  assert.equal(result.complete, true);
+  assert.equal(result.metrics.find((m) => m.label === 'Efectivo').value, 1000);
+  assert.equal(result.metrics.find((m) => m.label === 'Ingresos').value, 200);
+  assert.equal(result.metrics.find((m) => m.label === 'Ahorro').value, 150);
+  assert.deepEqual(Array.from(result.missingMetrics), []);
+});
+
+test('dos bloques completos de tarjetas requieren revisión y conservan desconocidos', () => {
+  const { r, s, data } = fixture();
+  s.summaryValues.push(
+    ['Patrimonio neto', 'Efectivo', 'Inversiones', 'Deuda'],
+    [0, 0, 0, 0],
+  );
+  const result = r.ctx.nativeSummary_(s, data);
+  assert.equal(result.complete, false);
+  assert.equal(result.metrics.find((m) => m.label === 'Efectivo').value, null);
+  assert.equal(result.metrics.find((m) => m.label === 'Ingresos').value, 200);
 });

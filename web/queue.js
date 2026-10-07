@@ -100,6 +100,9 @@ const FinanceSync = (() => {
           action,
           requestId: this.uuid(),
           expectedRevision: data.snapshot.revision,
+          ...(data.snapshot.supportsBookBinding
+            ? { bookKey: data.bookKey }
+            : {}),
         };
         if (action === 'transact') envelope.operations = clone(operations);
         else if (products) envelope.products = clone(products);

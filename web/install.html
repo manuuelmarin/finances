@@ -1,9 +1,13 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="referrer" content="no-referrer"><title>Finanzas · Instalar conexión</title><style>
+<html lang="es"><head>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'sha256-jR88ekepLVmRCqwXwaAoX2UqZfjqnti3UPxbLOjltSc='; img-src 'self'; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    /><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="referrer" content="no-referrer"><title>Finanzas · Instalar conexión</title><style>
 :root{color-scheme:dark;--ink:#10191b;--panel:#172325;--line:#2d3f3e;--text:#efeee5;--muted:#a4b6ad;--mint:#b9d6bf;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}*{box-sizing:border-box}body{margin:0;background:var(--ink);color:var(--text);line-height:1.65}main{max-width:1000px;margin:auto;padding:36px 32px 70px}a{color:var(--mint);text-underline-offset:4px}.back{display:inline-flex;padding:8px 0;margin-bottom:30px;text-decoration:none}.eyebrow{font-size:11px;letter-spacing:.16em;color:var(--mint);font-weight:650;margin:0 0 10px}h1{font-weight:500;letter-spacing:-.045em;font-size:clamp(32px,5vw,54px);line-height:1.12;margin:0 0 20px}h2{font-size:22px;font-weight:500;margin:0;color:var(--text);letter-spacing:-.025em}.intro{color:var(--muted);max-width:650px;font-size:17px}.code-section{margin:28px 0;border:1px solid var(--line);padding:25px;background:var(--panel);border-radius:12px}.code-section header{display:flex;gap:20px;align-items:center;justify-content:space-between}.code-section>p{color:var(--muted);font-size:14px}button{border:0;padding:12px 18px;border-radius:8px;min-height:44px;background:var(--mint);color:#142019;font:inherit;font-size:14px;font-weight:650;cursor:pointer}button:focus-visible,a:focus-visible,summary:focus-visible,pre:focus-visible{outline:3px solid #e1eddf;outline-offset:4px}summary{cursor:pointer;padding:8px 0;color:var(--mint);font-size:14px}pre{white-space:pre;overflow:auto;max-height:450px;padding:18px;border:1px solid var(--line);background:var(--ink);font:12px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace;border-radius:6px}ol{padding-left:25px;color:var(--muted)}li{padding:8px 0}strong{color:var(--text)}table{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed}td,th{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}th{color:var(--mint);font-weight:500}td:first-child,th:first-child{width:48%}code{font-family:ui-monospace,monospace;font-size:.9em}.notice{padding:18px 20px;border-left:2px solid var(--mint);background:#162123;color:var(--muted);font-size:14px;margin:24px 0}#copy-status{color:var(--mint);font-size:14px;min-height:24px}.configuration{margin-top:44px}footer{margin-top:45px;padding-top:20px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}@media(max-width:580px){main{padding:24px 18px 50px}.code-section{padding:20px 16px}.code-section header{align-items:flex-start;flex-direction:column;gap:14px}.code-section header button{width:100%}td,th{padding:12px 6px;font-size:12px}}
-</style><script src="install.js" defer></script></head><body><main><a class="back" href="./#connection">← Volver a Finanzas</a><p class="eyebrow">GOOGLE SHEETS · CONEXIÓN PRIVADA</p><h1>Tu libro.<br>Una conexión sencilla.</h1><p class="intro">Copia estos tres archivos en tu proyecto de Apps Script. Paso 4: esta versión consulta fondos por ISIN y nombre de referencia, conserva la fecha y fuente de cada valor liquidativo y actualiza la copia de pruebas. Los formularios de la app se elegirán en el paso 5.</p><p class="notice">Actualiza tu proyecto existente. Conserva las tres propiedades que ya configuraste. El manifiesto añade permiso para consultar las fuentes públicas de precios. Mantén el acceso privado de Google.</p><p id="copy-status" role="status" aria-live="polite"></p>
-<section class="code-section" aria-labelledby="file-0"><header><div><p class="eyebrow">ARCHIVO 1 DE 3</p><h2 id="file-0">Code.gs</h2></div><button type="button" data-copy="code-0">Copiar código</button></header><p>Sustituye todo el contenido de Code.gs por este código.</p><details><summary>Ver código completo</summary><pre id="code-0" tabindex="0">// Pasos 2, 3 y 4: conexión privada, API financiera y cotizaciones por ISIN.
-// Solo opera en TEST_SPREADSHEET_ID y ENVIRONMENT=test. No incluye datos personales.
+</style><script src="install.js" defer></script></head><body><main><a class="back" href="./#connection">← Volver a Finanzas</a><p class="eyebrow">GOOGLE SHEETS · CONEXIÓN PRIVADA</p><h1>Tu libro.<br>Una conexión sencilla.</h1><p class="intro">Copia estos tres archivos en tu proyecto de Apps Script. Entrega 3.4.0: resumen, registros, precios por ISIN, PWA y preparación del uso real. Prueba primero en la copia separada. Cada botón copia un archivo diferente.</p><p class="notice">Actualiza tu proyecto existente. Conserva las propiedades de pruebas que ya configuraste. La selección del principal se configura por separado al efectuar el cambio al uso real. El manifiesto añade permiso para consultar las fuentes públicas de precios. Mantén el acceso privado de Google.</p><p id="copy-status" role="status" aria-live="polite"></p>
+<section class="code-section" aria-labelledby="file-0"><header><div><p class="eyebrow">ARCHIVO 1 DE 3</p><h2 id="file-0">Code.gs</h2></div><button type="button" data-copy="code-0">Copiar Code.gs</button></header><p>Sustituye todo el contenido de Code.gs por este código.</p><details><summary>Ver código completo</summary><pre id="code-0" tabindex="0">// Pasos 2, 3 y 4: conexión privada, API financiera y cotizaciones por ISIN.
+// Libros privados separados por ENVIRONMENT; no incluye datos personales.
 const CONNECTION_TYPE_ = &#x27;finances.connection.v1&#x27;;
 const APP_ORIGIN_ = &#x27;https://manuuelmarin.github.io&#x27;;
 const MODEL_VERSION_ = 3;
@@ -117,6 +121,7 @@ const TABLE_SCHEMA_ = [
 ];
 
 const API_VERSION_ = &#x27;3.3.0&#x27;;
+const BUILD_VERSION_ = &#x27;3.4.0&#x27;;
 // El motor de fórmulas no cambia en el paso 4; conserva su sello de capacidad.
 const CAPACITY_VERSION_ = &#x27;3.1.0&#x27;;
 const INPUT_SCHEMA_ = {
@@ -374,28 +379,36 @@ function doGet(e) {
     result.error =
       codes.indexOf(error.message) &gt;= 0 ? error.message : &#x27;READ_FAILED&#x27;;
   }
+  try {
+    const template = bridgeTemplate_();
+    template.payloadJson = JSON.stringify(result);
+    template.appOrigin = APP_ORIGIN_;
+    return template.evaluate().setTitle(&#x27;Finanzas · Tu libro&#x27;);
+  } catch (error) {
+    return HtmlService.createHtmlOutput(
+      &#x27;&lt;!doctype html&gt;&lt;html lang=&quot;es&quot;&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;title&gt;Finanzas · Revisar Bridge&lt;/title&gt;&#x27; +
+        &#x27;&lt;h1&gt;Revisa Bridge.html&lt;/h1&gt;&lt;p&gt;Este archivo debe contener el bloque HTML del archivo 2 de 3. &#x27; +
+        &#x27;Copia Bridge.html, guarda y publica una Nueva versión de la implementación existente.&lt;/p&gt;&#x27; +
+        &#x27;&lt;a href=&quot;https://manuuelmarin.github.io/finances/install.html&quot;&gt;Abrir instalador&lt;/a&gt;&lt;/html&gt;&#x27;,
+    );
+  }
+}
+function bridgeTemplate_() {
   const template = HtmlService.createTemplateFromFile(&#x27;Bridge&#x27;);
-  template.payloadJson = JSON.stringify(result);
-  template.appOrigin = APP_ORIGIN_;
-  return template.evaluate().setTitle(&#x27;Finanzas · Lectura de prueba&#x27;);
+  const raw = template.getRawContent();
+  if (
+    !/^\s*&lt;!doctype html&gt;/i.test(raw) ||
+    !/id=[&quot;&#x27;]payload[&quot;&#x27;]/.test(raw) ||
+    !/id=[&quot;&#x27;]origin[&quot;&#x27;]/.test(raw) ||
+    raw.indexOf(&#x27;google.script.run&#x27;) &lt; 0
+  )
+    throw new Error(&#x27;BRIDGE_INVALID&#x27;);
+  return template;
 }
 
 function readConnection_() {
-  const properties = PropertiesService.getScriptProperties();
-  const spreadsheetId = properties.getProperty(&#x27;TEST_SPREADSHEET_ID&#x27;);
-  const owner = (properties.getProperty(&#x27;OWNER_EMAIL&#x27;) || &#x27;&#x27;)
-    .trim()
-    .toLowerCase();
-  if (
-    !spreadsheetId ||
-    !owner ||
-    properties.getProperty(&#x27;ENVIRONMENT&#x27;) !== &#x27;test&#x27;
-  ) {
-    throw new Error(&#x27;NOT_CONFIGURED&#x27;);
-  }
-  // Comprobar al visitante, no solo la identidad que ejecuta el despliegue.
-  const visitor = Session.getActiveUser().getEmail().trim().toLowerCase();
-  if (!visitor || visitor !== owner) throw new Error(&#x27;ACCESS_DENIED&#x27;);
+  const config = authorizedConfig_(),
+    spreadsheetId = config.id;
 
   // Esta función usa solo lecturas. El manifiesto permite además las escrituras de la API del paso 3.
   // Localizar tablas por nombre evita depender de sus filas actuales.
@@ -424,11 +437,13 @@ function readConnection_() {
   }
   return {
     ok: true,
-    environment: &#x27;test&#x27;,
+    environment: config.environment,
     modelVersion: modelVersion,
     sheetCount: sheetCount,
     checkedAt: new Date().toISOString(),
     apiVersion: API_VERSION_,
+    buildVersion: BUILD_VERSION_,
+    supportsBookBinding: true,
     backendReady: [
       &#x27;_Finanzas_Solicitudes&#x27;,
       &#x27;_Finanzas_Auditoria&#x27;,
@@ -678,14 +693,33 @@ function recurrence_(v) {
 function authorizedConfig_() {
   const p = PropertiesService.getScriptProperties(),
     owner = (p.getProperty(&#x27;OWNER_EMAIL&#x27;) || &#x27;&#x27;).trim().toLowerCase();
-  const id = p.getProperty(&#x27;TEST_SPREADSHEET_ID&#x27;);
-  if (!id || !owner || p.getProperty(&#x27;ENVIRONMENT&#x27;) !== &#x27;test&#x27;)
+  const environment = p.getProperty(&#x27;ENVIRONMENT&#x27;),
+    testId = (p.getProperty(&#x27;TEST_SPREADSHEET_ID&#x27;) || &#x27;&#x27;).trim(),
+    productionId = (p.getProperty(&#x27;PRODUCTION_SPREADSHEET_ID&#x27;) || &#x27;&#x27;).trim(),
+    id = environment === &#x27;production&#x27; ? productionId : testId;
+  if (
+    !testId ||
+    !id ||
+    !owner ||
+    ![&#x27;test&#x27;, &#x27;production&#x27;].includes(environment) ||
+    (environment === &#x27;production&#x27; &amp;&amp; productionId === testId)
+  )
     fail_(&#x27;NOT_CONFIGURED&#x27;);
   const visitor = (Session.getActiveUser().getEmail() || &#x27;&#x27;)
     .trim()
     .toLowerCase();
   if (!visitor || visitor !== owner) fail_(&#x27;ACCESS_DENIED&#x27;);
-  return { id, owner };
+  return { id, owner, environment };
+}
+function checkRequestBook_(request, state) {
+  if (request.bookKey === undefined &amp;&amp; state.environment === &#x27;test&#x27;) return;
+  if (!request.bookKey)
+    fail_(&#x27;READ_REQUIRED&#x27;, &#x27;Lee el libro antes de preparar la solicitud.&#x27;);
+  if (request.bookKey !== state.bookKey)
+    fail_(
+      &#x27;BOOK_CHANGED&#x27;,
+      &#x27;La solicitud pertenece a otro libro. Conserva el pendiente y abre su implementación original.&#x27;,
+    );
 }
 function locked_(callback) {
   const lock = LockService.getScriptLock();
@@ -716,6 +750,9 @@ function apiError_(error) {
     &#x27;SCHEMA_CONFLICT&#x27;,
     &#x27;WRITE_UNCERTAIN&#x27;,
     &#x27;INVALID_ISIN&#x27;,
+    &#x27;READ_REQUIRED&#x27;,
+    &#x27;BOOK_CHANGED&#x27;,
+    &#x27;TEST_ONLY&#x27;,
   ];
   const code =
     codes.indexOf(error.code || error.message) &gt;= 0
@@ -936,6 +973,7 @@ function readState_(config) {
     (k) =&gt; (settings[k] = serialDate_(params[PARAMETER_NAMES_[k]])),
   );
   const state = {
+    environment: config.environment || &#x27;test&#x27;,
     book,
     layout,
     tech,
@@ -2198,7 +2236,9 @@ function diagnostics_(s) {
   return {
     ok: true,
     apiVersion: API_VERSION_,
-    environment: &#x27;test&#x27;,
+    buildVersion: BUILD_VERSION_,
+    supportsBookBinding: true,
+    environment: s.environment,
     modelVersion: 3,
     businessSheetCount: REQUIRED_SHEETS_.length,
     tableCount: TABLE_SCHEMA_.length,
@@ -2308,29 +2348,33 @@ function publicSnapshot_(s) {
 
 // Resumen leído del motor nativo, con cabeceras verificadas; nunca un motor paralelo.
 function nativeSummary_(s, data) {
-  const labels = [
-    &#x27;Patrimonio neto&#x27;,
-    &#x27;Efectivo&#x27;,
-    &#x27;Inversiones&#x27;,
-    &#x27;Deuda&#x27;,
-    &#x27;Ingresos&#x27;,
-    &#x27;Gastos propios&#x27;,
-    &#x27;Ahorro&#x27;,
-    &#x27;Tasa de ahorro&#x27;,
+  const groups = [
+    [&#x27;Patrimonio neto&#x27;, &#x27;Efectivo&#x27;, &#x27;Inversiones&#x27;, &#x27;Deuda&#x27;],
+    [&#x27;Ingresos&#x27;, &#x27;Gastos propios&#x27;, &#x27;Ahorro&#x27;, &#x27;Tasa de ahorro&#x27;],
   ];
-  const metrics = labels.map((label) =&gt; {
-    const matches = [];
-    (s.summaryValues || []).forEach((row, i) =&gt;
-      row.forEach((v, j) =&gt; {
-        if (v === label) matches.push({ i, j });
-      }),
-    );
-    const cell = matches.length === 1 ? matches[0] : null;
-    const value = cell &amp;&amp; (s.summaryValues[cell.i + 1] || [])[cell.j];
-    return {
-      label,
-      value: typeof value === &#x27;number&#x27; &amp;&amp; Number.isFinite(value) ? value : null,
-    };
+  const rows = s.summaryValues || [];
+  // Identificar las dos filas de tarjetas completas. Las tablas/gráficas inferiores
+  // reutilizan Ingresos, Ahorro y Efectivo; sus cabeceras no son tarjetas duplicadas.
+  const metrics = groups.flatMap((labels) =&gt; {
+    const matches = rows
+      .map((row, i) =&gt; ({ row, i }))
+      .filter(({ row }) =&gt; labels.every((label) =&gt; row.includes(label)));
+    const header = matches.length === 1 ? matches[0] : null;
+    return labels.map((label) =&gt; {
+      const columns = header
+        ? header.row.reduce((out, value, j) =&gt; {
+            if (value === label) out.push(j);
+            return out;
+          }, [])
+        : [];
+      const value =
+        columns.length === 1 &amp;&amp; (rows[header.i + 1] || [])[columns[0]];
+      return {
+        label,
+        value:
+          typeof value === &#x27;number&#x27; &amp;&amp; Number.isFinite(value) ? value : null,
+      };
+    });
   });
   const filters = {};
   [&#x27;Año&#x27;, &#x27;Periodo&#x27;, &#x27;Cuenta&#x27;].forEach((label) =&gt; {
@@ -2358,6 +2402,7 @@ function nativeSummary_(s, data) {
     metrics,
     filters,
     missingPrices,
+    missingMetrics: metrics.filter((m) =&gt; m.value === null).map((m) =&gt; m.label),
     complete: !missingPrices.length &amp;&amp; metrics.every((m) =&gt; m.value !== null),
     settings: Object.fromEntries(
       Object.keys(s.settings).map((k) =&gt; [k, isoDate_(s.settings[k])]),
@@ -2381,18 +2426,24 @@ function financialApi(request) {
             &#x27;operations&#x27;,
             &#x27;funds&#x27;,
             &#x27;products&#x27;,
+            &#x27;bookKey&#x27;,
           ].indexOf(k) &lt; 0,
       )
     )
       fail_(&#x27;INVALID_REQUEST&#x27;);
-    if (request.action === &#x27;quotePrices&#x27;) return quotePrices_(request);
+    if (request.action === &#x27;quotePrices&#x27;) return quotePrices_(request, config);
     if (request.action === &#x27;refreshPrices&#x27;)
       return refreshPrices_(config, request);
     if (
       Object.keys(request).some(
         (k) =&gt;
-          [&#x27;action&#x27;, &#x27;requestId&#x27;, &#x27;expectedRevision&#x27;, &#x27;operations&#x27;].indexOf(k) &lt;
-          0,
+          [
+            &#x27;action&#x27;,
+            &#x27;requestId&#x27;,
+            &#x27;expectedRevision&#x27;,
+            &#x27;operations&#x27;,
+            &#x27;bookKey&#x27;,
+          ].indexOf(k) &lt; 0,
       )
     )
       fail_(&#x27;INVALID_REQUEST&#x27;);
@@ -2400,12 +2451,14 @@ function financialApi(request) {
       const s = readState_(config);
       return request.action === &#x27;read&#x27; ? publicSnapshot_(s) : diagnostics_(s);
     }
+    if (request.action === &#x27;acceptance&#x27;) return closureReport_(config);
     if (request.action === &#x27;requestStatus&#x27;) {
       if (!uuid_(request.requestId)) fail_(&#x27;INVALID_REQUEST&#x27;);
-      const s = readState_(config),
-        row = s.technical.requests.find(
-          (r) =&gt; r[0] === request.requestId.toLowerCase(),
-        );
+      const s = readState_(config);
+      checkRequestBook_(request, s);
+      const row = s.technical.requests.find(
+        (r) =&gt; r[0] === request.requestId.toLowerCase(),
+      );
       return row
         ? Object.assign(JSON.parse(row[3]), { replayed: true })
         : { ok: true, found: false };
@@ -2423,6 +2476,7 @@ function financialApi(request) {
       fingerprint = hash_(request.operations);
     return locked_(() =&gt; {
       let before = readState_(config);
+      checkRequestBook_(request, before);
       if (![&#x27;requests&#x27;, &#x27;audit&#x27;, &#x27;observations&#x27;].every((k) =&gt; before.tech[k]))
         fail_(&#x27;NOT_INITIALIZED&#x27;, &#x27;Ejecuta comprobarPaso3 desde el editor.&#x27;);
       const stored = before.technical.requests.find((r) =&gt; r[0] === requestId);
@@ -2459,7 +2513,8 @@ function financialApi(request) {
       const response = {
         ok: true,
         apiVersion: API_VERSION_,
-        environment: &#x27;test&#x27;,
+        buildVersion: BUILD_VERSION_,
+        environment: config.environment,
         requestId,
         revision: applied.state.revision,
         results: applied.results,
@@ -2531,6 +2586,11 @@ function probarTransaccionesPaso3() {
   }
   try {
     config = authorizedConfig_();
+    if (config.environment !== &#x27;test&#x27;)
+      fail_(
+        &#x27;TEST_ONLY&#x27;,
+        &#x27;Las transacciones ficticias solo se ejecutan en pruebas.&#x27;,
+      );
     initial = initializeBackend_(config);
     const account = initial.tables.tCuentas[0],
       category = initial.tables.tCategorias.find((c) =&gt; c.Grupo === &#x27;Gastos&#x27;);
@@ -2633,6 +2693,7 @@ function probarTransaccionesPaso3() {
       ok: true,
       environment: &#x27;test&#x27;,
       apiVersion: API_VERSION_,
+      buildVersion: BUILD_VERSION_,
       duplicatePrevented: true,
       correctionChecked: true,
       cancellationChecked: true,
@@ -3615,19 +3676,31 @@ function parseFundPage_(html, isin, fetchedAt, today) {
       html.match(/&lt;h1\b[^&gt;]*&gt;([\s\S]*?)&lt;\/h1&gt;/i) ||
       html.match(/&lt;title\b[^&gt;]*&gt;([\s\S]*?)&lt;\/title&gt;/i),
     page = priceText_(html);
-  const identity = page.match(/\bISIN\s*:\s*([A-Z0-9]{12})\b/i),
-    heading = h1 &amp;&amp; priceText_(h1[1]);
+  const identity = page.match(/\bISIN\s*:\s*([A-Z0-9]{12})\b/i);
+  let heading = h1 &amp;&amp; priceText_(h1[1]);
+  const headingIsin = heading &amp;&amp; heading.match(/\(([A-Z0-9]{12})\)/);
+  if (
+    (identity &amp;&amp; identity[1] !== isin) ||
+    (headingIsin &amp;&amp; headingIsin[1] !== isin)
+  )
+    priceFailure_(
+      &#x27;IDENTITY_MISMATCH&#x27;,
+      &#x27;La ficha recibida pertenece a otro ISIN.&#x27;,
+    );
+  if (!headingIsin) {
+    // La ficha móvil publica el nombre en h2 dentro del informe y el ISIN
+    // en Otras características; h1/title solo dicen «Características».
+    const report = html.match(
+      /&lt;div\b[^&gt;]*class=[&quot;&#x27;][^&quot;&#x27;]*\binforme\b[^&quot;&#x27;]*[&quot;&#x27;][^&gt;]*&gt;\s*&lt;h2\b[^&gt;]*&gt;([\s\S]*?)&lt;\/h2&gt;/i,
+    );
+    heading = report ? priceText_(report[1]) : null;
+  }
   if (!identity || !heading)
     priceFailure_(
       /no se (?:ha encontrado|encuentra)|fondo no encontrado/i.test(page)
         ? &#x27;FUND_NOT_FOUND&#x27;
         : &#x27;SOURCE_FORMAT&#x27;,
       &#x27;La respuesta no contiene una identidad de fondo verificable. Consulta el diagnóstico de la fuente; se conserva el precio anterior.&#x27;,
-    );
-  if (identity[1] !== isin || heading.indexOf(&#x27;(&#x27; + isin + &#x27;)&#x27;) &lt; 0)
-    priceFailure_(
-      &#x27;IDENTITY_MISMATCH&#x27;,
-      &#x27;La ficha recibida pertenece a otro ISIN.&#x27;,
     );
   const blocks = html.split(/&lt;h4\b[^&gt;]*&gt;/i),
     raw = blocks.find((b) =&gt;
@@ -3696,7 +3769,7 @@ function fetchFundQuote_(fund) {
   try {
     isin = normalizeIsin_(fund.isin);
     text_(fund.referenceName, &#x27;Nombre de referencia&#x27;);
-    const key = &#x27;nav-v2-&#x27; + isin;
+    const key = &#x27;nav-v3-&#x27; + isin;
     let cache = null,
       stored = null;
     try {
@@ -3705,39 +3778,62 @@ function fetchFundQuote_(fund) {
     } catch (ignored) {}
     let quote = stored ? JSON.parse(stored) : null;
     if (!quote) {
-      const response = UrlFetchApp.fetch(PRICE_BASE_ + isin, {
-        method: &#x27;get&#x27;,
-        followRedirects: false,
-        muteHttpExceptions: true,
-      });
-      if (response.getResponseCode() !== 200)
-        priceFailure_(
-          &#x27;SOURCE_UNAVAILABLE&#x27;,
-          &#x27;La fuente no está disponible (HTTP &#x27; +
-            response.getResponseCode() +
-            &#x27;).&#x27;,
-        );
-      const html = response.getContentText(&#x27;UTF-8&#x27;);
-      const title = html.match(/&lt;title\b[^&gt;]*&gt;([\s\S]*?)&lt;\/title&gt;/i);
-      responseInfo = {
-        httpStatus: response.getResponseCode(),
-        length: html.length,
-        title: title ? priceText_(title[1]).slice(0, 180) : null,
-        containsRequestedIsin: html.indexOf(isin) &gt;= 0,
-        hasIdentityLabel: /\bISIN\s*:/i.test(priceText_(html)),
-        fingerprint: hash_(html),
-      };
-      if (html.length &gt; 1500000)
-        priceFailure_(
-          &#x27;SOURCE_FORMAT&#x27;,
-          &#x27;La respuesta de la fuente supera el tamaño admitido.&#x27;,
-        );
-      quote = parseFundPage_(
-        html,
-        isin,
-        checkedAt,
-        Utilities.formatDate(new Date(), &#x27;Europe/Madrid&#x27;, &#x27;yyyy-MM-dd&#x27;),
-      );
+      const urls = [
+        PRICE_BASE_ + isin,
+        &#x27;https://www.quefondos.com/m/es/fondos/ficha/index.html?isin=&#x27; + isin,
+      ];
+      const attempts = [];
+      for (let index = 0; index &lt; urls.length; index++) {
+        const response = UrlFetchApp.fetch(urls[index], {
+          method: &#x27;get&#x27;,
+          followRedirects: false,
+          muteHttpExceptions: true,
+        });
+        if (response.getResponseCode() !== 200)
+          priceFailure_(
+            &#x27;SOURCE_UNAVAILABLE&#x27;,
+            &#x27;La fuente no está disponible (HTTP &#x27; +
+              response.getResponseCode() +
+              &#x27;).&#x27;,
+          );
+        const html = response.getContentText(&#x27;UTF-8&#x27;);
+        const title = html.match(/&lt;title\b[^&gt;]*&gt;([\s\S]*?)&lt;\/title&gt;/i);
+        responseInfo = {
+          httpStatus: response.getResponseCode(),
+          length: html.length,
+          title: title ? priceText_(title[1]).slice(0, 180) : null,
+          containsRequestedIsin: html.indexOf(isin) &gt;= 0,
+          hasIdentityLabel: /\bISIN\s*:/i.test(priceText_(html)),
+          fingerprint: hash_(html),
+          url: urls[index],
+          hasValuationBlock: /Última valoración/i.test(priceText_(html)),
+          hasNavLabel: /Valor liquidativo\s*:/i.test(priceText_(html)),
+          hasCurrencyLabel: /Divisa\s*:/i.test(priceText_(html)),
+        };
+        attempts.push(Object.assign({}, responseInfo));
+        responseInfo.attempts = attempts;
+        if (html.length &gt; 1500000)
+          priceFailure_(
+            &#x27;SOURCE_FORMAT&#x27;,
+            &#x27;La respuesta de la fuente supera el tamaño admitido.&#x27;,
+          );
+        try {
+          quote = parseFundPage_(
+            html,
+            isin,
+            checkedAt,
+            Utilities.formatDate(new Date(), &#x27;Europe/Madrid&#x27;, &#x27;yyyy-MM-dd&#x27;),
+          );
+          quote.url = urls[index];
+          verifyFundName_(fund.referenceName, quote.name);
+          break;
+        } catch (error) {
+          // Solo una variante de formato permite consultar la ficha móvil oficial.
+          // ISIN/clase/nombre/precio/fecha incoherentes se rechazan sin sustitución.
+          if (error.priceCode !== &#x27;SOURCE_FORMAT&#x27; || index === urls.length - 1)
+            throw error;
+        }
+      }
       try {
         if (cache) cache.put(key, JSON.stringify(quote), 300);
       } catch (ignored) {}
@@ -3781,7 +3877,7 @@ function fetchFundQuote_(fund) {
     };
   }
 }
-function quotePrices_(request) {
+function quotePrices_(request, config) {
   if (
     Object.keys(request).some((k) =&gt; [&#x27;action&#x27;, &#x27;funds&#x27;].indexOf(k) &lt; 0) ||
     !Array.isArray(request.funds) ||
@@ -3803,7 +3899,8 @@ function quotePrices_(request) {
   return {
     ok: true,
     apiVersion: API_VERSION_,
-    environment: &#x27;test&#x27;,
+    buildVersion: BUILD_VERSION_,
+    environment: config.environment,
     readOnly: true,
     complete: results.every((r) =&gt; r.ok),
     results,
@@ -3910,7 +4007,13 @@ function refreshPrices_(config, request) {
   if (
     Object.keys(request).some(
       (k) =&gt;
-        [&#x27;action&#x27;, &#x27;requestId&#x27;, &#x27;expectedRevision&#x27;, &#x27;products&#x27;].indexOf(k) &lt; 0,
+        [
+          &#x27;action&#x27;,
+          &#x27;requestId&#x27;,
+          &#x27;expectedRevision&#x27;,
+          &#x27;products&#x27;,
+          &#x27;bookKey&#x27;,
+        ].indexOf(k) &lt; 0,
     ) ||
     !uuid_(request.requestId) ||
     typeof request.expectedRevision !== &#x27;string&#x27; ||
@@ -3927,8 +4030,9 @@ function refreshPrices_(config, request) {
       products: request.products || null,
     });
   const prepared = locked_(() =&gt; {
-    const state = readState_(config),
-      replay = replayPrices_(state, requestId, fingerprint);
+    const state = readState_(config);
+    checkRequestBook_(request, state);
+    const replay = replayPrices_(state, requestId, fingerprint);
     if (replay) return { replay };
     if (!Object.keys(TECH_SCHEMA_).every((k) =&gt; state.tech[k]))
       fail_(&#x27;NOT_INITIALIZED&#x27;, &#x27;Ejecuta comprobarPaso4 desde el editor.&#x27;);
@@ -3976,6 +4080,7 @@ function refreshPrices_(config, request) {
   );
   return locked_(() =&gt; {
     let before = readState_(config);
+    checkRequestBook_(request, before);
     const replay = replayPrices_(before, requestId, fingerprint);
     if (replay) return replay;
     if (before.revision !== request.expectedRevision)
@@ -3999,7 +4104,8 @@ function refreshPrices_(config, request) {
     const response = {
       ok: true,
       apiVersion: API_VERSION_,
-      environment: &#x27;test&#x27;,
+      buildVersion: BUILD_VERSION_,
+      environment: config.environment,
       requestId,
       revision: plan.state.revision,
       complete: plan.results.every((r) =&gt; r.ok &amp;&amp; r.status !== &#x27;needs_review&#x27;),
@@ -4059,7 +4165,8 @@ function probarFuentesPaso4() {
     result = {
       ok: true,
       apiVersion: API_VERSION_,
-      environment: &#x27;test&#x27;,
+      buildVersion: BUILD_VERSION_,
+      environment: config.environment,
       readOnly: true,
       complete: bindings.length &gt; 0 &amp;&amp; results.every((r) =&gt; r.ok),
       unconfigured: s.tables.tProductos.length - bindings.length,
@@ -4084,6 +4191,7 @@ function actualizarPreciosPaso4() {
         action: &#x27;refreshPrices&#x27;,
         requestId: Utilities.getUuid(),
         expectedRevision: state.revision,
+        bookKey: state.bookKey,
         products: ids.slice(i, i + PRICE_LIMIT_),
       });
       results.push(response);
@@ -4092,7 +4200,8 @@ function actualizarPreciosPaso4() {
     result = {
       ok: true,
       apiVersion: API_VERSION_,
-      environment: &#x27;test&#x27;,
+      buildVersion: BUILD_VERSION_,
+      environment: config.environment,
       complete: results.every((r) =&gt; r.complete),
       batches: results,
       checkedAt: new Date().toISOString(),
@@ -4113,12 +4222,22 @@ function comprobarPaso5() {
     result = {
       ok: snap.ok,
       apiVersion: API_VERSION_,
-      environment: &#x27;test&#x27;,
+      buildVersion: BUILD_VERSION_,
+      environment: s.environment,
       backendReady: snap.backendReady,
-      calculationReady: snap.calculationReady,
+      calculationReady: snap.calculationReady &amp;&amp; !snap.calculationErrors.length,
       calculationErrors: snap.calculationErrors,
       summaryReady: snap.summary.complete,
       missingPrices: snap.summary.missingPrices,
+      missingMetrics: snap.summary.missingMetrics,
+      bridgeReady: (() =&gt; {
+        try {
+          bridgeTemplate_();
+          return true;
+        } catch (error) {
+          return false;
+        }
+      })(),
       tableCount: snap.tableCount,
       rows: snap.rows,
       revision: snap.revision,
@@ -4129,8 +4248,67 @@ function comprobarPaso5() {
   console.log(JSON.stringify(result));
   return result;
 }
+
+// Solo lectura: comprueba estructura, resumen y consulta real de fuentes, sin guardar precios.
+function closureReport_(config) {
+  const before = readState_(config),
+    snap = publicSnapshot_(before);
+  let bridgeReady = false;
+  try {
+    bridgeTemplate_();
+    bridgeReady = true;
+  } catch (error) {}
+  const results = before.tables.tProductos.map((product) =&gt; {
+    const binding = fundBinding_(before, product);
+    return binding
+      ? fetchFundQuote_(binding)
+      : {
+          ok: false,
+          referenceName: product.Producto,
+          error: &#x27;ISIN_REQUIRED&#x27;,
+          message: &#x27;Configura el ISIN y nombre de referencia de este producto.&#x27;,
+        };
+  });
+  const after = readState_(config),
+    stable = before.revision === after.revision,
+    checks = {
+      backend: snap.backendReady,
+      calculations: snap.calculationReady &amp;&amp; !snap.calculationErrors.length,
+      summary: snap.summary.complete,
+      bridge: bridgeReady,
+      sources: results.every((result) =&gt; result.ok),
+      stable,
+    };
+  return {
+    ok: true,
+    apiVersion: API_VERSION_,
+    buildVersion: BUILD_VERSION_,
+    environment: config.environment,
+    bookKey: before.bookKey,
+    readOnly: true,
+    technicalReady: Object.values(checks).every(Boolean),
+    checks,
+    revision: before.revision,
+    settings: snap.settings,
+    missingMetrics: snap.summary.missingMetrics,
+    missingPrices: snap.summary.missingPrices,
+    calculationErrors: snap.calculationErrors,
+    results,
+    checkedAt: new Date().toISOString(),
+  };
+}
+function comprobarCierre() {
+  let result;
+  try {
+    result = closureReport_(authorizedConfig_());
+  } catch (error) {
+    result = apiError_(error);
+  }
+  console.log(JSON.stringify(result));
+  return result;
+}
 </pre></details></section>
-<section class="code-section" aria-labelledby="file-1"><header><div><p class="eyebrow">ARCHIVO 2 DE 3</p><h2 id="file-1">Bridge.html</h2></div><button type="button" data-copy="code-1">Copiar código</button></header><p>Añade un archivo HTML llamado Bridge y pega todo este bloque.</p><details><summary>Ver código completo</summary><pre id="code-1" tabindex="0">&lt;!doctype html&gt;
+<section class="code-section" aria-labelledby="file-1"><header><div><p class="eyebrow">ARCHIVO 2 DE 3</p><h2 id="file-1">Bridge.html</h2></div><button type="button" data-copy="code-1">Copiar Bridge.html</button></header><p>Sustituye el contenido del archivo HTML llamado Bridge por este bloque, que comienza por &lt;!doctype html&gt;.</p><details><summary>Ver código completo</summary><pre id="code-1" tabindex="0">&lt;!doctype html&gt;
 &lt;html lang=&quot;es&quot;&gt;
   &lt;head&gt;
     &lt;meta charset=&quot;utf-8&quot; /&gt;
@@ -4181,13 +4359,13 @@ function comprobarPaso5() {
         INVALID_REQUEST:
           &#x27;Abre Finanzas y pulsa Comprobar conexión. Abrir este enlace directamente no inicia la prueba.&#x27;,
         NOT_CONFIGURED:
-          &#x27;Revisa las tres propiedades del script: TEST_SPREADSHEET_ID, OWNER_EMAIL y ENVIRONMENT.&#x27;,
+          &#x27;Revisa OWNER_EMAIL, ENVIRONMENT y el identificador del libro seleccionado en las propiedades del script.&#x27;,
         ACCESS_DENIED:
           &#x27;Accede con la cuenta propietaria configurada en el proyecto.&#x27;,
         INVALID_MODEL:
-          &#x27;Revisa la copia de pruebas: deben estar las diez pestañas y las doce tablas del modelo 3.&#x27;,
+          &#x27;Revisa el libro conectado: deben estar las diez pestañas y las doce tablas del modelo 3.&#x27;,
         READ_FAILED:
-          &#x27;Revisa el servicio avanzado Sheets, los permisos y el acceso a la copia de pruebas.&#x27;,
+          &#x27;Revisa el servicio avanzado Sheets, los permisos y el acceso al libro conectado.&#x27;,
       };
       status.textContent = payload.ok
         ? &#x27;Lectura de Google completada.&#x27;
@@ -4263,7 +4441,7 @@ function comprobarPaso5() {
   &lt;/body&gt;
 &lt;/html&gt;
 </pre></details></section>
-<section class="code-section" aria-labelledby="file-2"><header><div><p class="eyebrow">ARCHIVO 3 DE 3</p><h2 id="file-2">appsscript.json</h2></div><button type="button" data-copy="code-2">Copiar código</button></header><p>En Configuración del proyecto, activa Mostrar archivo de manifiesto appsscript.json en el editor. Sustituye su contenido por este bloque.</p><details><summary>Ver código completo</summary><pre id="code-2" tabindex="0">{
+<section class="code-section" aria-labelledby="file-2"><header><div><p class="eyebrow">ARCHIVO 3 DE 3</p><h2 id="file-2">appsscript.json</h2></div><button type="button" data-copy="code-2">Copiar appsscript.json</button></header><p>En Configuración del proyecto, activa Mostrar archivo de manifiesto appsscript.json en el editor. Sustituye su contenido por este bloque.</p><details><summary>Ver código completo</summary><pre id="code-2" tabindex="0">{
   &quot;timeZone&quot;: &quot;Europe/Madrid&quot;,
   &quot;runtimeVersion&quot;: &quot;V8&quot;,
   &quot;dependencies&quot;: {
@@ -4286,4 +4464,4 @@ function comprobarPaso5() {
   }
 }
 </pre></details></section>
-<section class="configuration"><p class="eyebrow">PASO 5 · API 3.3.0</p><h2>Leer el libro y registrar operaciones</h2><ol><li>Sustituye los tres archivos del proyecto existente por estos bloques y guarda. Conserva TEST_SPREADSHEET_ID, OWNER_EMAIL y ENVIRONMENT=test. No cambies a la copia principal.</li><li>Ejecuta <strong>comprobarPaso4</strong> si necesitas preparar las hojas técnicas; después <strong>comprobarPaso5</strong>. Debe indicar API 3.3.0, doce tablas, backendReady y calculationReady correctos. summaryReady comprueba que el resumen nativo dispone de cifras y precios al corte; no acredita la consulta de fuentes.</li><li>Ejecuta <strong>probarFuentesPaso4</strong>. Esta prueba solo consulta. Revisa <strong>complete</strong> y cada <strong>results[].ok</strong>: ok:true en la respuesta general solo confirma que la función terminó. Un fallo incluye el estado HTTP, tamaño, título y huella de la página pública recibida, sin datos de tu libro. Conserva el último precio guardado.</li><li>Actualiza la implementación: Implementar → Gestionar implementaciones → lápiz → Nueva versión. Mantén Ejecutar como: Yo y acceso Solo yo. El repositorio no actualiza automáticamente tu proyecto de Google.</li><li>Vuelve a Finanzas y pulsa <strong>Abrir mi libro</strong>. Usa la cuenta propietaria. Comprueba resumen, cortes y registros; después registra una operación de prueba y su anulación desde la revisión previa.</li><li>Para consultar y guardar cotizaciones verificadas utiliza <strong>Mi libro → Actualizar precios</strong> o <strong>actualizarPreciosPaso4</strong> desde el editor. No se sustituye un precio distinto de la misma fecha sin revisión. Un fallo no pone el fondo a cero.</li><li>La app se puede instalar desde el navegador cuando lo permita. Los cambios pendientes quedan en este dispositivo; abre la app y Google para enviarlos. Una respuesta perdida conserva la solicitud y consulta su estado antes de reintentar. No se promete envío con la app cerrada.</li></ol><p class="notice">Esta entrega sigue en la copia de pruebas. La verificación de precios desde Google, la aceptación en un teléfono físico y el cambio a uso real están pendientes. El resumen usa los resultados de Sheets; los filtros del listado no cambian los cortes financieros. Las copias locales permanecen en este navegador hasta borrarlas expresamente.</p></section><footer>Modelo 3 · Libro completo · Sin datos financieros en este código<br><a href="https://developers.google.com/apps-script/concepts/deployments" target="_blank" rel="noopener noreferrer">Documentación de implementaciones de Google</a></footer></main></body></html>
+<section class="configuration"><p class="eyebrow">PASO 5 · ENTREGA 3.4.0 · API 3.3.0</p><h2>Leer el libro y registrar operaciones</h2><ol><li>Sustituye los tres archivos del proyecto existente por estos bloques y guarda. Conserva TEST_SPREADSHEET_ID, OWNER_EMAIL y ENVIRONMENT=test. No cambies a la copia principal.</li><li>Ejecuta <strong>comprobarPaso4</strong> si necesitas preparar las hojas técnicas; después <strong>comprobarPaso5</strong>. Debe indicar API 3.3.0, doce tablas, backendReady y calculationReady correctos; buildVersion 3.4.0 y bridgeReady true. summaryReady comprueba que el resumen nativo dispone de cifras y precios al corte; no acredita la consulta de fuentes.</li><li>Ejecuta <strong>probarFuentesPaso4</strong>. Esta prueba solo consulta. Revisa <strong>complete</strong> y cada <strong>results[].ok</strong>: ok:true en la respuesta general solo confirma que la función terminó. Un fallo incluye el estado HTTP, tamaño, título y huella de la página pública recibida, sin datos de tu libro. Conserva el último precio guardado.</li><li>Actualiza la implementación: Implementar → Gestionar implementaciones → lápiz → Nueva versión. Mantén Ejecutar como: Yo y acceso Solo yo. El repositorio no actualiza automáticamente tu proyecto de Google.</li><li>Vuelve a Finanzas y pulsa <strong>Abrir mi libro</strong>. Usa la cuenta propietaria. Comprueba resumen, cortes y registros; después registra una operación de prueba y su anulación desde la revisión previa.</li><li>Para consultar y guardar cotizaciones verificadas utiliza <strong>Mi libro → Actualizar precios</strong> o <strong>actualizarPreciosPaso4</strong> desde el editor. No se sustituye un precio distinto de la misma fecha sin revisión. Un fallo no pone el fondo a cero.</li><li>La app se puede instalar desde el navegador cuando lo permita. Los cambios pendientes quedan en este dispositivo; abre la app y Google para enviarlos. Una respuesta perdida conserva la solicitud y consulta su estado antes de reintentar. No se promete envío con la app cerrada.</li></ol><p class="notice">El código mantiene pruebas si ENVIRONMENT=test. Los pasos siguientes preparan el uso real; la publicación del repositorio no cambia por sí sola tu libro o proyecto de Google. El resumen usa los resultados de Sheets; los filtros del listado no cambian los cortes financieros. Las copias locales permanecen en este navegador hasta borrarlas expresamente.</p></section><section class="configuration"><p class="eyebrow">PASOS 6–8 · COMPROBACIÓN Y USO REAL</p><h2>Terminar las pruebas y abrir el principal</h2><ol><li>En test, ejecuta <strong>comprobarCierre</strong> o usa <strong>Conexión → Comprobar sistema</strong>. Solo lee y consulta fuentes; no guarda precios. Comprueba buildVersion 3.4.0, technicalReady true y todos los checks true. Un resumen correcto no acredita por sí solo las fuentes.</li><li>En tu teléfono, instala desde el menú del navegador cuando lo permita. Abre la app sin conexión y vuelve a abrir Google para enviar los pendientes. Prueba una operación ficticia y su anulación únicamente en test, con restauración confirmada. Resuelve todos los pendientes de cada dispositivo antes del cambio.</li><li>Comprueba dónde están las últimas operaciones. Conserva una copia completa del libro principal y el XLSX original. Si alguno cambió después de la comparación, integra esas diferencias antes de declarar Sheets como única fuente. Conserva también el código y la configuración privada del proyecto.</li><li>Para uso real, conserva el proyecto de pruebas y su enlace. Crea un proyecto y una implementación privados separados para el principal, usando estos mismos tres archivos. Configura OWNER_EMAIL, TEST_SPREADSHEET_ID con el libro de pruebas y <strong>PRODUCTION_SPREADSHEET_ID</strong> con el principal: deben ser distintos. Configura <strong>ENVIRONMENT=production</strong>. Ejecuta comprobarPaso4 para preparar el backend del principal y luego comprobarCierre. No ejecutes transacciones ficticias en producción: el código las rechaza.</li><li>Publica Nueva versión como Yo y Solo yo, y guarda el nuevo /exec en la app. Debe mostrar <strong>Libro principal</strong> y pasar Comprobar sistema. No vuelvas a registrar como nuevas las operaciones ya migradas. Usa Sheets y esta API para las operaciones reales; conserva el XLSX como archivo histórico.</li></ol><h2>Mantenimiento y recuperación</h2><p>Haz una copia nativa completa antes de cambios de código, fórmulas o importaciones y conserva copias periódicas con fecha, revisión y cortes. Guarda de forma privada OWNER_EMAIL, los identificadores y la configuración de la implementación: una copia de Sheets no respalda el proyecto de Apps Script.</p><p>Para recuperar, detén los envíos y conserva el libro actual, pendientes y journal. Restaura la copia en otro libro, comprueba entradas, fórmulas y resumen, y recupera las operaciones posteriores usando auditoría, solicitudes y recibos. Nunca reenvíes en bloque pendientes sin confirmar: consulta primero su implementación original. Reconfigura una nueva implementación privada y comprueba su lectura antes de reanudar.</p></section><footer>Modelo 3 · Libro completo · Sin datos financieros en este código<br><a href="https://developers.google.com/apps-script/concepts/deployments" target="_blank" rel="noopener noreferrer">Documentación de implementaciones de Google</a></footer></main></body></html>

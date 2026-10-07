@@ -2,6 +2,91 @@ const { test, expect } = require('@playwright/test');
 const fs = require('node:fs'),
   path = require('node:path');
 const deployment = 'https://script.google.com/macros/s/fixture-deployment/exec';
+
+test('CSP bloquea código inyectado y conexiones a terceros manteniendo la app funcional', async ({
+  page,
+}) => {
+  await page.goto('/');
+  const results = await page.evaluate(async () => {
+    const violations = [];
+    document.addEventListener('securitypolicyviolation', (event) =>
+      violations.push(event.violatedDirective),
+    );
+    const injected = document.createElement('script');
+    injected.textContent = 'window.compromised = true;';
+    document.body.append(injected);
+    let blocked = false;
+    try {
+      await fetch('https://example.invalid/finance-test');
+    } catch {
+      blocked = true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    return { ran: window.compromised === true, blocked, violations };
+  });
+  expect(results.ran).toBe(false);
+  expect(results.blocked).toBe(true);
+  expect(results.violations).toContain('script-src-elem');
+  expect(results.violations).toContain('connect-src');
+  await nav(page, 'connection').click();
+  await page.locator('#setup-toggle').click();
+  await expect(page.locator('#setup-dialog')).toBeVisible();
+});
+
+test('la app incrustada no lee IndexedDB ni permite conectar o configurar Google', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    window.localReads = 0;
+    const original = indexedDB.open.bind(indexedDB);
+    indexedDB.open = (...args) => {
+      window.localReads++;
+      return original(...args);
+    };
+    localStorage.setItem(
+      'finances.appsScriptUrl',
+      'https://script.google.com/macros/s/fixture-deployment/exec',
+    );
+  });
+  await page.goto('/preview.html');
+  for (const id of ['mobile-preview', 'desktop-preview']) {
+    const frame = page.frameLocator('#' + id);
+    await expect(frame.locator('#finance-state')).toContainText(
+      'Abre Finanzas en su propia ventana',
+    );
+    for (const selector of ['#finance-connect', '#connect', '#setup-toggle'])
+      await expect(frame.locator(selector)).toBeDisabled();
+    expect(await frame.locator('body').evaluate(() => window.localReads)).toBe(
+      0,
+    );
+  }
+});
+
+test('el instalador copia cada archivo en su botón y Bridge comienza por HTML', async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.goto('/install.html');
+  for (const [index, name] of [
+    'Code.gs',
+    'Bridge.html',
+    'appsscript.json',
+  ].entries()) {
+    const button = page.locator('[data-copy="code-' + index + '"]');
+    await expect(button).toHaveText('Copiar ' + name);
+    const expected = await page.locator('#code-' + index).textContent();
+    await button.click();
+    await expect(page.locator('#copy-status')).toContainText(
+      name + ' copiado.',
+    );
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      expected,
+    );
+    if (name === 'Bridge.html')
+      expect(expected.trim()).toMatch(/^<!doctype html>/i);
+  }
+});
 const snapshot = {
   ok: true,
   apiVersion: '3.3.0',
@@ -122,9 +207,11 @@ const snapshot = {
 };
 async function setup(
   page,
-  { lost = false, missing = false, hostile = false } = {},
+  { lost = false, missing = false, hostile = false, production = false } = {},
 ) {
   const seed = JSON.parse(JSON.stringify(snapshot));
+  seed.environment = production ? 'production' : 'test';
+  seed.supportsBookBinding = true;
   if (missing) {
     seed.summary.missingPrices = ['Fondo ficticio'];
     seed.summary.complete = false;
@@ -146,7 +233,7 @@ async function setup(
     },
     { deployment, seed, lost },
   );
-  const mock = `\nFinanceApiClient = class {constructor(url){this.url=url;this.session=null;}connect(){this.session={};return Promise.resolve({ok:true,apiVersion:'3.3.0'});}close(){this.session=null;}read(){return Promise.resolve(JSON.parse(localStorage.getItem('fixture.server')).snapshot);}async submit(envelope){const s=JSON.parse(localStorage.getItem('fixture.server'));s.calls.push(envelope);if(!s.journal[envelope.requestId]){s.snapshot.revision='r'+(s.calls.length+1);s.journal[envelope.requestId]={ok:true,revision:s.snapshot.revision,results:[],complete:envelope.action!=='refreshPrices'};if(envelope.action==='refreshPrices')s.journal[envelope.requestId].results=[{ok:false,referenceName:'Fondo ficticio',message:'Fuente sin identidad verificable'}];}const result=s.journal[envelope.requestId];const lost=s.lost;s.lost=false;localStorage.setItem('fixture.server',JSON.stringify(s));if(lost)throw Error('RESPONSE_UNCERTAIN');return result;}requestStatus(envelope){return Promise.resolve(JSON.parse(localStorage.getItem('fixture.server')).journal[envelope.requestId]||{ok:true,found:false});}};`;
+  const mock = `\nFinanceApiClient = class {constructor(url){this.url=url;this.session=null;}connect(){this.session={};return Promise.resolve({ok:true,apiVersion:'3.3.0'});}close(){this.session=null;}acceptance(){const s=JSON.parse(localStorage.getItem('fixture.server')).snapshot;return Promise.resolve({ok:true,readOnly:true,environment:s.environment,buildVersion:'3.4.0',technicalReady:true,checks:{backend:true,calculations:true,summary:true,bridge:true,sources:true,stable:true},results:[]});}read(){return Promise.resolve(JSON.parse(localStorage.getItem('fixture.server')).snapshot);}async submit(envelope){const s=JSON.parse(localStorage.getItem('fixture.server'));s.calls.push(envelope);if(!s.journal[envelope.requestId]){s.snapshot.revision='r'+(s.calls.length+1);s.journal[envelope.requestId]={ok:true,revision:s.snapshot.revision,results:[],complete:envelope.action!=='refreshPrices'};if(envelope.action==='refreshPrices')s.journal[envelope.requestId].results=[{ok:false,referenceName:'Fondo ficticio',message:'Fuente sin identidad verificable'}];}const result=s.journal[envelope.requestId];const lost=s.lost;s.lost=false;localStorage.setItem('fixture.server',JSON.stringify(s));if(lost)throw Error('RESPONSE_UNCERTAIN');return result;}requestStatus(envelope){return Promise.resolve(JSON.parse(localStorage.getItem('fixture.server')).journal[envelope.requestId]||{ok:true,found:false});}};`;
   await page.route('**/api.js', (route) =>
     route.fulfill({
       contentType: 'text/javascript',
@@ -386,4 +473,74 @@ test.describe('PWA instalable', () => {
     await nav(page, 'tools').click();
     await expect(page.locator('#inflation-form')).toBeVisible();
   });
+});
+
+test('producción se identifica en ordenador/móvil y la comprobación del sistema no envía operaciones', async ({
+  page,
+}) => {
+  await setup(page, { production: true });
+  await expect(page.locator('#finance-state')).toContainText('libro principal');
+  await expect(page.locator('#app-version')).toContainText('Libro principal');
+  await nav(page, 'connection').click();
+  await page.locator('#acceptance-check').click();
+  await expect(page.locator('#acceptance-result')).toContainText(
+    'Libro principal · versión 3.4.0',
+  );
+  await expect(page.locator('#acceptance-result')).toContainText(
+    'Comprobaciones técnicas correctas',
+  );
+  await expect(page.locator('#acceptance-result')).toContainText(
+    'No se han guardado precios ni operaciones',
+  );
+  expect(
+    await page.evaluate(
+      () => JSON.parse(localStorage.getItem('fixture.server')).calls,
+    ),
+  ).toEqual([]);
+});
+
+test('comprobación con fuentes fallidas exige revisión sin presentar el sistema como listo', async ({
+  page,
+}) => {
+  await setup(page);
+  await page.evaluate(() => {
+    FinanceApiClient.prototype.acceptance = async () => ({
+      ok: true,
+      environment: 'test',
+      buildVersion: '3.4.0',
+      technicalReady: false,
+      checks: {
+        backend: true,
+        calculations: true,
+        summary: true,
+        bridge: true,
+        sources: false,
+        stable: true,
+      },
+      results: [
+        {
+          ok: false,
+          referenceName: 'Fondo ficticio',
+          error: 'SOURCE_FORMAT',
+          message: 'Fuente sin campos verificables',
+        },
+      ],
+    });
+  });
+  await nav(page, 'connection').click();
+  await page.locator('#acceptance-check').click();
+  await expect(page.locator('#acceptance-result')).toContainText(
+    'Revisar: fuentes de precios',
+  );
+  await expect(page.locator('#acceptance-result')).toContainText(
+    'Fondo ficticio: Fuente sin campos verificables',
+  );
+  await expect(page.locator('#acceptance-result')).not.toContainText(
+    'Comprobaciones técnicas correctas',
+  );
+  expect(
+    await page.evaluate(
+      () => JSON.parse(localStorage.getItem('fixture.server')).calls,
+    ),
+  ).toEqual([]);
 });

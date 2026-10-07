@@ -2,7 +2,7 @@ const fs = require('node:fs');
 console.log('### Evidencia de calidad de esta ejecución');
 console.log('Commit: `' + (process.env.GITHUB_SHA || 'local') + '`');
 console.log(
-  '\nFormato: Prettier. Análisis: ESLint. Reglas/API/cola: node:test. Navegador: Playwright en móvil y ordenador.',
+  '\nFormato: Prettier. Análisis: ESLint. Dependencias: npm audit (altas/críticas bloquean). Acciones fijadas por SHA. Reglas/API/cola: node:test. Navegador: Playwright en móvil y ordenador, incluido CSP y bloqueo de acceso incrustado.',
 );
 const unitReport = 'quality-results/unit-tests.tap';
 if (fs.existsSync(unitReport)) {

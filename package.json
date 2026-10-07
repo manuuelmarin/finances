@@ -1,12 +1,13 @@
 {
   "name": "finances",
-  "version": "3.3.0",
+  "version": "3.4.0",
   "private": true,
   "engines": {
     "node": ">=24"
   },
   "scripts": {
-    "build": "node tools/build-install.cjs && node tools/build-sw.cjs",
+    "build": "node tools/build-install.cjs && node tools/build-security.cjs && node tools/build-sw.cjs",
+    "audit": "npm audit --audit-level=high",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
