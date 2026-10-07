@@ -265,6 +265,10 @@ function runBackend({
   request = {},
   book = sampleBook(),
   parameters = null,
+  bridgeContent = fs.readFileSync(
+    path.join(__dirname, '../apps-script/Bridge.html'),
+    'utf8',
+  ),
 } = {}) {
   const calls = [];
   let rendered;
@@ -275,6 +279,9 @@ function runBackend({
     ...properties,
   };
   const template = {
+    getRawContent() {
+      return bridgeContent;
+    },
     evaluate() {
       rendered = JSON.parse(this.payloadJson);
       return {
@@ -290,6 +297,10 @@ function runBackend({
     },
     Session: { getActiveUser: () => ({ getEmail: () => visitor }) },
     HtmlService: {
+      createHtmlOutput: (html) => {
+        rendered = { html };
+        return rendered;
+      },
       createTemplateFromFile: (name) => {
         assert.equal(name, 'Bridge');
         return template;
@@ -327,6 +338,15 @@ function runBackend({
   return { result: rendered, calls, origin: template.appOrigin };
 }
 
+test('Bridge con Code.gs pegado muestra instrucciones concretas sin evaluar o divulgar el código', () => {
+  const { result } = runBackend({
+    bridgeContent: '// const privateValue = "secret"; <bad-html>',
+  });
+  assert.match(result.html, /Revisa Bridge.html/);
+  assert.match(result.html, /Nueva versión/);
+  assert.equal(result.html.includes('secret'), false);
+});
+
 test('el servidor lee el libro configurado y no admite cambiarlo desde el cliente', () => {
   const { result, calls, origin } = runBackend({
     request: { spreadsheetId: 'another-book' },
@@ -345,6 +365,7 @@ test('el servidor lee el libro configurado y no admite cambiarlo desde el client
   assert.deepEqual(Object.keys(result).sort(), [
     'apiVersion',
     'backendReady',
+    'buildVersion',
     'checkedAt',
     'environment',
     'modelVersion',

@@ -52,6 +52,6 @@
     })
     .catch(() => {
       document.getElementById('app-version').textContent =
-        'App 3.3.0 · instalación sin conexión no disponible en este navegador';
+        'App 3.3.1 · instalación sin conexión no disponible en este navegador';
     });
 })();

@@ -554,3 +554,70 @@ test('identidad admite título y espacios del proveedor, pero nunca una página 
   assert.equal(result.price, undefined);
   assert.equal(blocked.writes.length, 0);
 });
+
+function mobilePage({ isin = ISIN, name = TITLE } = {}) {
+  return (
+    '<title>Características - quefondos.com - Versión móvil</title><h1>Características</h1>' +
+    '<div class="informe"><h2>' +
+    name +
+    '</h2>' +
+    page({ isin, name }).replace(/<h1>.*?<\/h1>/, '') +
+    '</div>'
+  );
+}
+
+test('ficha principal sin identidad legible consulta la versión móvil oficial por el mismo ISIN', () => {
+  const r = runtime({
+    fetch: (source) => ({
+      body: source.includes('/m/es/')
+        ? mobilePage()
+        : `<title>${TITLE} (${ISIN}) · Gestora</title>`,
+    }),
+  });
+  const result = quote(r);
+  assert.equal(result.ok, true);
+  assert.equal(result.price, 345.19706);
+  assert.equal(result.date, '2026-10-02');
+  assert.equal(
+    result.url,
+    'https://www.quefondos.com/m/es/fondos/ficha/index.html?isin=' + ISIN,
+  );
+  assert.equal(r.fetches.length, 2);
+  assert.equal(r.writes.length, 0);
+});
+
+test('la variante móvil no permite sustituir ISIN, nombre, moneda o fecha por aproximación', () => {
+  for (const body of [
+    mobilePage({ isin: SECOND }),
+    mobilePage({ name: 'Otro fondo desconocido' }),
+    mobilePage().replace('345,197060 EUR', '345,197060 GBP'),
+    mobilePage().replace('02/10/2026', '31/02/2026'),
+  ]) {
+    const r = runtime({
+      fetch: (source) => ({
+        body: source.includes('/m/es/')
+          ? body
+          : `<title>${TITLE} (${ISIN}) · Gestora</title>`,
+      }),
+    });
+    assert.equal(quote(r).ok, false);
+    assert.equal(r.writes.length, 0);
+  }
+});
+
+test('identidad ajena en la ficha principal no se oculta con un segundo proveedor o clase', () => {
+  const r = runtime({ fetch: () => ({ body: page({ isin: SECOND }) }) });
+  assert.equal(quote(r).error, 'IDENTITY_MISMATCH');
+  assert.equal(r.fetches.length, 1);
+});
+
+test('dos respuestas sin campos verificables conservan diagnóstico y ningún precio', () => {
+  const r = runtime({
+    fetch: () => ({ body: `<title>${TITLE} (${ISIN}) · Gestora</title>` }),
+  });
+  const result = quote(r);
+  assert.equal(result.error, 'SOURCE_FORMAT');
+  assert.equal(result.responseInfo.attempts.length, 2);
+  assert.equal(result.responseInfo.hasValuationBlock, false);
+  assert.equal(result.price, undefined);
+});

@@ -1,6 +1,6 @@
 # Finanzas
 
-App responsive y PWA sobre el libro completo de Google Sheets, modelo 3. La API 3.3.0 sigue limitada a la copia de pruebas. Google calcula los resultados; la app registra entradas mediante la API privada y muestra los estados por operación.
+Entrega 3.3.1. App responsive y PWA sobre el libro completo de Google Sheets, modelo 3. La API 3.3.0 sigue limitada a la copia de pruebas. Google calcula los resultados; la app registra entradas mediante la API privada y muestra los estados por operación.
 
 ## Desarrollo y calidad
 

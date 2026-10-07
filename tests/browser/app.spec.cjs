@@ -2,6 +2,32 @@ const { test, expect } = require('@playwright/test');
 const fs = require('node:fs'),
   path = require('node:path');
 const deployment = 'https://script.google.com/macros/s/fixture-deployment/exec';
+
+test('el instalador copia cada archivo en su botón y Bridge comienza por HTML', async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.goto('/install.html');
+  for (const [index, name] of [
+    'Code.gs',
+    'Bridge.html',
+    'appsscript.json',
+  ].entries()) {
+    const button = page.locator('[data-copy="code-' + index + '"]');
+    await expect(button).toHaveText('Copiar ' + name);
+    const expected = await page.locator('#code-' + index).textContent();
+    await button.click();
+    await expect(page.locator('#copy-status')).toContainText(
+      name + ' copiado.',
+    );
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      expected,
+    );
+    if (name === 'Bridge.html')
+      expect(expected.trim()).toMatch(/^<!doctype html>/i);
+  }
+});
 const snapshot = {
   ok: true,
   apiVersion: '3.3.0',

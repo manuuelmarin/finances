@@ -113,6 +113,7 @@ const TABLE_SCHEMA_ = [
 ];
 
 const API_VERSION_ = '3.3.0';
+const BUILD_VERSION_ = '3.3.1';
 // El motor de fórmulas no cambia en el paso 4; conserva su sello de capacidad.
 const CAPACITY_VERSION_ = '3.1.0';
 const INPUT_SCHEMA_ = {
@@ -370,10 +371,31 @@ function doGet(e) {
     result.error =
       codes.indexOf(error.message) >= 0 ? error.message : 'READ_FAILED';
   }
+  try {
+    const template = bridgeTemplate_();
+    template.payloadJson = JSON.stringify(result);
+    template.appOrigin = APP_ORIGIN_;
+    return template.evaluate().setTitle('Finanzas · Lectura de prueba');
+  } catch (error) {
+    return HtmlService.createHtmlOutput(
+      '<!doctype html><html lang="es"><meta charset="utf-8"><title>Finanzas · Revisar Bridge</title>' +
+        '<h1>Revisa Bridge.html</h1><p>Este archivo debe contener el bloque HTML del archivo 2 de 3. ' +
+        'Copia Bridge.html, guarda y publica una Nueva versión de la implementación existente.</p>' +
+        '<a href="https://manuuelmarin.github.io/finances/install.html">Abrir instalador</a></html>',
+    );
+  }
+}
+function bridgeTemplate_() {
   const template = HtmlService.createTemplateFromFile('Bridge');
-  template.payloadJson = JSON.stringify(result);
-  template.appOrigin = APP_ORIGIN_;
-  return template.evaluate().setTitle('Finanzas · Lectura de prueba');
+  const raw = template.getRawContent();
+  if (
+    !/^\s*<!doctype html>/i.test(raw) ||
+    !/id=["']payload["']/.test(raw) ||
+    !/id=["']origin["']/.test(raw) ||
+    raw.indexOf('google.script.run') < 0
+  )
+    throw new Error('BRIDGE_INVALID');
+  return template;
 }
 
 function readConnection_() {
@@ -425,6 +447,7 @@ function readConnection_() {
     sheetCount: sheetCount,
     checkedAt: new Date().toISOString(),
     apiVersion: API_VERSION_,
+    buildVersion: BUILD_VERSION_,
     backendReady: [
       '_Finanzas_Solicitudes',
       '_Finanzas_Auditoria',
@@ -2194,6 +2217,7 @@ function diagnostics_(s) {
   return {
     ok: true,
     apiVersion: API_VERSION_,
+    buildVersion: BUILD_VERSION_,
     environment: 'test',
     modelVersion: 3,
     businessSheetCount: REQUIRED_SHEETS_.length,
@@ -2304,29 +2328,33 @@ function publicSnapshot_(s) {
 
 // Resumen leído del motor nativo, con cabeceras verificadas; nunca un motor paralelo.
 function nativeSummary_(s, data) {
-  const labels = [
-    'Patrimonio neto',
-    'Efectivo',
-    'Inversiones',
-    'Deuda',
-    'Ingresos',
-    'Gastos propios',
-    'Ahorro',
-    'Tasa de ahorro',
+  const groups = [
+    ['Patrimonio neto', 'Efectivo', 'Inversiones', 'Deuda'],
+    ['Ingresos', 'Gastos propios', 'Ahorro', 'Tasa de ahorro'],
   ];
-  const metrics = labels.map((label) => {
-    const matches = [];
-    (s.summaryValues || []).forEach((row, i) =>
-      row.forEach((v, j) => {
-        if (v === label) matches.push({ i, j });
-      }),
-    );
-    const cell = matches.length === 1 ? matches[0] : null;
-    const value = cell && (s.summaryValues[cell.i + 1] || [])[cell.j];
-    return {
-      label,
-      value: typeof value === 'number' && Number.isFinite(value) ? value : null,
-    };
+  const rows = s.summaryValues || [];
+  // Identificar las dos filas de tarjetas completas. Las tablas/gráficas inferiores
+  // reutilizan Ingresos, Ahorro y Efectivo; sus cabeceras no son tarjetas duplicadas.
+  const metrics = groups.flatMap((labels) => {
+    const matches = rows
+      .map((row, i) => ({ row, i }))
+      .filter(({ row }) => labels.every((label) => row.includes(label)));
+    const header = matches.length === 1 ? matches[0] : null;
+    return labels.map((label) => {
+      const columns = header
+        ? header.row.reduce((out, value, j) => {
+            if (value === label) out.push(j);
+            return out;
+          }, [])
+        : [];
+      const value =
+        columns.length === 1 && (rows[header.i + 1] || [])[columns[0]];
+      return {
+        label,
+        value:
+          typeof value === 'number' && Number.isFinite(value) ? value : null,
+      };
+    });
   });
   const filters = {};
   ['Año', 'Periodo', 'Cuenta'].forEach((label) => {
@@ -2354,6 +2382,7 @@ function nativeSummary_(s, data) {
     metrics,
     filters,
     missingPrices,
+    missingMetrics: metrics.filter((m) => m.value === null).map((m) => m.label),
     complete: !missingPrices.length && metrics.every((m) => m.value !== null),
     settings: Object.fromEntries(
       Object.keys(s.settings).map((k) => [k, isoDate_(s.settings[k])]),
@@ -2455,6 +2484,7 @@ function financialApi(request) {
       const response = {
         ok: true,
         apiVersion: API_VERSION_,
+        buildVersion: BUILD_VERSION_,
         environment: 'test',
         requestId,
         revision: applied.state.revision,
@@ -2629,6 +2659,7 @@ function probarTransaccionesPaso3() {
       ok: true,
       environment: 'test',
       apiVersion: API_VERSION_,
+      buildVersion: BUILD_VERSION_,
       duplicatePrevented: true,
       correctionChecked: true,
       cancellationChecked: true,
@@ -3611,19 +3642,31 @@ function parseFundPage_(html, isin, fetchedAt, today) {
       html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i) ||
       html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i),
     page = priceText_(html);
-  const identity = page.match(/\bISIN\s*:\s*([A-Z0-9]{12})\b/i),
-    heading = h1 && priceText_(h1[1]);
+  const identity = page.match(/\bISIN\s*:\s*([A-Z0-9]{12})\b/i);
+  let heading = h1 && priceText_(h1[1]);
+  const headingIsin = heading && heading.match(/\(([A-Z0-9]{12})\)/);
+  if (
+    (identity && identity[1] !== isin) ||
+    (headingIsin && headingIsin[1] !== isin)
+  )
+    priceFailure_(
+      'IDENTITY_MISMATCH',
+      'La ficha recibida pertenece a otro ISIN.',
+    );
+  if (!headingIsin) {
+    // La ficha móvil publica el nombre en h2 dentro del informe y el ISIN
+    // en Otras características; h1/title solo dicen «Características».
+    const report = html.match(
+      /<div\b[^>]*class=["'][^"']*\binforme\b[^"']*["'][^>]*>\s*<h2\b[^>]*>([\s\S]*?)<\/h2>/i,
+    );
+    heading = report ? priceText_(report[1]) : null;
+  }
   if (!identity || !heading)
     priceFailure_(
       /no se (?:ha encontrado|encuentra)|fondo no encontrado/i.test(page)
         ? 'FUND_NOT_FOUND'
         : 'SOURCE_FORMAT',
       'La respuesta no contiene una identidad de fondo verificable. Consulta el diagnóstico de la fuente; se conserva el precio anterior.',
-    );
-  if (identity[1] !== isin || heading.indexOf('(' + isin + ')') < 0)
-    priceFailure_(
-      'IDENTITY_MISMATCH',
-      'La ficha recibida pertenece a otro ISIN.',
     );
   const blocks = html.split(/<h4\b[^>]*>/i),
     raw = blocks.find((b) =>
@@ -3692,7 +3735,7 @@ function fetchFundQuote_(fund) {
   try {
     isin = normalizeIsin_(fund.isin);
     text_(fund.referenceName, 'Nombre de referencia');
-    const key = 'nav-v2-' + isin;
+    const key = 'nav-v3-' + isin;
     let cache = null,
       stored = null;
     try {
@@ -3701,39 +3744,62 @@ function fetchFundQuote_(fund) {
     } catch (ignored) {}
     let quote = stored ? JSON.parse(stored) : null;
     if (!quote) {
-      const response = UrlFetchApp.fetch(PRICE_BASE_ + isin, {
-        method: 'get',
-        followRedirects: false,
-        muteHttpExceptions: true,
-      });
-      if (response.getResponseCode() !== 200)
-        priceFailure_(
-          'SOURCE_UNAVAILABLE',
-          'La fuente no está disponible (HTTP ' +
-            response.getResponseCode() +
-            ').',
-        );
-      const html = response.getContentText('UTF-8');
-      const title = html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i);
-      responseInfo = {
-        httpStatus: response.getResponseCode(),
-        length: html.length,
-        title: title ? priceText_(title[1]).slice(0, 180) : null,
-        containsRequestedIsin: html.indexOf(isin) >= 0,
-        hasIdentityLabel: /\bISIN\s*:/i.test(priceText_(html)),
-        fingerprint: hash_(html),
-      };
-      if (html.length > 1500000)
-        priceFailure_(
-          'SOURCE_FORMAT',
-          'La respuesta de la fuente supera el tamaño admitido.',
-        );
-      quote = parseFundPage_(
-        html,
-        isin,
-        checkedAt,
-        Utilities.formatDate(new Date(), 'Europe/Madrid', 'yyyy-MM-dd'),
-      );
+      const urls = [
+        PRICE_BASE_ + isin,
+        'https://www.quefondos.com/m/es/fondos/ficha/index.html?isin=' + isin,
+      ];
+      const attempts = [];
+      for (let index = 0; index < urls.length; index++) {
+        const response = UrlFetchApp.fetch(urls[index], {
+          method: 'get',
+          followRedirects: false,
+          muteHttpExceptions: true,
+        });
+        if (response.getResponseCode() !== 200)
+          priceFailure_(
+            'SOURCE_UNAVAILABLE',
+            'La fuente no está disponible (HTTP ' +
+              response.getResponseCode() +
+              ').',
+          );
+        const html = response.getContentText('UTF-8');
+        const title = html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i);
+        responseInfo = {
+          httpStatus: response.getResponseCode(),
+          length: html.length,
+          title: title ? priceText_(title[1]).slice(0, 180) : null,
+          containsRequestedIsin: html.indexOf(isin) >= 0,
+          hasIdentityLabel: /\bISIN\s*:/i.test(priceText_(html)),
+          fingerprint: hash_(html),
+          url: urls[index],
+          hasValuationBlock: /Última valoración/i.test(priceText_(html)),
+          hasNavLabel: /Valor liquidativo\s*:/i.test(priceText_(html)),
+          hasCurrencyLabel: /Divisa\s*:/i.test(priceText_(html)),
+        };
+        attempts.push(Object.assign({}, responseInfo));
+        responseInfo.attempts = attempts;
+        if (html.length > 1500000)
+          priceFailure_(
+            'SOURCE_FORMAT',
+            'La respuesta de la fuente supera el tamaño admitido.',
+          );
+        try {
+          quote = parseFundPage_(
+            html,
+            isin,
+            checkedAt,
+            Utilities.formatDate(new Date(), 'Europe/Madrid', 'yyyy-MM-dd'),
+          );
+          quote.url = urls[index];
+          verifyFundName_(fund.referenceName, quote.name);
+          break;
+        } catch (error) {
+          // Solo una variante de formato permite consultar la ficha móvil oficial.
+          // ISIN/clase/nombre/precio/fecha incoherentes se rechazan sin sustitución.
+          if (error.priceCode !== 'SOURCE_FORMAT' || index === urls.length - 1)
+            throw error;
+        }
+      }
       try {
         if (cache) cache.put(key, JSON.stringify(quote), 300);
       } catch (ignored) {}
@@ -3799,6 +3865,7 @@ function quotePrices_(request) {
   return {
     ok: true,
     apiVersion: API_VERSION_,
+    buildVersion: BUILD_VERSION_,
     environment: 'test',
     readOnly: true,
     complete: results.every((r) => r.ok),
@@ -3995,6 +4062,7 @@ function refreshPrices_(config, request) {
     const response = {
       ok: true,
       apiVersion: API_VERSION_,
+      buildVersion: BUILD_VERSION_,
       environment: 'test',
       requestId,
       revision: plan.state.revision,
@@ -4055,6 +4123,7 @@ function probarFuentesPaso4() {
     result = {
       ok: true,
       apiVersion: API_VERSION_,
+      buildVersion: BUILD_VERSION_,
       environment: 'test',
       readOnly: true,
       complete: bindings.length > 0 && results.every((r) => r.ok),
@@ -4088,6 +4157,7 @@ function actualizarPreciosPaso4() {
     result = {
       ok: true,
       apiVersion: API_VERSION_,
+      buildVersion: BUILD_VERSION_,
       environment: 'test',
       complete: results.every((r) => r.complete),
       batches: results,
@@ -4109,12 +4179,22 @@ function comprobarPaso5() {
     result = {
       ok: snap.ok,
       apiVersion: API_VERSION_,
+      buildVersion: BUILD_VERSION_,
       environment: 'test',
       backendReady: snap.backendReady,
       calculationReady: snap.calculationReady,
       calculationErrors: snap.calculationErrors,
       summaryReady: snap.summary.complete,
       missingPrices: snap.summary.missingPrices,
+      missingMetrics: snap.summary.missingMetrics,
+      bridgeReady: (() => {
+        try {
+          bridgeTemplate_();
+          return true;
+        } catch (error) {
+          return false;
+        }
+      })(),
       tableCount: snap.tableCount,
       rows: snap.rows,
       revision: snap.revision,
