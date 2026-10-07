@@ -9,6 +9,9 @@ const serial = (date) =>
   );
 const clone = (value) => JSON.parse(JSON.stringify(value));
 function runtime(options = {}) {
+  const bookId = options.bookId || 'fixture-book',
+    readBooks = [],
+    writeBooks = [];
   let book = { sheets: [], namedRanges: [] },
     grid = new Map(),
     busy = false;
@@ -80,7 +83,11 @@ function runtime(options = {}) {
     },
     Sheets: {
       Spreadsheets: {
-        get: () => clone(book),
+        get: (id) => {
+          readBooks.push(id);
+          if (id !== bookId) throw Error('Wrong fixture id');
+          return clone(book);
+        },
         Values: {
           batchGet: (id, request) => ({
             valueRanges: request.ranges.map((range) => ({
@@ -89,7 +96,8 @@ function runtime(options = {}) {
           }),
         },
         batchUpdate: (body, id) => {
-          if (id !== 'fixture-book') throw Error('Wrong fixture id');
+          if (id !== bookId) throw Error('Wrong fixture id');
+          writeBooks.push(id);
           writes.push(clone(body));
           if (options.failBeforeWrite)
             throw Error('Transport failure before application');
@@ -531,9 +539,15 @@ function runtime(options = {}) {
     fetches,
     cache,
     options,
+    readBooks,
+    writeBooks,
     schemas,
     inputSchema,
-    state: () => ctx.readState_({ id: 'fixture-book' }),
+    state: () =>
+      ctx.readState_({
+        id: bookId,
+        environment: options.properties?.ENVIRONMENT || 'test',
+      }),
     init: () => JSON.parse(JSON.stringify(ctx.comprobarPaso3())),
     api: (request) => JSON.parse(JSON.stringify(ctx.financialApi(request))),
     transact: (operations) =>
@@ -542,7 +556,10 @@ function runtime(options = {}) {
           ctx.financialApi({
             action: 'transact',
             requestId: crypto.randomUUID(),
-            expectedRevision: ctx.readState_({ id: 'fixture-book' }).revision,
+            expectedRevision: ctx.readState_({
+              id: bookId,
+              environment: options.properties?.ENVIRONMENT || 'test',
+            }).revision,
             operations,
           }),
         ),

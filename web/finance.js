@@ -80,10 +80,9 @@
       status(
         snapshot
           ? 'Copia local · sin conexión. Abre Google para leer cambios o enviar pendientes.'
-          : 'Abre Google para cargar los registros de tu copia de pruebas.',
+          : 'Abre Google para cargar los registros de tu libro.',
       );
-    } else
-      status('Configura el enlace de Google para leer tu copia de pruebas.');
+    } else status('Configura el enlace de Google para leer tu libro.');
     await render();
   }
   async function refresh() {
@@ -96,7 +95,10 @@
         new Date(result.checkedAt).toLocaleString('es-ES', {
           timeZone: 'Europe/Madrid',
         }) +
-        ' · copia de pruebas',
+        ' · ' +
+        (result.environment === 'production'
+          ? 'libro principal'
+          : 'copia de pruebas'),
     );
     await render();
   }
@@ -393,6 +395,12 @@
     const data = await saved();
     snapshot = data.snapshot;
     enabled();
+    for (const label of document.querySelectorAll('[data-finance-environment]'))
+      label.textContent = snapshot
+        ? snapshot.environment === 'production'
+          ? 'Libro principal'
+          : 'Copia de pruebas'
+        : 'Sin libro abierto';
     $('finance-cut').textContent = snapshot
       ? `Inicio ${snapshot.settings.start} · informe ${snapshot.settings.asof} · valoración ${snapshot.settings.valuation}. Resumen: ${Object.entries(
           snapshot.summary?.filters || {},

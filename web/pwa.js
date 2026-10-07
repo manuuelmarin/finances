@@ -51,7 +51,9 @@
       });
     })
     .catch(() => {
-      document.getElementById('app-version').textContent =
-        'App 3.3.1 · instalación sin conexión no disponible en este navegador';
+      const status = document.getElementById('pwa-status');
+      status.textContent =
+        ' · Instalación sin conexión no disponible en este navegador';
+      status.hidden = false;
     });
 })();

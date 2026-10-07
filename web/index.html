@@ -211,7 +211,7 @@
             </button>
           </div>
           <p id="finance-state" role="status" aria-live="polite">
-            Configura el enlace de Google para leer tu copia de pruebas.
+            Configura el enlace de Google para abrir tu libro privado.
           </p>
           <p id="finance-cut" class="calculator-note"></p>
           <div id="finance-kpis" class="kpi-grid"></div>
@@ -399,8 +399,8 @@
               <span class="section-kicker">ANTES DE LEER TUS CIFRAS</span>
               <h2>Comprobemos esta estructura.</h2>
               <p>
-                La conexión inicial verifica las pestañas y las tablas de la
-                copia de pruebas.
+                La conexión inicial verifica las pestañas y las tablas del libro
+                conectado.
               </p>
             </div>
             <button
@@ -686,8 +686,7 @@
             </h1>
           </div>
           <p class="heading-note">
-            Configura Google y abre tu libro.<br />Entorno de pruebas · API
-            3.3.0.
+            Configura Google y abre tu libro.<br />Acceso privado · API 3.3.0.
           </p>
         </div>
         <div class="connection-layout">
@@ -700,8 +699,8 @@
             <div class="connection-card-top">
               <span class="section-kicker">GOOGLE SHEETS</span
               ><span class="connection-state-tag"
-                ><span class="connection-dot" aria-hidden="true"></span>Copia de
-                pruebas</span
+                ><span class="connection-dot" aria-hidden="true"></span
+                ><span data-finance-environment>Sin libro abierto</span></span
               >
             </div>
             <div class="connection-symbol" aria-hidden="true">
@@ -753,6 +752,14 @@
               >
                 Comprobar backend
               </button>
+              <button
+                type="button"
+                id="acceptance-check"
+                class="button button-secondary"
+              >
+                Comprobar sistema
+              </button>
+              <p id="acceptance-result" role="status" aria-live="polite"></p>
             </div>
             <p
               id="backend-result"
@@ -773,8 +780,8 @@
                 <div>
                   <h3>Prepara Google</h3>
                   <p>
-                    Copia el código en tu proyecto de Apps Script y configura la
-                    copia de pruebas.
+                    Copia el código en tu proyecto de Apps Script y configura el
+                    libro conectado.
                   </p>
                   <a class="inline-link" href="./install.html"
                     >Copiar código de Google<svg class="icon">
@@ -806,8 +813,9 @@
             <div class="connection-privacy">
               <svg class="icon"><use href="#icon-book" /></svg>
               <p>
-                Tu libro permanece en Google Sheets. Las comprobaciones de
-                conexión solo leen metadatos. «Abrir mi libro» lee tus registros
+                Tu libro permanece en Google Sheets. Comprobar conexión lee su
+                estructura. Comprobar sistema revisa el resumen y las fuentes de
+                precios sin guardar cambios. «Abrir mi libro» lee tus registros
                 y conserva una copia local en este navegador.
               </p>
             </div>
@@ -944,6 +952,9 @@
         </button>
       </div>
     </dialog>
-    <p id="app-version" class="app-version">App 3.3.1 · Copia de pruebas</p>
+    <p id="app-version" class="app-version">
+      App 3.4.0 · <span data-finance-environment>Sin libro abierto</span>
+      <span id="pwa-status" hidden></span>
+    </p>
   </body>
 </html>

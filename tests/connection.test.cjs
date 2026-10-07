@@ -68,7 +68,7 @@ test('rechaza mensajes ajenos, manipulados y respuestas fuera de una solicitud a
     { data: { ...goodMessage().data, modelVersion: '3' } },
     { data: { ...goodMessage().data, modelVersion: 2 } },
     { data: { ...goodMessage().data, sheetCount: 9 } },
-    { data: { ...goodMessage().data, environment: 'production' } },
+    { data: { ...goodMessage().data, environment: 'unknown' } },
     { data: { ...goodMessage().data, checkedAt: 'invalid' } },
   ];
   for (const change of variants)
@@ -77,6 +77,36 @@ test('rechaza mensajes ajenos, manipulados y respuestas fuera de una solicitud a
       false,
     );
   assert.equal(acceptsConnectionMessage(goodMessage(), null), false);
+});
+test('conexión acepta producción solo tras configuración de dos libros distintos en el servidor', () => {
+  assert.equal(
+    acceptsConnectionMessage(
+      {
+        ...goodMessage(),
+        data: { ...goodMessage().data, environment: 'production' },
+      },
+      pending,
+    ),
+    true,
+  );
+  const { result, calls } = runBackend({
+    properties: {
+      ENVIRONMENT: 'production',
+      PRODUCTION_SPREADSHEET_ID: 'fixture-production',
+    },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.environment, 'production');
+  assert.ok(calls.every((c) => c.id === 'fixture-production'));
+  assert.equal(
+    runBackend({
+      properties: {
+        ENVIRONMENT: 'production',
+        PRODUCTION_SPREADSHEET_ID: 'fixture-book',
+      },
+    }).result.ok,
+    false,
+  );
 });
 
 // Cabeceras de la importación revisada; IDs de pestaña ficticios, sin datos financieros.
@@ -372,6 +402,7 @@ test('el servidor lee el libro configurado y no admite cambiarlo desde el client
     'ok',
     'sheetCount',
     'state',
+    'supportsBookBinding',
     'type',
   ]);
 });

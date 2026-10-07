@@ -50,7 +50,7 @@ function acceptsConnectionMessage(event, pending) {
     return false;
   if (!data.ok) return typeof data.error === 'string';
   return (
-    data.environment === 'test' &&
+    ['test', 'production'].includes(data.environment) &&
     data.modelVersion === 3 &&
     Number.isSafeInteger(data.sheetCount) &&
     data.sheetCount >= 10 &&
@@ -259,12 +259,11 @@ if (typeof document !== 'undefined') {
     finish();
     if (!data.ok) {
       const errors = {
-        ACCESS_DENIED:
-          'Accede con la cuenta propietaria de la copia de pruebas.',
+        ACCESS_DENIED: 'Accede con la cuenta propietaria del libro.',
         NOT_CONFIGURED: 'Falta terminar la configuración de Apps Script.',
         INVALID_REQUEST: 'Vuelve a iniciar la comprobación desde esta página.',
         INVALID_MODEL:
-          'Revisa la copia de pruebas: sus pestañas, tablas y columnas deben corresponder al modelo 3.',
+          'Revisa el libro conectado: sus pestañas, tablas y columnas deben corresponder al modelo 3.',
         READ_FAILED:
           'No se ha podido leer Google Sheets. Hay que revisar Apps Script.',
       };
@@ -275,6 +274,11 @@ if (typeof document !== 'undefined') {
       );
       return;
     }
+    for (const label of document.querySelectorAll('[data-finance-environment]'))
+      label.textContent =
+        data.environment === 'production'
+          ? 'Libro principal'
+          : 'Copia de pruebas';
     document.getElementById('sheet-count').textContent = String(
       data.sheetCount,
     );
@@ -287,7 +291,11 @@ if (typeof document !== 'undefined') {
     show(
       'success',
       'Lectura de Sheets recibida',
-      'Google ha leído la copia de pruebas y ha devuelto estos resultados.',
+      'Google ha leído ' +
+        (data.environment === 'production'
+          ? 'el libro principal'
+          : 'la copia de pruebas') +
+        ' y ha devuelto estos resultados.',
     );
   });
 

@@ -1,5 +1,5 @@
 // Pasos 2, 3 y 4: conexión privada, API financiera y cotizaciones por ISIN.
-// Solo opera en TEST_SPREADSHEET_ID y ENVIRONMENT=test. No incluye datos personales.
+// Libros privados separados por ENVIRONMENT; no incluye datos personales.
 const CONNECTION_TYPE_ = 'finances.connection.v1';
 const APP_ORIGIN_ = 'https://manuuelmarin.github.io';
 const MODEL_VERSION_ = 3;
@@ -113,7 +113,7 @@ const TABLE_SCHEMA_ = [
 ];
 
 const API_VERSION_ = '3.3.0';
-const BUILD_VERSION_ = '3.3.1';
+const BUILD_VERSION_ = '3.4.0';
 // El motor de fórmulas no cambia en el paso 4; conserva su sello de capacidad.
 const CAPACITY_VERSION_ = '3.1.0';
 const INPUT_SCHEMA_ = {
@@ -375,7 +375,7 @@ function doGet(e) {
     const template = bridgeTemplate_();
     template.payloadJson = JSON.stringify(result);
     template.appOrigin = APP_ORIGIN_;
-    return template.evaluate().setTitle('Finanzas · Lectura de prueba');
+    return template.evaluate().setTitle('Finanzas · Tu libro');
   } catch (error) {
     return HtmlService.createHtmlOutput(
       '<!doctype html><html lang="es"><meta charset="utf-8"><title>Finanzas · Revisar Bridge</title>' +
@@ -399,21 +399,8 @@ function bridgeTemplate_() {
 }
 
 function readConnection_() {
-  const properties = PropertiesService.getScriptProperties();
-  const spreadsheetId = properties.getProperty('TEST_SPREADSHEET_ID');
-  const owner = (properties.getProperty('OWNER_EMAIL') || '')
-    .trim()
-    .toLowerCase();
-  if (
-    !spreadsheetId ||
-    !owner ||
-    properties.getProperty('ENVIRONMENT') !== 'test'
-  ) {
-    throw new Error('NOT_CONFIGURED');
-  }
-  // Comprobar al visitante, no solo la identidad que ejecuta el despliegue.
-  const visitor = Session.getActiveUser().getEmail().trim().toLowerCase();
-  if (!visitor || visitor !== owner) throw new Error('ACCESS_DENIED');
+  const config = authorizedConfig_(),
+    spreadsheetId = config.id;
 
   // Esta función usa solo lecturas. El manifiesto permite además las escrituras de la API del paso 3.
   // Localizar tablas por nombre evita depender de sus filas actuales.
@@ -442,12 +429,13 @@ function readConnection_() {
   }
   return {
     ok: true,
-    environment: 'test',
+    environment: config.environment,
     modelVersion: modelVersion,
     sheetCount: sheetCount,
     checkedAt: new Date().toISOString(),
     apiVersion: API_VERSION_,
     buildVersion: BUILD_VERSION_,
+    supportsBookBinding: true,
     backendReady: [
       '_Finanzas_Solicitudes',
       '_Finanzas_Auditoria',
@@ -697,14 +685,33 @@ function recurrence_(v) {
 function authorizedConfig_() {
   const p = PropertiesService.getScriptProperties(),
     owner = (p.getProperty('OWNER_EMAIL') || '').trim().toLowerCase();
-  const id = p.getProperty('TEST_SPREADSHEET_ID');
-  if (!id || !owner || p.getProperty('ENVIRONMENT') !== 'test')
+  const environment = p.getProperty('ENVIRONMENT'),
+    testId = (p.getProperty('TEST_SPREADSHEET_ID') || '').trim(),
+    productionId = (p.getProperty('PRODUCTION_SPREADSHEET_ID') || '').trim(),
+    id = environment === 'production' ? productionId : testId;
+  if (
+    !testId ||
+    !id ||
+    !owner ||
+    !['test', 'production'].includes(environment) ||
+    (environment === 'production' && productionId === testId)
+  )
     fail_('NOT_CONFIGURED');
   const visitor = (Session.getActiveUser().getEmail() || '')
     .trim()
     .toLowerCase();
   if (!visitor || visitor !== owner) fail_('ACCESS_DENIED');
-  return { id, owner };
+  return { id, owner, environment };
+}
+function checkRequestBook_(request, state) {
+  if (request.bookKey === undefined && state.environment === 'test') return;
+  if (!request.bookKey)
+    fail_('READ_REQUIRED', 'Lee el libro antes de preparar la solicitud.');
+  if (request.bookKey !== state.bookKey)
+    fail_(
+      'BOOK_CHANGED',
+      'La solicitud pertenece a otro libro. Conserva el pendiente y abre su implementación original.',
+    );
 }
 function locked_(callback) {
   const lock = LockService.getScriptLock();
@@ -735,6 +742,9 @@ function apiError_(error) {
     'SCHEMA_CONFLICT',
     'WRITE_UNCERTAIN',
     'INVALID_ISIN',
+    'READ_REQUIRED',
+    'BOOK_CHANGED',
+    'TEST_ONLY',
   ];
   const code =
     codes.indexOf(error.code || error.message) >= 0
@@ -955,6 +965,7 @@ function readState_(config) {
     (k) => (settings[k] = serialDate_(params[PARAMETER_NAMES_[k]])),
   );
   const state = {
+    environment: config.environment || 'test',
     book,
     layout,
     tech,
@@ -2218,7 +2229,8 @@ function diagnostics_(s) {
     ok: true,
     apiVersion: API_VERSION_,
     buildVersion: BUILD_VERSION_,
-    environment: 'test',
+    supportsBookBinding: true,
+    environment: s.environment,
     modelVersion: 3,
     businessSheetCount: REQUIRED_SHEETS_.length,
     tableCount: TABLE_SCHEMA_.length,
@@ -2406,18 +2418,24 @@ function financialApi(request) {
             'operations',
             'funds',
             'products',
+            'bookKey',
           ].indexOf(k) < 0,
       )
     )
       fail_('INVALID_REQUEST');
-    if (request.action === 'quotePrices') return quotePrices_(request);
+    if (request.action === 'quotePrices') return quotePrices_(request, config);
     if (request.action === 'refreshPrices')
       return refreshPrices_(config, request);
     if (
       Object.keys(request).some(
         (k) =>
-          ['action', 'requestId', 'expectedRevision', 'operations'].indexOf(k) <
-          0,
+          [
+            'action',
+            'requestId',
+            'expectedRevision',
+            'operations',
+            'bookKey',
+          ].indexOf(k) < 0,
       )
     )
       fail_('INVALID_REQUEST');
@@ -2425,12 +2443,14 @@ function financialApi(request) {
       const s = readState_(config);
       return request.action === 'read' ? publicSnapshot_(s) : diagnostics_(s);
     }
+    if (request.action === 'acceptance') return closureReport_(config);
     if (request.action === 'requestStatus') {
       if (!uuid_(request.requestId)) fail_('INVALID_REQUEST');
-      const s = readState_(config),
-        row = s.technical.requests.find(
-          (r) => r[0] === request.requestId.toLowerCase(),
-        );
+      const s = readState_(config);
+      checkRequestBook_(request, s);
+      const row = s.technical.requests.find(
+        (r) => r[0] === request.requestId.toLowerCase(),
+      );
       return row
         ? Object.assign(JSON.parse(row[3]), { replayed: true })
         : { ok: true, found: false };
@@ -2448,6 +2468,7 @@ function financialApi(request) {
       fingerprint = hash_(request.operations);
     return locked_(() => {
       let before = readState_(config);
+      checkRequestBook_(request, before);
       if (!['requests', 'audit', 'observations'].every((k) => before.tech[k]))
         fail_('NOT_INITIALIZED', 'Ejecuta comprobarPaso3 desde el editor.');
       const stored = before.technical.requests.find((r) => r[0] === requestId);
@@ -2485,7 +2506,7 @@ function financialApi(request) {
         ok: true,
         apiVersion: API_VERSION_,
         buildVersion: BUILD_VERSION_,
-        environment: 'test',
+        environment: config.environment,
         requestId,
         revision: applied.state.revision,
         results: applied.results,
@@ -2557,6 +2578,11 @@ function probarTransaccionesPaso3() {
   }
   try {
     config = authorizedConfig_();
+    if (config.environment !== 'test')
+      fail_(
+        'TEST_ONLY',
+        'Las transacciones ficticias solo se ejecutan en pruebas.',
+      );
     initial = initializeBackend_(config);
     const account = initial.tables.tCuentas[0],
       category = initial.tables.tCategorias.find((c) => c.Grupo === 'Gastos');
@@ -3843,7 +3869,7 @@ function fetchFundQuote_(fund) {
     };
   }
 }
-function quotePrices_(request) {
+function quotePrices_(request, config) {
   if (
     Object.keys(request).some((k) => ['action', 'funds'].indexOf(k) < 0) ||
     !Array.isArray(request.funds) ||
@@ -3866,7 +3892,7 @@ function quotePrices_(request) {
     ok: true,
     apiVersion: API_VERSION_,
     buildVersion: BUILD_VERSION_,
-    environment: 'test',
+    environment: config.environment,
     readOnly: true,
     complete: results.every((r) => r.ok),
     results,
@@ -3973,7 +3999,13 @@ function refreshPrices_(config, request) {
   if (
     Object.keys(request).some(
       (k) =>
-        ['action', 'requestId', 'expectedRevision', 'products'].indexOf(k) < 0,
+        [
+          'action',
+          'requestId',
+          'expectedRevision',
+          'products',
+          'bookKey',
+        ].indexOf(k) < 0,
     ) ||
     !uuid_(request.requestId) ||
     typeof request.expectedRevision !== 'string' ||
@@ -3990,8 +4022,9 @@ function refreshPrices_(config, request) {
       products: request.products || null,
     });
   const prepared = locked_(() => {
-    const state = readState_(config),
-      replay = replayPrices_(state, requestId, fingerprint);
+    const state = readState_(config);
+    checkRequestBook_(request, state);
+    const replay = replayPrices_(state, requestId, fingerprint);
     if (replay) return { replay };
     if (!Object.keys(TECH_SCHEMA_).every((k) => state.tech[k]))
       fail_('NOT_INITIALIZED', 'Ejecuta comprobarPaso4 desde el editor.');
@@ -4039,6 +4072,7 @@ function refreshPrices_(config, request) {
   );
   return locked_(() => {
     let before = readState_(config);
+    checkRequestBook_(request, before);
     const replay = replayPrices_(before, requestId, fingerprint);
     if (replay) return replay;
     if (before.revision !== request.expectedRevision)
@@ -4063,7 +4097,7 @@ function refreshPrices_(config, request) {
       ok: true,
       apiVersion: API_VERSION_,
       buildVersion: BUILD_VERSION_,
-      environment: 'test',
+      environment: config.environment,
       requestId,
       revision: plan.state.revision,
       complete: plan.results.every((r) => r.ok && r.status !== 'needs_review'),
@@ -4124,7 +4158,7 @@ function probarFuentesPaso4() {
       ok: true,
       apiVersion: API_VERSION_,
       buildVersion: BUILD_VERSION_,
-      environment: 'test',
+      environment: config.environment,
       readOnly: true,
       complete: bindings.length > 0 && results.every((r) => r.ok),
       unconfigured: s.tables.tProductos.length - bindings.length,
@@ -4149,6 +4183,7 @@ function actualizarPreciosPaso4() {
         action: 'refreshPrices',
         requestId: Utilities.getUuid(),
         expectedRevision: state.revision,
+        bookKey: state.bookKey,
         products: ids.slice(i, i + PRICE_LIMIT_),
       });
       results.push(response);
@@ -4158,7 +4193,7 @@ function actualizarPreciosPaso4() {
       ok: true,
       apiVersion: API_VERSION_,
       buildVersion: BUILD_VERSION_,
-      environment: 'test',
+      environment: config.environment,
       complete: results.every((r) => r.complete),
       batches: results,
       checkedAt: new Date().toISOString(),
@@ -4180,7 +4215,7 @@ function comprobarPaso5() {
       ok: snap.ok,
       apiVersion: API_VERSION_,
       buildVersion: BUILD_VERSION_,
-      environment: 'test',
+      environment: s.environment,
       backendReady: snap.backendReady,
       calculationReady: snap.calculationReady,
       calculationErrors: snap.calculationErrors,
@@ -4199,6 +4234,65 @@ function comprobarPaso5() {
       rows: snap.rows,
       revision: snap.revision,
     };
+  } catch (error) {
+    result = apiError_(error);
+  }
+  console.log(JSON.stringify(result));
+  return result;
+}
+
+// Solo lectura: comprueba estructura, resumen y consulta real de fuentes, sin guardar precios.
+function closureReport_(config) {
+  const before = readState_(config),
+    snap = publicSnapshot_(before);
+  let bridgeReady = false;
+  try {
+    bridgeTemplate_();
+    bridgeReady = true;
+  } catch (error) {}
+  const results = before.tables.tProductos.map((product) => {
+    const binding = fundBinding_(before, product);
+    return binding
+      ? fetchFundQuote_(binding)
+      : {
+          ok: false,
+          referenceName: product.Producto,
+          error: 'ISIN_REQUIRED',
+          message: 'Configura el ISIN y nombre de referencia de este producto.',
+        };
+  });
+  const after = readState_(config),
+    stable = before.revision === after.revision,
+    checks = {
+      backend: snap.backendReady,
+      calculations: snap.calculationReady,
+      summary: snap.summary.complete,
+      bridge: bridgeReady,
+      sources: results.every((result) => result.ok),
+      stable,
+    };
+  return {
+    ok: true,
+    apiVersion: API_VERSION_,
+    buildVersion: BUILD_VERSION_,
+    environment: config.environment,
+    bookKey: before.bookKey,
+    readOnly: true,
+    technicalReady: Object.values(checks).every(Boolean),
+    checks,
+    revision: before.revision,
+    settings: snap.settings,
+    missingMetrics: snap.summary.missingMetrics,
+    missingPrices: snap.summary.missingPrices,
+    calculationErrors: snap.calculationErrors,
+    results,
+    checkedAt: new Date().toISOString(),
+  };
+}
+function comprobarCierre() {
+  let result;
+  try {
+    result = closureReport_(authorizedConfig_());
   } catch (error) {
     result = apiError_(error);
   }

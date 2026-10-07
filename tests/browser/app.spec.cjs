@@ -148,9 +148,11 @@ const snapshot = {
 };
 async function setup(
   page,
-  { lost = false, missing = false, hostile = false } = {},
+  { lost = false, missing = false, hostile = false, production = false } = {},
 ) {
   const seed = JSON.parse(JSON.stringify(snapshot));
+  seed.environment = production ? 'production' : 'test';
+  seed.supportsBookBinding = true;
   if (missing) {
     seed.summary.missingPrices = ['Fondo ficticio'];
     seed.summary.complete = false;
@@ -172,7 +174,7 @@ async function setup(
     },
     { deployment, seed, lost },
   );
-  const mock = `\nFinanceApiClient = class {constructor(url){this.url=url;this.session=null;}connect(){this.session={};return Promise.resolve({ok:true,apiVersion:'3.3.0'});}close(){this.session=null;}read(){return Promise.resolve(JSON.parse(localStorage.getItem('fixture.server')).snapshot);}async submit(envelope){const s=JSON.parse(localStorage.getItem('fixture.server'));s.calls.push(envelope);if(!s.journal[envelope.requestId]){s.snapshot.revision='r'+(s.calls.length+1);s.journal[envelope.requestId]={ok:true,revision:s.snapshot.revision,results:[],complete:envelope.action!=='refreshPrices'};if(envelope.action==='refreshPrices')s.journal[envelope.requestId].results=[{ok:false,referenceName:'Fondo ficticio',message:'Fuente sin identidad verificable'}];}const result=s.journal[envelope.requestId];const lost=s.lost;s.lost=false;localStorage.setItem('fixture.server',JSON.stringify(s));if(lost)throw Error('RESPONSE_UNCERTAIN');return result;}requestStatus(envelope){return Promise.resolve(JSON.parse(localStorage.getItem('fixture.server')).journal[envelope.requestId]||{ok:true,found:false});}};`;
+  const mock = `\nFinanceApiClient = class {constructor(url){this.url=url;this.session=null;}connect(){this.session={};return Promise.resolve({ok:true,apiVersion:'3.3.0'});}close(){this.session=null;}acceptance(){const s=JSON.parse(localStorage.getItem('fixture.server')).snapshot;return Promise.resolve({ok:true,readOnly:true,environment:s.environment,buildVersion:'3.4.0',technicalReady:true,checks:{backend:true,calculations:true,summary:true,bridge:true,sources:true,stable:true},results:[]});}read(){return Promise.resolve(JSON.parse(localStorage.getItem('fixture.server')).snapshot);}async submit(envelope){const s=JSON.parse(localStorage.getItem('fixture.server'));s.calls.push(envelope);if(!s.journal[envelope.requestId]){s.snapshot.revision='r'+(s.calls.length+1);s.journal[envelope.requestId]={ok:true,revision:s.snapshot.revision,results:[],complete:envelope.action!=='refreshPrices'};if(envelope.action==='refreshPrices')s.journal[envelope.requestId].results=[{ok:false,referenceName:'Fondo ficticio',message:'Fuente sin identidad verificable'}];}const result=s.journal[envelope.requestId];const lost=s.lost;s.lost=false;localStorage.setItem('fixture.server',JSON.stringify(s));if(lost)throw Error('RESPONSE_UNCERTAIN');return result;}requestStatus(envelope){return Promise.resolve(JSON.parse(localStorage.getItem('fixture.server')).journal[envelope.requestId]||{ok:true,found:false});}};`;
   await page.route('**/api.js', (route) =>
     route.fulfill({
       contentType: 'text/javascript',
@@ -412,4 +414,74 @@ test.describe('PWA instalable', () => {
     await nav(page, 'tools').click();
     await expect(page.locator('#inflation-form')).toBeVisible();
   });
+});
+
+test('producción se identifica en ordenador/móvil y la comprobación del sistema no envía operaciones', async ({
+  page,
+}) => {
+  await setup(page, { production: true });
+  await expect(page.locator('#finance-state')).toContainText('libro principal');
+  await expect(page.locator('#app-version')).toContainText('Libro principal');
+  await nav(page, 'connection').click();
+  await page.locator('#acceptance-check').click();
+  await expect(page.locator('#acceptance-result')).toContainText(
+    'Libro principal · versión 3.4.0',
+  );
+  await expect(page.locator('#acceptance-result')).toContainText(
+    'Comprobaciones técnicas correctas',
+  );
+  await expect(page.locator('#acceptance-result')).toContainText(
+    'No se han guardado precios ni operaciones',
+  );
+  expect(
+    await page.evaluate(
+      () => JSON.parse(localStorage.getItem('fixture.server')).calls,
+    ),
+  ).toEqual([]);
+});
+
+test('comprobación con fuentes fallidas exige revisión sin presentar el sistema como listo', async ({
+  page,
+}) => {
+  await setup(page);
+  await page.evaluate(() => {
+    FinanceApiClient.prototype.acceptance = async () => ({
+      ok: true,
+      environment: 'test',
+      buildVersion: '3.4.0',
+      technicalReady: false,
+      checks: {
+        backend: true,
+        calculations: true,
+        summary: true,
+        bridge: true,
+        sources: false,
+        stable: true,
+      },
+      results: [
+        {
+          ok: false,
+          referenceName: 'Fondo ficticio',
+          error: 'SOURCE_FORMAT',
+          message: 'Fuente sin campos verificables',
+        },
+      ],
+    });
+  });
+  await nav(page, 'connection').click();
+  await page.locator('#acceptance-check').click();
+  await expect(page.locator('#acceptance-result')).toContainText(
+    'Revisar: fuentes de precios',
+  );
+  await expect(page.locator('#acceptance-result')).toContainText(
+    'Fondo ficticio: Fuente sin campos verificables',
+  );
+  await expect(page.locator('#acceptance-result')).not.toContainText(
+    'Comprobaciones técnicas correctas',
+  );
+  expect(
+    await page.evaluate(
+      () => JSON.parse(localStorage.getItem('fixture.server')).calls,
+    ),
+  ).toEqual([]);
 });

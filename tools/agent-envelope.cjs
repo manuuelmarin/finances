@@ -3,9 +3,14 @@ const crypto = require('node:crypto');
 function prepare(snapshot, operations) {
   if (
     snapshot?.apiVersion !== '3.3.0' ||
-    snapshot?.environment !== 'test' ||
+    !['test', 'production'].includes(snapshot?.environment) ||
     !snapshot?.revision ||
     !snapshot?.bookKey
+  )
+    throw Error('READ_REQUIRED');
+  if (
+    snapshot.environment === 'production' &&
+    snapshot.supportsBookBinding !== true
   )
     throw Error('READ_REQUIRED');
   if (
@@ -19,6 +24,7 @@ function prepare(snapshot, operations) {
       action: 'transact',
       requestId: crypto.randomUUID(),
       expectedRevision: snapshot.revision,
+      ...(snapshot.supportsBookBinding ? { bookKey: snapshot.bookKey } : {}),
       operations,
     }),
   );

@@ -45,6 +45,8 @@ class FinanceApiClient {
     this.runtime = runtime;
     this.session = null;
     this.revision = null;
+    this.bookKey = null;
+    this.supportsBookBinding = false;
   }
   // Llamar desde un clic para que el navegador permita abrir Google.
   connect() {
@@ -76,6 +78,7 @@ class FinanceApiClient {
           return;
         }
         this.session.source = event.source;
+        this.supportsBookBinding = event.data.supportsBookBinding === true;
         this.session.origin = event.origin;
         resolve(event.data);
       };
@@ -101,6 +104,9 @@ class FinanceApiClient {
         const result = event.data.result;
         if (result.revision && result.ok && !result.replayed)
           this.revision = result.revision;
+        if (result.bookKey && result.ok) this.bookKey = result.bookKey;
+        if (result.supportsBookBinding === true)
+          this.supportsBookBinding = true;
         resolve(result);
       };
       timer = this.runtime.setTimeout(() => {
@@ -122,6 +128,9 @@ class FinanceApiClient {
   async diagnostics() {
     return this.request({ action: 'diagnostics' });
   }
+  async acceptance() {
+    return this.request({ action: 'acceptance' });
+  }
   quotePrices(funds) {
     return this.request({ action: 'quotePrices', funds });
   }
@@ -132,6 +141,9 @@ class FinanceApiClient {
         action: 'refreshPrices',
         requestId: this.runtime.crypto.randomUUID(),
         expectedRevision: this.revision,
+        ...(this.bookKey && this.supportsBookBinding
+          ? { bookKey: this.bookKey }
+          : {}),
         ...(products ? { products } : {}),
       }),
     );
@@ -144,6 +156,9 @@ class FinanceApiClient {
         action: 'transact',
         requestId: this.runtime.crypto.randomUUID(),
         expectedRevision: this.revision,
+        ...(this.bookKey && this.supportsBookBinding
+          ? { bookKey: this.bookKey }
+          : {}),
         operations,
       }),
     );
@@ -155,6 +170,7 @@ class FinanceApiClient {
     return this.request({
       action: 'requestStatus',
       requestId: envelope.requestId,
+      ...(envelope.bookKey ? { bookKey: envelope.bookKey } : {}),
     });
   }
   close() {
@@ -162,6 +178,8 @@ class FinanceApiClient {
       this.session.popup.close();
     this.session = null;
     this.revision = null;
+    this.bookKey = null;
+    this.supportsBookBinding = false;
   }
 }
 
@@ -169,6 +187,58 @@ if (typeof module !== 'undefined' && module.exports)
   module.exports = { acceptsApiMessage, FinanceApiClient };
 
 if (typeof document !== 'undefined') {
+  const acceptanceButton = document.getElementById('acceptance-check'),
+    acceptanceOutput = document.getElementById('acceptance-result');
+  if (acceptanceButton && acceptanceOutput)
+    acceptanceButton.addEventListener('click', async () => {
+      let client;
+      try {
+        const url = savedDeployment(window.localStorage);
+        if (!url) throw Error('NOT_CONFIGURED');
+        client = new FinanceApiClient(url);
+        const connected = client.connect();
+        acceptanceButton.disabled = true;
+        acceptanceOutput.textContent =
+          'Abre Google para comprobar resumen y fuentes. No se guardarán precios.';
+        await connected;
+        const result = await client.acceptance();
+        if (!result.ok) throw Error(result.message || result.error);
+        const names = {
+          backend: 'estructura',
+          calculations: 'cálculos',
+          summary: 'resumen',
+          bridge: 'conexión',
+          sources: 'fuentes de precios',
+          stable: 'lectura sin cambios',
+        };
+        const missing = Object.entries(result.checks)
+          .filter(([, ready]) => !ready)
+          .map(([key]) => names[key]);
+        acceptanceOutput.textContent =
+          (result.environment === 'production'
+            ? 'Libro principal'
+            : 'Copia de pruebas') +
+          ' · versión ' +
+          result.buildVersion +
+          ' · ' +
+          (missing.length
+            ? 'Revisar: ' + missing.join(', ') + '.'
+            : 'Comprobaciones técnicas correctas.') +
+          ' No se han guardado precios ni operaciones. ' +
+          result.results
+            .filter((r) => !r.ok)
+            .map((r) => r.referenceName + ': ' + (r.message || r.error))
+            .join(' ');
+      } catch (error) {
+        acceptanceOutput.textContent =
+          'No se ha completado la comprobación: ' +
+          error.message +
+          '. Los datos del libro se conservan.';
+      } finally {
+        client?.close();
+        acceptanceButton.disabled = false;
+      }
+    });
   const button = document.getElementById('backend-check'),
     output = document.getElementById('backend-result');
   if (button && output)
@@ -200,7 +270,11 @@ if (typeof document !== 'undefined') {
             result.apiVersion +
             ' · ' +
             result.tableCount +
-            ' tablas · copia de pruebas. No se han registrado operaciones.';
+            ' tablas · ' +
+            (result.environment === 'production'
+              ? 'libro principal'
+              : 'copia de pruebas') +
+            '. No se han registrado operaciones.';
       } catch (error) {
         output.textContent =
           error.message === 'UPDATE_REQUIRED'
