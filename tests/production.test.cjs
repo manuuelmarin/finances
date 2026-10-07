@@ -164,3 +164,13 @@ test('edición concurrente durante la consulta impide dar por buena una lectura 
   assert.equal(report.checks.stable, false);
   assert.equal(report.technicalReady, false);
 });
+test('error en una columna calculada impide el cierre aunque las tarjetas estén completas', () => {
+  const r = completeReportFixture();
+  r.setInput('tCuentas', 0, 'Saldo calculado', '#REF!');
+  const read = r.api({ action: 'read' });
+  assert.equal(read.summary.complete, true);
+  assert.ok(read.calculationErrors.length > 0);
+  const report = r.api({ action: 'acceptance' });
+  assert.equal(report.checks.calculations, false);
+  assert.equal(report.technicalReady, false);
+});

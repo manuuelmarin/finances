@@ -4217,7 +4217,7 @@ function comprobarPaso5() {
       buildVersion: BUILD_VERSION_,
       environment: s.environment,
       backendReady: snap.backendReady,
-      calculationReady: snap.calculationReady,
+      calculationReady: snap.calculationReady && !snap.calculationErrors.length,
       calculationErrors: snap.calculationErrors,
       summaryReady: snap.summary.complete,
       missingPrices: snap.summary.missingPrices,
@@ -4265,7 +4265,7 @@ function closureReport_(config) {
     stable = before.revision === after.revision,
     checks = {
       backend: snap.backendReady,
-      calculations: snap.calculationReady,
+      calculations: snap.calculationReady && !snap.calculationErrors.length,
       summary: snap.summary.complete,
       bridge: bridgeReady,
       sources: results.every((result) => result.ok),
