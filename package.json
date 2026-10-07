@@ -1,0 +1,23 @@
+{
+  "name": "finances",
+  "version": "3.3.0",
+  "private": true,
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "node tools/build-install.cjs && node tools/build-sw.cjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "test": "node tools/test.cjs",
+    "test:browser": "playwright test",
+    "check": "npm run build && npm run format:check && npm run lint && npm test && npm run test:browser"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "eslint": "10.12.0",
+    "globals": "17.13.0",
+    "prettier": "3.9.9"
+  }
+}

@@ -1,0 +1,53 @@
+const globals = require('globals');
+module.exports = [
+  {
+    ignores: [
+      'web/install.html',
+      'web/sw.js',
+      'node_modules/**',
+      'playwright-report/**',
+      'test-results/**',
+      'quality-results/**',
+    ],
+  },
+  {
+    files: ['**/*.js', '**/*.cjs', '**/*.gs'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'script',
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+        PropertiesService: 'readonly',
+        Session: 'readonly',
+        Sheets: 'readonly',
+        Utilities: 'readonly',
+        LockService: 'readonly',
+        HtmlService: 'readonly',
+        CacheService: 'readonly',
+        UrlFetchApp: 'readonly',
+        FinanceDomain: 'readonly',
+        FinanceSync: 'readonly',
+        FinanceApiClient: 'readonly',
+        DEPLOYMENT_STORAGE_KEY: 'readonly',
+        savedDeployment: 'readonly',
+        validDeploymentUrl: 'readonly',
+        acceptsConnectionMessage: 'readonly',
+        compoundInterest: 'readonly',
+        mortgage: 'readonly',
+      },
+    },
+    rules: {
+      'no-undef': 'error',
+      'no-unreachable': 'error',
+      'no-dupe-args': 'error',
+      'no-dupe-keys': 'error',
+      'no-constant-condition': 'error',
+      'no-cond-assign': 'error',
+      'no-eval': 'error',
+      'no-implied-eval': 'error',
+      'no-new-func': 'error',
+      'valid-typeof': 'error',
+    },
+  },
+];

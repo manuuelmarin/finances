@@ -1,64 +1,132 @@
 <!doctype html>
 <html lang="es">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <base target="_top">
-  <style>
-    body { font: 17px/1.6 system-ui, sans-serif; margin: 0; background: #101b21; color: #e8f1ef; }
-    main { max-width: 440px; margin: 70px auto; padding: 24px; }
-    h1 { font-size: 26px; }
-  </style>
-</head>
-<body>
-  <main>
-    <h1>Finanzas · Conexión</h1>
-    <p id="status" role="status">Comprobando la lectura…</p>
-    <p id="detail">Puedes volver a la página de Finanzas al terminar.</p>
-    <a href="https://manuuelmarin.github.io/finances/#connection" style="color:#b6e5ba">Volver a Finanzas</a>
-  </main>
-  <!-- Impresión con escape contextual: no insertar JSON sin escape en un script. -->
-  <div id="payload" hidden><?= payloadJson ?></div>
-  <div id="origin" hidden><?= appOrigin ?></div>
-  <script>
-    'use strict';
-    const payload = JSON.parse(document.getElementById('payload').textContent);
-    const appOrigin = document.getElementById('origin').textContent;
-    const status = document.getElementById('status');
-    const detail = document.getElementById('detail');
-    const errors = {
-      INVALID_REQUEST: 'Abre Finanzas y pulsa Comprobar conexión. Abrir este enlace directamente no inicia la prueba.',
-      NOT_CONFIGURED: 'Revisa las tres propiedades del script: TEST_SPREADSHEET_ID, OWNER_EMAIL y ENVIRONMENT.',
-      ACCESS_DENIED: 'Accede con la cuenta propietaria configurada en el proyecto.',
-      INVALID_MODEL: 'Revisa la copia de pruebas: deben estar las diez pestañas y las doce tablas del modelo 3.',
-      READ_FAILED: 'Revisa el servicio avanzado Sheets, los permisos y el acceso a la copia de pruebas.'
-    };
-    status.textContent = payload.ok
-      ? 'Lectura de Google completada.'
-      : 'La comprobación necesita revisión.';
-    detail.textContent = payload.ok
-      ? 'Modelo ' + payload.modelVersion + ' · ' + payload.sheetCount + ' pestañas. Vuelve a Finanzas para comprobar que ha recibido la respuesta.'
-      : (errors[payload.error] || errors.READ_FAILED);
-    try {
-      // HtmlService ejecuta este documento dentro de un iframe de Google.
-      const receiver = window.top.opener;
-      if (receiver) receiver.postMessage(payload, appOrigin);
-      else if (payload.ok) detail.textContent += ' Si acabas de iniciar sesión, repite la prueba desde Finanzas con esta sesión abierta.';
-    } catch (error) {
-      detail.textContent += ' No se ha podido comunicar el resultado a la ventana anterior; vuelve a Finanzas y repite la prueba.';
-    }
-    // Datos financieros por canal autenticado de Google; no se envían en la URL ni por JSONP.
-    let apiReceiver;
-    try { apiReceiver=window.top.opener; } catch(error) {}
-    if(payload.ok && apiReceiver) window.addEventListener('message',event=>{
-      if(event.origin!==appOrigin || event.source!==apiReceiver || !event.data || typeof event.data!=='object') return;
-      const message=event.data;
-      if(message.type!=='finances.api.request.v1' || message.state!==payload.state ||
-        typeof message.callId!=='string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(message.callId) ||
-        !message.request || typeof message.request!=='object' || JSON.stringify(message.request).length>60000) return;
-      const reply=result=>apiReceiver.postMessage({type:'finances.api.response.v1',state:payload.state,callId:message.callId,result},appOrigin);
-      google.script.run.withSuccessHandler(reply).withFailureHandler(()=>reply({ok:false,error:'RESPONSE_UNCERTAIN',message:'No se pudo confirmar la respuesta de Google. Reintenta la misma solicitud.'})).financialApi(message.request);
-    });
-  </script>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <base target="_top" />
+    <style>
+      body {
+        font:
+          17px/1.6 system-ui,
+          sans-serif;
+        margin: 0;
+        background: #101b21;
+        color: #e8f1ef;
+      }
+      main {
+        max-width: 440px;
+        margin: 70px auto;
+        padding: 24px;
+      }
+      h1 {
+        font-size: 26px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Finanzas · Conexión</h1>
+      <p id="status" role="status">Comprobando la lectura…</p>
+      <p id="detail">Puedes volver a la página de Finanzas al terminar.</p>
+      <a
+        href="https://manuuelmarin.github.io/finances/#connection"
+        style="color: #b6e5ba"
+        >Volver a Finanzas</a
+      >
+    </main>
+    <!-- Impresión con escape contextual: no insertar JSON sin escape en un script. -->
+    <div id="payload" hidden><?= payloadJson ?></div>
+    <div id="origin" hidden><?= appOrigin ?></div>
+    <script>
+      'use strict';
+      const payload = JSON.parse(
+        document.getElementById('payload').textContent,
+      );
+      const appOrigin = document.getElementById('origin').textContent;
+      const status = document.getElementById('status');
+      const detail = document.getElementById('detail');
+      const errors = {
+        INVALID_REQUEST:
+          'Abre Finanzas y pulsa Comprobar conexión. Abrir este enlace directamente no inicia la prueba.',
+        NOT_CONFIGURED:
+          'Revisa las tres propiedades del script: TEST_SPREADSHEET_ID, OWNER_EMAIL y ENVIRONMENT.',
+        ACCESS_DENIED:
+          'Accede con la cuenta propietaria configurada en el proyecto.',
+        INVALID_MODEL:
+          'Revisa la copia de pruebas: deben estar las diez pestañas y las doce tablas del modelo 3.',
+        READ_FAILED:
+          'Revisa el servicio avanzado Sheets, los permisos y el acceso a la copia de pruebas.',
+      };
+      status.textContent = payload.ok
+        ? 'Lectura de Google completada.'
+        : 'La comprobación necesita revisión.';
+      detail.textContent = payload.ok
+        ? 'Modelo ' +
+          payload.modelVersion +
+          ' · ' +
+          payload.sheetCount +
+          ' pestañas. Vuelve a Finanzas para comprobar que ha recibido la respuesta.'
+        : errors[payload.error] || errors.READ_FAILED;
+      try {
+        // HtmlService ejecuta este documento dentro de un iframe de Google.
+        const receiver = window.top.opener;
+        if (receiver) receiver.postMessage(payload, appOrigin);
+        else if (payload.ok)
+          detail.textContent +=
+            ' Si acabas de iniciar sesión, repite la prueba desde Finanzas con esta sesión abierta.';
+      } catch (error) {
+        detail.textContent +=
+          ' No se ha podido comunicar el resultado a la ventana anterior; vuelve a Finanzas y repite la prueba.';
+      }
+      // Datos financieros por canal autenticado de Google; no se envían en la URL ni por JSONP.
+      let apiReceiver;
+      try {
+        apiReceiver = window.top.opener;
+      } catch (error) {}
+      if (payload.ok && apiReceiver)
+        window.addEventListener('message', (event) => {
+          if (
+            event.origin !== appOrigin ||
+            event.source !== apiReceiver ||
+            !event.data ||
+            typeof event.data !== 'object'
+          )
+            return;
+          const message = event.data;
+          if (
+            message.type !== 'finances.api.request.v1' ||
+            message.state !== payload.state ||
+            typeof message.callId !== 'string' ||
+            !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+              message.callId,
+            ) ||
+            !message.request ||
+            typeof message.request !== 'object' ||
+            JSON.stringify(message.request).length > 60000
+          )
+            return;
+          const reply = (result) =>
+            apiReceiver.postMessage(
+              {
+                type: 'finances.api.response.v1',
+                state: payload.state,
+                callId: message.callId,
+                result,
+              },
+              appOrigin,
+            );
+          google.script.run
+            .withSuccessHandler(reply)
+            .withFailureHandler(() =>
+              reply({
+                ok: false,
+                error: 'RESPONSE_UNCERTAIN',
+                message:
+                  'No se pudo confirmar la respuesta de Google. Reintenta la misma solicitud.',
+              }),
+            )
+            .financialApi(message.request);
+        });
+    </script>
+  </body>
 </html>
