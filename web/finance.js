@@ -2,6 +2,14 @@
 
 (() => {
   const $ = (id) => document.getElementById(id);
+  // La vista previa solo muestra la interfaz pública. Nunca carga datos locales.
+  if (window.top !== window.self) {
+    $('finance-state').textContent =
+      'Abre Finanzas en su propia ventana para acceder a tu libro.';
+    for (const button of document.querySelectorAll('.finance-toolbar button'))
+      button.disabled = true;
+    return;
+  }
   const D = FinanceDomain;
   const money = new Intl.NumberFormat('es-ES', {
     style: 'currency',
@@ -634,7 +642,11 @@
         renombrar:
           'Conserva las relaciones y el historial del nombre anterior.',
       }[process] ||
-      'Se registra en la copia de pruebas. Revisa la fecha, los importes y las selecciones antes de confirmar.';
+      'Se registra en ' +
+        (snapshot?.environment === 'production'
+          ? 'el libro principal'
+          : 'la copia de pruebas') +
+        '. Revisa la fecha, los importes y las selecciones antes de confirmar.';
     $('operation-error').hidden = true;
   }
   function newOperation() {

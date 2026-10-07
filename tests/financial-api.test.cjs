@@ -45,6 +45,41 @@ test('autoriza antes de cualquier lectura o escritura y mantiene el libro solo e
     'INVALID_REQUEST',
   );
 });
+test('todas las funciones públicas del editor deniegan visitantes antes de acceder al libro', () => {
+  for (const visitor of ['', 'other@example.test']) {
+    const r = runtime({ visitor });
+    for (const name of [
+      'comprobarInstalacion',
+      'comprobarPaso3',
+      'probarTransaccionesPaso3',
+      'comprobarPaso4',
+      'probarFuentesPaso4',
+      'actualizarPreciosPaso4',
+      'comprobarPaso5',
+      'comprobarCierre',
+    ])
+      assert.equal(r.ctx[name]().error, 'ACCESS_DENIED', name);
+    assert.equal(r.readBooks.length, 0);
+    assert.equal(r.writes.length, 0);
+    assert.equal(r.fetches.length, 0);
+  }
+});
+test('texto con fórmulas o HTML se guarda como texto literal sin ejecutar ni modificar fórmulas', () => {
+  const r = runtime();
+  r.init();
+  const before = r.formulas();
+  const concept = '=IMPORTXML("https://example.invalid/","//body")';
+  assert.equal(r.transact([expense({ concept })]).ok, true);
+  const cells = r.writes
+    .at(-1)
+    .requests.flatMap((request) => request.updateCells?.rows || [])
+    .flatMap((row) => row.values || []);
+  assert.ok(
+    cells.some((cell) => cell.userEnteredValue?.stringValue === concept),
+  );
+  assert.deepEqual(r.formulas(), before);
+  assert.equal(r.state().tables.tMovimientos[0].Concepto, concept);
+});
 test('preparación idempotente conserva entradas, fórmulas y observación antigua sin inventar una hora', () => {
   const r = runtime(),
     inputs = JSON.stringify(r.state().tables);

@@ -6,6 +6,9 @@ const API_RESPONSE_TYPE = 'finances.api.response.v1';
 function acceptsApiMessage(event, session, callId) {
   if (
     !session ||
+    !session.source ||
+    event.source !== session.source ||
+    event.origin !== session.origin ||
     !event.source ||
     !event.data ||
     typeof event.data !== 'object'
@@ -51,6 +54,8 @@ class FinanceApiClient {
   // Llamar desde un clic para que el navegador permita abrir Google.
   connect() {
     this.close();
+    if (this.runtime.top && this.runtime.top !== this.runtime.self)
+      return Promise.reject(new Error('EMBEDDED_CONTEXT'));
     const state = this.runtime.crypto.randomUUID(),
       url = new URL(this.url);
     url.searchParams.set('state', state);
@@ -60,11 +65,16 @@ class FinanceApiClient {
       'popup,width=480,height=720',
     );
     if (!popup) return Promise.reject(new Error('POPUP_BLOCKED'));
-    this.session = { state, popup };
+    const session = { state, popup };
+    this.session = session;
     return new Promise((resolve, reject) => {
       let timer;
       const listener = (event) => {
-        if (!acceptsConnectionMessage(event, this.session)) return;
+        if (
+          this.session !== session ||
+          !acceptsConnectionMessage(event, session)
+        )
+          return;
         this.runtime.removeEventListener('message', listener);
         this.runtime.clearTimeout(timer);
         if (!event.data.ok) {
@@ -84,7 +94,7 @@ class FinanceApiClient {
       };
       timer = this.runtime.setTimeout(() => {
         this.runtime.removeEventListener('message', listener);
-        this.close();
+        if (this.session === session) this.close();
         reject(new Error('CONNECTION_TIMEOUT'));
       }, 90000);
       this.runtime.addEventListener('message', listener);
@@ -98,7 +108,11 @@ class FinanceApiClient {
     return new Promise((resolve, reject) => {
       let timer;
       const listener = (event) => {
-        if (!acceptsApiMessage(event, session, callId)) return;
+        if (
+          this.session !== session ||
+          !acceptsApiMessage(event, session, callId)
+        )
+          return;
         this.runtime.removeEventListener('message', listener);
         this.runtime.clearTimeout(timer);
         const result = event.data.result;

@@ -2,11 +2,17 @@ const { test } = require('node:test'),
   assert = require('node:assert/strict');
 const { acceptsApiMessage } = require('../web/api.js');
 const popup = {},
-  session = { popup, state: 'session-nonce' },
+  source = { top: popup },
+  session = {
+    popup,
+    source,
+    origin: 'https://example-script.googleusercontent.com',
+    state: 'session-nonce',
+  },
   callId = 'call-nonce';
 const good = () => ({
   origin: 'https://example-script.googleusercontent.com',
-  source: { top: popup },
+  source,
   data: {
     type: 'finances.api.response.v1',
     state: session.state,
@@ -19,6 +25,8 @@ test('canal API acepta solo Google, la ventana iniciada y referencias correspond
   for (const changed of [
     { origin: 'https://example.com' },
     { origin: 'https://script.googleusercontent.com.example.com' },
+    { origin: 'https://another-script.googleusercontent.com' },
+    { source: { top: popup } },
     { source: { top: {} } },
     { source: null },
     { data: { ...good().data, state: 'another' } },
@@ -31,6 +39,42 @@ test('canal API acepta solo Google, la ventana iniciada y referencias correspond
       false,
     );
   assert.equal(acceptsApiMessage(good(), null, callId), false);
+});
+test('el cliente bloquea conexiones desde páginas incrustadas antes de abrir Google', async () => {
+  const { FinanceApiClient } = require('../web/api.js');
+  let opened = false;
+  const client = new FinanceApiClient(
+    'https://script.google.com/macros/s/fixture-deployment/exec',
+    { top: {}, self: {}, open: () => (opened = true) },
+  );
+  await assert.rejects(client.connect(), /EMBEDDED_CONTEXT/);
+  assert.equal(opened, false);
+});
+test('una respuesta de una sesión cerrada no actualiza el libro de la sesión nueva', async () => {
+  const { FinanceApiClient } = require('../web/api.js');
+  let listener, timeout;
+  const client = new FinanceApiClient(
+    'https://script.google.com/macros/s/fixture-deployment/exec',
+    {
+      crypto: { randomUUID: () => callId },
+      addEventListener: (_, fn) => (listener = fn),
+      removeEventListener: () => {},
+      setTimeout: (fn) => (timeout = fn),
+      clearTimeout: () => {},
+    },
+  );
+  client.session = { ...session, source: { ...source, postMessage() {} } };
+  const previous = client.session;
+  const request = client.read();
+  client.session = { ...session, state: 'next-session' };
+  listener({
+    ...good(),
+    source: previous.source,
+    data: { ...good().data, result: { ok: true, revision: 'stale' } },
+  });
+  assert.equal(client.revision, null);
+  timeout();
+  await assert.rejects(request, /RESPONSE_UNCERTAIN/);
 });
 test('Bridge valida origen, ventana, sesión y llamada antes de ejecutar la función autenticada de Google', () => {
   const fs = require('node:fs'),

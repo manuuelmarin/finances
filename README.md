@@ -6,6 +6,8 @@ Entrega 3.4.0. App responsive y PWA sobre el libro completo de Google Sheets, mo
 
 Node 24. `npm ci --ignore-scripts`, `npx playwright install --with-deps chromium`, `npm run check`. Prettier mantiene el formato; ESLint detecta errores; node:test comprueba reglas, canal, precios y recuperación; Playwright prueba ordenador y móvil con datos ficticios. Actions publica Pages únicamente tras superar calidad. Los commits nuevos siguen Conventional Commits: `feat(app): ...`, `fix(api): ...`, `ci(quality): ...`.
 
+Actions también ejecuta `npm run audit`: vulnerabilidades conocidas altas o críticas bloquean la publicación. Las acciones se fijan por commit completo. Revisar y actualizar deliberadamente esos commits y el lockfile; una revisión sin avisos no garantiza ausencia de fallos desconocidos.
+
 `npm run build` genera el instalador exacto desde los tres archivos de Apps Script y la versión de caché desde los recursos públicos. No editar sus bloques de código a mano. Las dependencias están fijadas en package-lock.json. Las pruebas simuladas no acreditan una implementación privada de Google ni un teléfono físico.
 
 ## Uso por agentes
@@ -15,6 +17,16 @@ Node 24. `npm ci --ignore-scripts`, `npx playwright install --with-deps chromium
 3. Guardar el sobre completo antes de enviar. Usar `client.submit(envelope)`. Ante respuesta incierta consultar `client.requestStatus(envelope)` y reintentar exactamente el mismo sobre. Un conflicto exige nueva lectura y revisión explícita; nunca cambiar silenciosamente una solicitud ya enviada.
 4. Usar altas, correcciones y anulaciones de `financialApi`; nunca escribir celdas para registrar operaciones. No borrar precios al fallar una fuente, no convertir datos desconocidos en cero y no registrar compras históricas otra vez como caja nueva.
 5. El original XLSX se conserva durante pruebas. Su archivo definitivo y la elección de Sheets como única fuente operativa requieren el corte y aceptación del paso 8. Los dos documentos privados de coordinación conservan las referencias y pendientes; no se publican en este repositorio.
+
+## Seguridad y límites de la auditoría
+
+La autorización se comprueba en el servidor antes de acceder a Sheets, tanto en la API como en las funciones públicas del editor. Las escrituras admiten procesos y campos concretos; el cliente no puede elegir un libro o enviar instrucciones de celda. El texto se escribe con `stringValue`, no como fórmula. El HTML de terceros nunca se ejecuta en la app. Los errores internos no se devuelven al navegador. Las cotizaciones solo consultan dos rutas HTTPS fijas del proveedor, por ISIN validado y sin seguir redirecciones.
+
+Bridge valida origen, ventana y referencia de sesión; la API acepta respuestas únicamente del marco y origen exactos del saludo autenticado. La interfaz usa `textContent` para datos del libro. La CSP bloquea scripts en línea, eval, recursos externos, formularios y objetos; los estilos de instalación/vista previa se autorizan por huella. La app incrustada no carga su copia local ni habilita configuración u operaciones; abrirla en su propia ventana. La CSP en una etiqueta meta no permite configurar `frame-ancestors` ni sustituye las cabeceras de un alojamiento con control propio.
+
+La lectura y los pendientes de IndexedDB permiten trabajar sin conexión y no están cifrados por la app. Utilizar un dispositivo, perfil y cuenta de Google de confianza. Borrar la copia local desde Mi libro al dejar de usarlo; resolver primero los pendientes. Todos los proyectos bajo el mismo origen `manuuelmarin.github.io` comparten la frontera de confianza del navegador: no publicar código ajeno o no revisado bajo ese origen. Un dominio/origen dedicado y cabeceras HTTP completas deben valorarse si cambia esa condición.
+
+La revisión cubre los archivos del repositorio y ataques simulados. Antes del uso real comprobar la implementación exacta instalada, acceso Solo yo y rechazo de una cuenta distinta. Ni tests ni una auditoría puntual garantizan ausencia de vulnerabilidades desconocidas o compromiso del dispositivo/cuentas. Mantener Google y GitHub protegidos, y repetir la auditoría al cambiar dependencias, código o despliegues.
 
 ## Instalación privada
 

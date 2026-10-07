@@ -3,6 +3,65 @@ const fs = require('node:fs'),
   path = require('node:path');
 const deployment = 'https://script.google.com/macros/s/fixture-deployment/exec';
 
+test('CSP bloquea código inyectado y conexiones a terceros manteniendo la app funcional', async ({
+  page,
+}) => {
+  await page.goto('/');
+  const results = await page.evaluate(async () => {
+    const violations = [];
+    document.addEventListener('securitypolicyviolation', (event) =>
+      violations.push(event.violatedDirective),
+    );
+    const injected = document.createElement('script');
+    injected.textContent = 'window.compromised = true;';
+    document.body.append(injected);
+    let blocked = false;
+    try {
+      await fetch('https://example.invalid/finance-test');
+    } catch {
+      blocked = true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    return { ran: window.compromised === true, blocked, violations };
+  });
+  expect(results.ran).toBe(false);
+  expect(results.blocked).toBe(true);
+  expect(results.violations).toContain('script-src-elem');
+  expect(results.violations).toContain('connect-src');
+  await nav(page, 'connection').click();
+  await page.locator('#setup-toggle').click();
+  await expect(page.locator('#setup-dialog')).toBeVisible();
+});
+
+test('la app incrustada no lee IndexedDB ni permite conectar o configurar Google', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    window.localReads = 0;
+    const original = indexedDB.open.bind(indexedDB);
+    indexedDB.open = (...args) => {
+      window.localReads++;
+      return original(...args);
+    };
+    localStorage.setItem(
+      'finances.appsScriptUrl',
+      'https://script.google.com/macros/s/fixture-deployment/exec',
+    );
+  });
+  await page.goto('/preview.html');
+  for (const id of ['mobile-preview', 'desktop-preview']) {
+    const frame = page.frameLocator('#' + id);
+    await expect(frame.locator('#finance-state')).toContainText(
+      'Abre Finanzas en su propia ventana',
+    );
+    for (const selector of ['#finance-connect', '#connect', '#setup-toggle'])
+      await expect(frame.locator(selector)).toBeDisabled();
+    expect(await frame.locator('body').evaluate(() => window.localReads)).toBe(
+      0,
+    );
+  }
+});
+
 test('el instalador copia cada archivo en su botón y Bridge comienza por HTML', async ({
   page,
   context,
