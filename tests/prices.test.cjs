@@ -485,7 +485,7 @@ test('parser genérico funciona con otros ISIN válidos sin catálogo o identifi
   assert.equal(r.fetches.length, 5);
   assert.equal(r.writes.length, 0);
 });
-test('migración desde tres hojas técnicas añade solo fondos y cotizaciones y conserva solicitudes anteriores', () => {
+test('migración desde tres hojas técnicas añade fondos, cotizaciones y presupuestos sin cambiar entradas y conserva solicitudes anteriores', () => {
   const r = runtime();
   r.init();
   r.transact([
@@ -509,7 +509,7 @@ test('migración desde tres hojas técnicas añade solo fondos y cotizaciones y 
     JSON.stringify(r.state().technical.requests),
     JSON.stringify(before.technical.requests),
   );
-  assert.equal(r.book().sheets.length, 15);
+  assert.equal(r.book().sheets.length, 16);
 });
 test('ampliación de precios con tabla llena conserva los precios históricos y guarda el nuevo una sola vez', () => {
   const r = configured(),

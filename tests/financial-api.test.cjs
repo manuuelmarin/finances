@@ -88,7 +88,7 @@ test('preparación idempotente conserva entradas, fórmulas y observación antig
     formulas = r.formulas();
   assert.equal(r.init().ok, true);
   assert.equal(r.writes.length, count);
-  assert.equal(r.book().sheets.length, 15);
+  assert.equal(r.book().sheets.length, 16);
   assert.equal(JSON.stringify(r.state().tables), inputs);
   assert.deepEqual(r.formulas(), formulas);
   const result = r.api({ action: 'read' });

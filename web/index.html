@@ -23,6 +23,8 @@
     <script src="calculators.js" defer></script>
     <script src="domain.js" defer></script>
     <script src="queue.js" defer></script>
+    <script src="analytics.js" defer></script>
+    <script src="dashboard.js" defer></script>
     <script src="finance.js" defer></script>
     <script src="pwa.js" defer></script>
     <script src="app.js" defer></script>
@@ -112,6 +114,10 @@
         <button class="nav-item" type="button" data-view="book">
           <svg class="icon"><use href="#icon-book" /></svg><span>Mi libro</span>
         </button>
+        <button class="nav-item" type="button" data-view="budgets">
+          <svg class="icon"><use href="#icon-target" /></svg
+          ><span>Presupuestos</span>
+        </button>
         <button class="nav-item" type="button" data-view="tools">
           <svg class="icon"><use href="#icon-tools" /></svg
           ><span>Herramientas</span>
@@ -176,11 +182,9 @@
         <div class="page-heading home-heading">
           <div>
             <p class="eyebrow">UNA VISIÓN DE CONJUNTO</p>
-            <h1 id="home-title">Tu dinero,<br /><em>con perspectiva.</em></h1>
+            <h1 id="home-title">Tu resumen financiero.</h1>
           </div>
-          <p class="heading-note">
-            Tu estructura de siempre,<br />con una forma más cómoda de verla.
-          </p>
+          <p class="heading-note">Datos de tu libro. Decisiones a tu ritmo.</p>
         </div>
 
         <section class="financial-overview" aria-label="Estado del libro">
@@ -200,11 +204,10 @@
               Volver a leer</button
             ><button
               id="finance-new"
-              class="button button-secondary"
+              class="button button-primary"
               type="button"
-              disabled
             >
-              Nueva operación</button
+              Nuevo movimiento</button
             ><button
               id="install-app"
               class="button button-secondary"
@@ -225,6 +228,31 @@
             role="status"
             hidden
           ></p>
+        </section>
+        <div id="dashboard-empty" class="dashboard-welcome">
+          <span class="section-kicker">TU PANEL PRIVADO</span>
+          <h2>Todo tu libro, a una lectura.</h2>
+          <p>
+            Abre tu libro o pulsa Nuevo movimiento para cargar cuentas,
+            registros y gráficos. Comprobar conexión solo valida la estructura.
+          </p>
+          <div class="welcome-features">
+            <span>Resumen y gráficos</span><span>Movimientos e inversiones</span
+            ><span>Presupuestos mensuales</span>
+          </div>
+        </div>
+        <section id="dashboard-grid" hidden aria-labelledby="dashboard-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">EVOLUCIÓN Y DISTRIBUCIÓN</p>
+              <h2 id="dashboard-title">Tus cifras, a la vista.</h2>
+            </div>
+            <button type="button" class="text-button" data-view="budgets">
+              Planificar gastos →
+            </button>
+          </div>
+          <p id="chart-cut" class="calculator-note"></p>
+          <div id="dashboard-charts" class="charts-grid"></div>
         </section>
         <div class="section-heading">
           <div>
@@ -262,11 +290,40 @@
         <div class="page-heading">
           <div>
             <p class="eyebrow">TU MISMO LIBRO</p>
-            <h1 id="book-title">El registro,<br /><em>con detalle.</em></h1>
+            <h1 id="book-title">Movimientos y registros.</h1>
           </div>
           <p class="heading-note">
             Datos leídos de Google Sheets.<br />Revisa antes de registrar.
           </p>
+        </div>
+        <div class="quick-actions">
+          <button
+            class="button button-primary"
+            type="button"
+            data-operation="gasto"
+          >
+            + Gasto</button
+          ><button
+            class="button button-secondary"
+            type="button"
+            data-operation="ingreso"
+          >
+            + Ingreso</button
+          ><button
+            class="button button-secondary"
+            type="button"
+            data-operation="traspaso"
+          >
+            Transferencia</button
+          ><button
+            class="button button-secondary"
+            type="button"
+            data-operation="compra"
+          >
+            Compra de inversión</button
+          ><button class="text-button" type="button" data-open-book>
+            Abrir registros de Google
+          </button>
         </div>
         <div class="finance-toolbar">
           <label class="field"
@@ -418,6 +475,60 @@
         </details>
       </section>
 
+      <section
+        id="view-budgets"
+        class="view"
+        aria-labelledby="budgets-title"
+        hidden
+      >
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">PLANIFICACIÓN MENSUAL</p>
+            <h1 id="budgets-title">Gasta con un objetivo.</h1>
+          </div>
+          <button
+            id="budget-new"
+            class="button button-primary"
+            type="button"
+            disabled
+          >
+            + Establecer límite
+          </button>
+        </div>
+        <div class="quick-actions">
+          <button class="button button-secondary" type="button" data-open-book>
+            Conectar Google</button
+          ><button class="text-button" type="button" data-operation="gasto">
+            + Nuevo gasto
+          </button>
+          <p data-finance-state class="calculator-note"></p>
+        </div>
+        <div class="budget-overview">
+          <label class="field"
+            >Mes<input type="month" id="budget-month"
+          /></label>
+          <div>
+            <span class="section-kicker">GASTO PROPIO REGISTRADO</span
+            ><strong id="budget-spent">Sin dato</strong>
+          </div>
+        </div>
+        <p id="budget-note" class="calculator-note"></p>
+        <div id="budget-cards" class="budget-grid"></div>
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">AHORRO A TU RITMO</p>
+            <h2>Objetivos de ahorro</h2>
+          </div>
+          <button class="text-button" type="button" data-operation="objetivo">
+            + Crear objetivo
+          </button>
+        </div>
+        <p class="calculator-note">
+          Asignar activos a una meta no duplica tu patrimonio ni mueve dinero.
+          Puedes gestionar las asignaciones desde Registros.
+        </p>
+        <div id="saving-goals" class="budget-grid"></div>
+      </section>
       <section
         id="view-tools"
         class="view"
@@ -774,6 +885,24 @@
               Esta comprobación verifica la API de datos y solo realiza una
               lectura.
             </p>
+            <div class="connection-actions">
+              <button
+                type="button"
+                class="button button-primary"
+                data-open-book
+              >
+                Abrir libro para registrar</button
+              ><button
+                type="button"
+                class="button button-secondary"
+                data-operation="gasto"
+              >
+                + Nuevo gasto
+              </button>
+              <p data-finance-state class="calculator-note">
+                La lectura completa carga tus cuentas y habilita el registro.
+              </p>
+            </div>
           </section>
           <aside class="connection-guide" aria-label="Cómo conectar">
             <span class="section-kicker">TRES MOMENTOS, UN SOLO ENLACE</span>
@@ -848,7 +977,11 @@
       ><button type="button" data-view="book">
         <svg class="icon"><use href="#icon-book" /></svg
         ><span>Mi libro</span></button
-      ><button type="button" data-view="tools">
+      ><button type="button" data-view="budgets">
+        <svg class="icon"><use href="#icon-target" /></svg
+        ><span>Presupuestos</span>
+      </button>
+      <button type="button" data-view="tools">
         <svg class="icon"><use href="#icon-tools" /></svg
         ><span>Herramientas</span></button
       ><button type="button" data-view="connection">
@@ -910,6 +1043,45 @@
       </div>
     </dialog>
     <dialog
+      id="budget-dialog"
+      class="setup-dialog operation-dialog"
+      aria-labelledby="budget-title"
+    >
+      <h2 id="budget-title">Límite mensual de gasto</h2>
+      <p class="calculator-note">
+        Se guarda en tu libro mediante una solicitud revisada. Un límite de cero
+        significa no gastar. No se copia a meses futuros.
+      </p>
+      <form id="budget-form">
+        <div class="form-grid">
+          <label class="field"
+            >Mes<input id="budget-edit-month" type="month" required /></label
+          ><label class="field"
+            >Alcance<select id="budget-category"></select></label
+          ><label class="field"
+            >Límite EUR<input
+              id="budget-amount"
+              type="text"
+              inputmode="decimal"
+              required
+              placeholder="0,00"
+          /></label>
+        </div>
+        <p id="budget-error" class="field-message" role="alert" hidden></p>
+        <div class="dialog-actions">
+          <button
+            id="budget-cancel"
+            class="button button-secondary"
+            type="button"
+          >
+            Cancelar</button
+          ><button class="button button-primary" type="submit">
+            Revisar límite
+          </button>
+        </div>
+      </form>
+    </dialog>
+    <dialog
       id="operation-dialog"
       class="setup-dialog operation-dialog"
       aria-labelledby="operation-title"
@@ -957,7 +1129,7 @@
       </div>
     </dialog>
     <p id="app-version" class="app-version">
-      App 3.4.0 · <span data-finance-environment>Sin libro abierto</span>
+      App 3.5.0 · <span data-finance-environment>Sin libro abierto</span>
       <span id="pwa-status" hidden></span>
     </p>
   </body>

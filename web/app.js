@@ -1,6 +1,6 @@
 'use strict';
 
-const views = ['home', 'book', 'tools', 'connection'];
+const views = ['home', 'book', 'budgets', 'tools', 'connection'];
 function navigate(view, focus = false) {
   if (!views.includes(view)) view = 'home';
   for (const name of views)
@@ -14,6 +14,7 @@ function navigate(view, focus = false) {
     {
       home: 'Inicio',
       book: 'Tu libro',
+      budgets: 'Presupuestos',
       tools: 'Herramientas',
       connection: 'Conexión',
     }[view];

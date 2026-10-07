@@ -6,7 +6,9 @@
   if (window.top !== window.self) {
     $('finance-state').textContent =
       'Abre Finanzas en su propia ventana para acceder a tu libro.';
-    for (const button of document.querySelectorAll('.finance-toolbar button'))
+    for (const button of document.querySelectorAll(
+      '.finance-toolbar button, [data-operation], [data-open-book]',
+    ))
       button.disabled = true;
     return;
   }
@@ -62,10 +64,16 @@
     'No se ha confirmado la operación.';
   function status(text) {
     $('finance-state').textContent = text;
+    for (const target of document.querySelectorAll('[data-finance-state]'))
+      target.textContent = text;
   }
   function enabled() {
-    for (const id of ['finance-new', 'finance-prices'])
-      $(id).disabled = !snapshot || loading;
+    $('finance-new').disabled = loading;
+    $('finance-prices').disabled = !snapshot || loading;
+    for (const target of document.querySelectorAll(
+      '[data-operation], [data-open-book]',
+    ))
+      target.disabled = loading;
     for (const id of ['finance-refresh', 'finance-sync'])
       $(id).disabled = !client?.session || loading;
   }
@@ -111,31 +119,31 @@
     await render();
   }
   async function connect() {
+    if (loading) return false;
     // Abrir la ventana en el clic, antes de esperar IndexedDB.
     const next = savedDeployment(window.localStorage);
     if (!next) {
       location.hash = 'connection';
       $('setup-toggle').click();
-      return;
-    }
-    if (url !== next) {
-      status('Cargando la conexión guardada. Repite Abrir mi libro.');
-      await configure();
-      return;
+      return false;
     }
     client?.close();
-    client = new FinanceApiClient(next);
-    const handshake = client.connect();
+    const opening = new FinanceApiClient(next);
+    const handshake = opening.connect();
     loading = true;
     enabled();
     status('Abriendo Google… Usa la cuenta propietaria y vuelve a la app.');
     try {
-      await handshake;
+      await Promise.all([configure(), handshake]);
+      client = opening;
       await refresh();
+      return true;
     } catch (error) {
+      opening.close();
       client?.close();
       client = null;
       status(errorText(error));
+      return false;
     } finally {
       loading = false;
       enabled();
@@ -490,6 +498,7 @@
     );
     renderRegister();
     renderQueue(data.queue);
+    FinanceDashboard.render(snapshot, { review: showReview });
   }
   function renderQueue(items) {
     const parent = $('finance-queue');
@@ -649,8 +658,9 @@
         '. Revisa la fecha, los importes y las selecciones antes de confirmar.';
     $('operation-error').hidden = true;
   }
-  function newOperation() {
-    if (!snapshot) return;
+  async function newOperation(process) {
+    if (!snapshot && !(await connect())) return;
+    if (typeof process === 'string') $('operation-kind').value = process;
     editing = null;
     $('operation-kind-field').hidden = false;
     processFields();
@@ -892,6 +902,7 @@
       else await queue.enqueue(current.operations, current.label);
       $('review-dialog').close();
       $('operation-dialog').close();
+      $('budget-dialog').close();
       review = null;
       status(
         current.action
@@ -914,9 +925,20 @@
     $('operation-dialog').close(),
   );
   for (const [key, spec] of Object.entries(D.processes))
-    $('operation-kind').append(new Option(spec.label, key));
+    if (spec.ui !== false)
+      $('operation-kind').append(new Option(spec.label, key));
   $('operation-kind').addEventListener('change', processFields);
-  $('finance-new').addEventListener('click', newOperation);
+  $('finance-new').addEventListener('click', () => {
+    void newOperation('gasto');
+  });
+  for (const action of document.querySelectorAll('[data-operation]'))
+    action.addEventListener('click', () => {
+      void newOperation(action.dataset.operation);
+    });
+  for (const action of document.querySelectorAll('[data-open-book]'))
+    action.addEventListener('click', () => {
+      void connect();
+    });
   $('finance-connect').addEventListener('click', () => {
     void connect();
   });
