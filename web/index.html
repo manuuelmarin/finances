@@ -325,6 +325,14 @@
             Abrir registros de Google
           </button>
         </div>
+        <p
+          class="calculator-note"
+          data-finance-state
+          role="status"
+          aria-live="polite"
+        >
+          Abre Google para cargar los registros y las cuentas de tu libro.
+        </p>
         <div class="finance-toolbar">
           <label class="field"
             >Sección<select id="finance-section">
@@ -1087,6 +1095,19 @@
       aria-labelledby="operation-title"
     >
       <h2 id="operation-title">Nueva operación</h2>
+      <div id="operation-connection" class="operation-connection">
+        <p data-finance-state role="status" aria-live="polite">
+          Carga las cuentas de Google antes de revisar. Puedes escribir el
+          concepto y el importe mientras tanto.
+        </p>
+        <button
+          id="operation-load"
+          class="button button-secondary"
+          type="button"
+        >
+          Cargar cuentas de Google
+        </button>
+      </div>
       <form id="operation-form">
         <label id="operation-kind-field" class="field"
           >Qué quieres registrar<select id="operation-kind"></select
@@ -1095,7 +1116,11 @@
         <div id="operation-fields" class="operation-fields"></div>
         <p id="operation-error" class="field-message" role="alert" hidden></p>
         <div class="setup-buttons">
-          <button class="button button-primary" type="submit">
+          <button
+            id="operation-review"
+            class="button button-primary"
+            type="submit"
+          >
             Revisar operación</button
           ><button
             id="operation-cancel"
@@ -1129,7 +1154,7 @@
       </div>
     </dialog>
     <p id="app-version" class="app-version">
-      App 3.5.1 · <span data-finance-environment>Sin libro abierto</span>
+      App 3.5.2 · <span data-finance-environment>Sin libro abierto</span>
       <span id="pwa-status" hidden></span>
     </p>
   </body>
