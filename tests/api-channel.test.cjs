@@ -95,7 +95,7 @@ test('Bridge valida origen, ventana, sesión y llamada antes de ejecutar la func
     modelVersion: 3,
     sheetCount: 10,
     state: 'session-nonce',
-    buildVersion: '3.6.0',
+    buildVersion: require('../package.json').version,
   };
   const runner = {
     withSuccessHandler(fn) {
@@ -111,7 +111,7 @@ test('Bridge valida origen, ventana, sesión y llamada antes de ejecutar la func
         this.success(
           JSON.stringify({
             ok: true,
-            buildVersion: '3.6.0',
+            buildVersion: require('../package.json').version,
             apiTransport: 'finances.rpc.json.v1',
           }),
         );

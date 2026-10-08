@@ -44,11 +44,21 @@
   };
   const errorText = (error) =>
     ({
+      ACCESS_DENIED: 'Accede a Google con la cuenta propietaria del libro.',
+      NOT_CONFIGURED: 'Configura primero el enlace privado de Google.',
+      INVALID_MODEL:
+        'Revisa el libro conectado: sus pestañas y tablas deben corresponder al modelo actual.',
+      READ_FAILED:
+        'Google no ha completado la lectura. Revisa los permisos de la implementación y vuelve a abrir el libro.',
+      EMBEDDED_CONTEXT:
+        'Abre Finanzas en su propia ventana para acceder a tu libro.',
       UPDATE_REQUIRED:
         'Actualiza Code.gs, Bridge.html y appsscript.json desde el instalador 3.6.0 y publica Nueva versión de la implementación de pruebas. Guardar el editor no actualiza el enlace /exec.',
       POPUP_BLOCKED:
         'Permite abrir la ventana de Google y vuelve a pulsar Abrir mi libro.',
       NOT_CONNECTED: 'Abre Google para leer o enviar los pendientes.',
+      BOOK_BUSY:
+        'Hay una lectura o un envío en curso. Espera a que termine y vuelve a comprobar.',
       CONNECTION_TIMEOUT:
         'No se ha confirmado la conexión. Los pendientes se conservan.',
       READ_TIMEOUT:
@@ -164,13 +174,22 @@
   }
   async function refresh() {
     const readingClient = client,
-      readingQueue = queue;
+      readingQueue = queue,
+      epoch = configurationEpoch;
     const result = await readingClient.read();
-    if (client !== readingClient || queue !== readingQueue)
+    if (
+      epoch !== configurationEpoch ||
+      client !== readingClient ||
+      queue !== readingQueue
+    )
       throw Error('CONFIGURATION_CHANGED');
     if (!result.ok) throw Error(result.message || result.error);
     await readingQueue.saveSnapshot(result);
-    if (client !== readingClient || queue !== readingQueue)
+    if (
+      epoch !== configurationEpoch ||
+      client !== readingClient ||
+      queue !== readingQueue
+    )
       throw Error('CONFIGURATION_CHANGED');
     snapshot = result;
     status(
@@ -187,18 +206,38 @@
       readingClient.session?.rpcReady === false ? 'readonly' : 'loaded',
     );
     await render();
+    if (
+      epoch !== configurationEpoch ||
+      client !== readingClient ||
+      queue !== readingQueue
+    )
+      throw Error('CONFIGURATION_CHANGED');
   }
-  async function connect() {
-    if (loading) return false;
+  function liveSession() {
+    return Boolean(
+      client?.session &&
+      client.session.rpcReady === true &&
+      !client.session.popup?.closed &&
+      client.url === savedDeployment(window.localStorage) &&
+      client.url === url,
+    );
+  }
+  async function connect(propagate = false) {
+    if (loading) {
+      if (propagate) throw Error('BOOK_BUSY');
+      return false;
+    }
     // Abrir la ventana en el clic, antes de esperar IndexedDB.
     const next = savedDeployment(window.localStorage);
     if (!next) {
+      if (propagate) throw Error('NOT_CONFIGURED');
       location.hash = 'connection';
       $('setup-toggle').click();
       return false;
     }
-    client?.close();
-    const opening = new FinanceApiClient(next);
+    const reuse = liveSession();
+    if (!reuse) client?.close();
+    const opening = reuse ? client : new FinanceApiClient(next);
     openingClient = opening;
     opening.onProgress = ({ action }) => {
       if (client !== opening) return;
@@ -208,7 +247,8 @@
           : 'Google está leyendo el libro. Mantén abierta su ventana…',
       );
     };
-    const handshake = opening.connect();
+    const handshake = reuse ? Promise.resolve() : opening.connect();
+    let epoch;
     loading = true;
     enabled();
     status(
@@ -216,21 +256,31 @@
       'loading',
     );
     try {
-      await Promise.all([configure(), handshake]);
+      const configuration = configure();
+      epoch = configurationEpoch;
+      await Promise.all([configuration, handshake]);
       if (
+        epoch !== configurationEpoch ||
         savedDeployment(window.localStorage) !== next ||
         url !== next ||
-        !queue
+        !queue ||
+        !opening.session
       )
         throw Error('CONFIGURATION_CHANGED');
       client = opening;
       await refresh();
+      if (epoch !== configurationEpoch || client !== opening || !queue)
+        throw Error('CONFIGURATION_CHANGED');
       return true;
     } catch (error) {
       opening.close();
-      client?.close();
-      client = null;
+      if (client === opening) {
+        client.close();
+        client = null;
+      }
+      if (epoch !== configurationEpoch) error = Error('CONFIGURATION_CHANGED');
       status(errorText(error), 'error');
+      if (propagate) throw error;
       return false;
     } finally {
       if (openingClient === opening) openingClient = null;
@@ -238,6 +288,57 @@
       enabled();
     }
   }
+  // Todas las comprobaciones usan el mismo canal que las operaciones del libro.
+  globalThis.FinanceBook = {
+    errorText,
+    async check(action) {
+      if (!['connection', 'diagnostics', 'acceptance'].includes(action))
+        throw Error('INVALID_REQUEST');
+      if (loading) throw Error('BOOK_BUSY');
+      if (action === 'connection' || !liveSession()) await connect(true);
+      if (!client?.session || !queue || !snapshot)
+        throw Error('CONFIGURATION_CHANGED');
+      const checkedClient = client,
+        checkedQueue = queue,
+        epoch = configurationEpoch;
+      loading = true;
+      enabled();
+      try {
+        const result =
+          action === 'connection'
+            ? {
+                ok: true,
+                environment: snapshot.environment,
+                modelVersion: snapshot.modelVersion,
+                sheetCount: snapshot.businessSheetCount,
+                checkedAt: snapshot.checkedAt,
+                apiVersion: snapshot.apiVersion,
+                buildVersion: snapshot.buildVersion,
+                rpcReady: checkedClient.session.rpcReady,
+              }
+            : await checkedClient[action]();
+        if (
+          epoch !== configurationEpoch ||
+          checkedClient !== client ||
+          checkedQueue !== queue
+        )
+          throw Error('CONFIGURATION_CHANGED');
+        if (!result.ok) throw Error(result.error || result.message);
+        return result;
+      } catch (error) {
+        if (
+          epoch !== configurationEpoch ||
+          checkedClient !== client ||
+          checkedQueue !== queue
+        )
+          throw Error('CONFIGURATION_CHANGED');
+        throw error;
+      } finally {
+        loading = false;
+        enabled();
+      }
+    },
+  };
   async function sync() {
     if (!client?.session) {
       status('Abre Google para enviar los pendientes.');
@@ -500,7 +601,10 @@
         : 'Los filtros del listado no cambian las fechas del informe. Los pendientes aún no forman parte de estos registros.';
   }
   async function render() {
+    const epoch = configurationEpoch,
+      renderingQueue = queue;
     const data = await saved();
+    if (epoch !== configurationEpoch || renderingQueue !== queue) return;
     snapshot = data.snapshot;
     enabled();
     for (const label of document.querySelectorAll('[data-finance-environment]'))
