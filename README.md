@@ -1,6 +1,6 @@
 # Finanzas
 
-Entrega 3.4.0. App responsive y PWA sobre el libro completo de Google Sheets, modelo 3. La API 3.3.0 admite pruebas y principal privado con configuración explícita y libros distintos. Google calcula los resultados; la app registra entradas mediante la API privada y muestra los estados por operación.
+Entrega 3.5.2. App responsive y PWA sobre el libro completo de Google Sheets, modelo 3. La API 3.3.0 admite pruebas y principal privado con configuración explícita y libros distintos. Google calcula los resultados; la app registra entradas mediante la API privada y muestra los estados por operación.
 
 ## Desarrollo y calidad
 
@@ -62,6 +62,8 @@ Con Sheets operativo, archivar el XLSX como origen histórico y registrar operac
 ## Panel y presupuestos · entrega 3.5.0
 
 Nuevo movimiento carga el libro completo desde el clic si todavía no hay lectura. Los accesos de gasto/ingreso/transferencia/compra están también en Registros; la comprobación de estructura se distingue de abrir el libro para operar. Se mantienen revisión, cola durable y confirmación del servidor.
+
+En 3.5.2 el formulario se abre inmediatamente, antes de esperar a Google. Si la ventana está bloqueada o la lectura falla, el aviso y el botón para cargar cuentas permanecen en el formulario y el estado se muestra también en Mi libro. Concepto, importe y demás campos se conservan al completar o reintentar la lectura; la revisión exige una copia del libro cargada. Esta corrección del frontend funciona con el backend 3.5.1 ya instalado y API 3.3.0; no requiere cambiar propiedades, URL ni volver a instalar Google. El instalador completo lleva el identificador de entrega 3.5.2 para nuevas instalaciones. Mantener test.
 
 El panel muestra nueve gráficos: ingresos/gastos por mes, efectivo, categoría, distribución del gasto, ciudad, capital/valor invertido, posiciones, clases de activo y nóminas. Valores y cortes proceden de las tablas, rangos con nombre y resumen calculados por Sheets. Un mes o precio desconocido queda sin dato. La app no carga bibliotecas o imágenes de gráficos externas. Cada serie tiene datos accesibles y se adapta al móvil.
 

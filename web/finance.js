@@ -73,6 +73,9 @@
   function enabled() {
     $('finance-new').disabled = loading;
     $('finance-prices').disabled = !snapshot || loading;
+    $('operation-connection').hidden = Boolean(snapshot);
+    $('operation-load').disabled = loading;
+    $('operation-review').disabled = !snapshot || loading;
     for (const target of document.querySelectorAll(
       '[data-operation], [data-open-book]',
     ))
@@ -628,7 +631,7 @@
     label.append(input);
     return label;
   }
-  function processFields() {
+  function processFields(values = {}) {
     editing = null;
     $('operation-title').textContent = 'Nueva operación';
     const process = $('operation-kind').value,
@@ -645,6 +648,7 @@
       let initial = f.initial;
       if (f.type === 'date' && f.required)
         initial = snapshot?.settings[f.key] || today;
+      if (Object.hasOwn(values, f.key)) initial = values[f.key];
       parent.append(fieldInput(f, initial));
     }
     if (process === 'renombrar')
@@ -678,12 +682,29 @@
     $('operation-error').hidden = true;
   }
   async function newOperation(process) {
-    if (!snapshot && !(await connect())) return;
-    if (typeof process === 'string') $('operation-kind').value = process;
-    editing = null;
-    $('operation-kind-field').hidden = false;
-    processFields();
-    $('operation-dialog').showModal();
+    try {
+      if ($('operation-dialog').open) return;
+      if (typeof process === 'string') $('operation-kind').value = process;
+      editing = null;
+      $('operation-kind-field').hidden = false;
+      processFields();
+      enabled();
+      // Mostrar la entrada en el clic, aunque Google no responda o no se abra.
+      $('operation-dialog').showModal();
+      if (!snapshot) await loadOperation();
+    } catch (error) {
+      status(errorText(error));
+    }
+  }
+  async function loadOperation() {
+    try {
+      if (!(await connect()) || !$('operation-dialog').open || editing) return;
+      // La lectura completa los selectores sin borrar lo escrito mientras se esperaba.
+      processFields(Object.fromEntries(new FormData($('operation-form'))));
+      enabled();
+    } catch (error) {
+      status(errorText(error));
+    }
   }
   const editSpec = {
     tMovimientos: [
@@ -870,6 +891,7 @@
   $('operation-form').addEventListener('submit', (event) => {
     event.preventDefault();
     try {
+      if (!snapshot || !queue) throw Error('READ_REQUIRED');
       const values = Object.fromEntries(new FormData(event.target));
       let op, label;
       if (editing) {
@@ -946,7 +968,10 @@
   for (const [key, spec] of Object.entries(D.processes))
     if (spec.ui !== false)
       $('operation-kind').append(new Option(spec.label, key));
-  $('operation-kind').addEventListener('change', processFields);
+  $('operation-kind').addEventListener('change', () => processFields());
+  $('operation-load').addEventListener('click', () => {
+    void loadOperation();
+  });
   $('finance-new').addEventListener('click', () => {
     void newOperation('gasto');
   });

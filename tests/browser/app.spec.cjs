@@ -298,6 +298,47 @@ async function expense(page) {
   await page.locator('#operation-amount').fill('12,34');
   await page.locator('#operation-form button[type=submit]').click();
 }
+async function setupChannel(page, { delayed = false } = {}) {
+  await setup(page, { open: false });
+  await page.unroute('**/api.js');
+  await page.route('**/api.js', (route) =>
+    route.fulfill({
+      contentType: 'text/javascript',
+      body: fs.readFileSync(
+        path.resolve(__dirname, '../../web/api.js'),
+        'utf8',
+      ),
+    }),
+  );
+  await page.context().route(`${deployment}?*`, (route) =>
+    route.fulfill({
+      contentType: 'text/html; charset=utf-8',
+      body: `<!doctype html><meta charset="utf-8"><title>Google ficticio</title><script>
+        const snapshot = ${JSON.stringify(snapshot)};
+        const state = new URL(location.href).searchParams.get('state');
+        window.fixtureCalls = [];
+        let delay = ${delayed};
+        addEventListener('message', event => {
+          const m = event.data;
+          if (event.source !== opener || event.origin !== 'http://127.0.0.1:4173' || m.state !== state) return;
+          window.fixtureCalls.push(m.request);
+          const reply = result => opener.postMessage({type:'finances.api.response.v1', state, callId:m.callId, result}, event.origin);
+          if (m.request.action === 'read') {
+            if (delay) { delay = false; window.replyRead = () => reply(snapshot); }
+            else reply(snapshot);
+          } else if (m.request.action === 'transact') {
+            const op = m.request.operations[0];
+            snapshot.tables.tMovimientos.push({ID:'FICTICIO',Fecha:op.date,Tipo:'Gasto',Concepto:op.concept,Origen:op.account,Subcategoría:op.category,Importe:op.amount,Recuperable:op.recoverable,Localización:op.location,Recurrente:op.recurring});
+            snapshot.revision = 'r2';
+            reply({ok:true,revision:'r2',results:[]});
+          }
+        });
+        opener.postMessage({type:'finances.connection.v1',state,ok:true,apiVersion:'3.3.0',environment:'test',modelVersion:3,sheetCount:10,checkedAt:'2026-01-02T10:00:00Z'},'http://127.0.0.1:4173');
+      </script>`,
+    }),
+  );
+  await page.reload();
+}
 function nav(page, name) {
   return page.locator('nav button[data-view="' + name + '"]:visible');
 }
@@ -594,6 +635,80 @@ test('Nuevo movimiento abre Google y el formulario directamente sin comprobar es
       () => JSON.parse(localStorage.getItem('fixture.server')).calls.length,
     ),
   ).toBe(0);
+});
+test('el alta abre el formulario y muestra un bloqueo de ventanas en la misma vista', async ({
+  page,
+}) => {
+  await setupChannel(page);
+  await page.evaluate(() => {
+    window.fixtureOpen = window.open;
+    window.open = () => null;
+  });
+  await nav(page, 'book').click();
+  await page.locator('#view-book [data-operation=gasto]').click();
+  await expect(page.locator('#operation-dialog')).toBeVisible();
+  await expect(page.locator('#operation-connection')).toContainText('Permite');
+  await expect(page.locator('#operation-load')).toBeEnabled();
+  await expect(page.locator('#operation-review')).toBeDisabled();
+  await page.locator('#operation-concept').fill('Borrador ficticio');
+  await page.locator('#operation-amount').fill('2,50');
+  await page.evaluate(() => {
+    window.open = window.fixtureOpen;
+  });
+  await page.locator('#operation-load').click();
+  await expect(page.locator('#operation-review')).toBeEnabled();
+  await expect(page.locator('#operation-account')).toContainText('Cuenta A');
+  await expect(page.locator('#operation-concept')).toHaveValue(
+    'Borrador ficticio',
+  );
+  await expect(page.locator('#operation-amount')).toHaveValue('2,50');
+  await page.locator('#operation-cancel').click();
+  await expect(page.locator('#view-book [data-finance-state]')).toContainText(
+    'Lectura confirmada',
+  );
+  expect(
+    await page.evaluate(
+      () => JSON.parse(localStorage.getItem('fixture.server')).calls,
+    ),
+  ).toEqual([]);
+});
+test('el cliente y postMessage con Google ficticio conservan el borrador y registran solo tras confirmar', async ({
+  page,
+}) => {
+  await setupChannel(page, { delayed: true });
+  await nav(page, 'book').click();
+  const opening = page.waitForEvent('popup');
+  await page.locator('#view-book [data-operation=gasto]').click();
+  const popup = await opening;
+  await popup.waitForFunction(() => typeof window.replyRead === 'function');
+  await expect(page.locator('#operation-dialog')).toBeVisible();
+  await page.locator('#operation-concept').fill('Alta por canal ficticio');
+  await page.locator('#operation-amount').fill('4,50');
+  await expect(page.locator('#operation-review')).toBeDisabled();
+  await popup.evaluate(() => window.replyRead());
+  await expect(page.locator('#operation-account')).toContainText('Cuenta A');
+  await expect(page.locator('#operation-concept')).toHaveValue(
+    'Alta por canal ficticio',
+  );
+  await expect(page.locator('#operation-amount')).toHaveValue('4,50');
+  await page.locator('#operation-date').fill('2026-01-02');
+  await page.locator('#operation-account').selectOption('Cuenta A');
+  await page.locator('#operation-category').selectOption('Café');
+  await page.locator('#operation-review').click();
+  expect(
+    await popup.evaluate(
+      () => window.fixtureCalls.filter((r) => r.action === 'transact').length,
+    ),
+  ).toBe(0);
+  await page.locator('#review-confirm').click();
+  await expect(page.locator('#finance-register')).toContainText(
+    'Alta por canal ficticio',
+  );
+  expect(
+    await popup.evaluate(
+      () => window.fixtureCalls.filter((r) => r.action === 'transact').length,
+    ),
+  ).toBe(1);
 });
 test('registro ofrece ingreso y transferencia sin volver al inicio y guardar un gasto actualiza el listado', async ({
   page,
