@@ -29,7 +29,10 @@
       <p id="status" role="status">Comprobando la lectura…</p>
       <p id="detail">Puedes volver a la página de Finanzas al terminar.</p>
       <a
+        id="return-to-app"
         href="https://manuuelmarin.github.io/finances/#connection"
+        target="_blank"
+        rel="noopener noreferrer"
         style="color: #b6e5ba"
         >Volver a Finanzas</a
       >
@@ -45,6 +48,8 @@
       const appOrigin = document.getElementById('origin').textContent;
       const status = document.getElementById('status');
       const detail = document.getElementById('detail');
+      const BRIDGE_VERSION = '3.6.0';
+      const API_TRANSPORT = 'finances.rpc.json.v1';
       const errors = {
         INVALID_REQUEST:
           'Abre Finanzas y pulsa Comprobar conexión. Abrir este enlace directamente no inicia la prueba.',
@@ -56,33 +61,75 @@
           'Revisa el libro conectado: deben estar las diez pestañas y las doce tablas del modelo 3.',
         READ_FAILED:
           'Revisa el servicio avanzado Sheets, los permisos y el acceso al libro conectado.',
+        UPDATE_REQUIRED:
+          'Actualiza Code.gs y Bridge.html desde el instalador y publica Nueva versión de la implementación existente.',
+        TRANSPORT_UNAVAILABLE:
+          'Google no ha iniciado el canal privado. Vuelve a abrir el libro con la sesión de Google iniciada.',
+        TRANSPORT_TIMEOUT:
+          'Google no ha respondido a la prueba del canal. Vuelve a abrir el libro; si persiste, revisa la implementación privada.',
+        INVALID_RESPONSE:
+          'La implementación no devuelve el formato vigente. Actualiza los tres archivos y publica Nueva versión.',
       };
-      status.textContent = payload.ok
-        ? 'Lectura de Google completada.'
-        : 'La comprobación necesita revisión.';
-      detail.textContent = payload.ok
-        ? 'Modelo ' +
-          payload.modelVersion +
-          ' · ' +
-          payload.sheetCount +
-          ' pestañas. Vuelve a Finanzas para comprobar que ha recibido la respuesta.'
-        : errors[payload.error] || errors.READ_FAILED;
-      try {
-        // HtmlService ejecuta este documento dentro de un iframe de Google.
-        const receiver = window.top.opener;
-        if (receiver) receiver.postMessage(payload, appOrigin);
-        else if (payload.ok)
-          detail.textContent +=
-            ' Si acabas de iniciar sesión, repite la prueba desde Finanzas con esta sesión abierta.';
-      } catch (error) {
-        detail.textContent +=
-          ' No se ha podido comunicar el resultado a la ventana anterior; vuelve a Finanzas y repite la prueba.';
-      }
-      // Datos financieros por canal autenticado de Google; no se envían en la URL ni por JSONP.
       let apiReceiver;
+      let ready = false;
       try {
         apiReceiver = window.top.opener;
       } catch (error) {}
+      document
+        .getElementById('return-to-app')
+        .addEventListener('click', (event) => {
+          if (!apiReceiver) return;
+          event.preventDefault();
+          apiReceiver.focus();
+        });
+      const send = (message) => {
+        try {
+          if (apiReceiver) apiReceiver.postMessage(message, appOrigin);
+        } catch (error) {
+          status.textContent = 'Vuelve a abrir el libro desde Finanzas.';
+        }
+      };
+      const connected = (error) => {
+        ready = !error;
+        const readOnly = Boolean(
+          payload.snapshot &&
+          [
+            'TRANSPORT_UNAVAILABLE',
+            'TRANSPORT_TIMEOUT',
+            'INVALID_RESPONSE',
+          ].includes(error),
+        );
+        status.textContent = readOnly
+          ? 'Datos leídos · canal de operaciones pendiente.'
+          : error
+            ? 'La conexión necesita revisión.'
+            : payload.snapshot
+              ? 'Datos del libro leídos.'
+              : 'Estructura y canal privado comprobados.';
+        detail.textContent = error
+          ? errors[error] || errors.READ_FAILED
+          : 'Mantén esta ventana abierta para leer cambios y confirmar operaciones desde Finanzas.';
+        if (!apiReceiver)
+          detail.textContent +=
+            ' Vuelve a Finanzas y abre el libro de nuevo con esta sesión de Google iniciada.';
+        send({
+          ...payload,
+          ok: !error || readOnly,
+          ...(error && !readOnly ? { error, snapshot: undefined } : {}),
+          ...(readOnly ? { readOnly: true, transportError: error } : {}),
+          bridgeVersion: BRIDGE_VERSION,
+          apiTransport: API_TRANSPORT,
+          rpcReady: ready,
+        });
+      };
+      const parse = (raw) => {
+        if (typeof raw !== 'string') throw Error('INVALID_RESPONSE');
+        const result = JSON.parse(raw);
+        if (!result || typeof result.ok !== 'boolean')
+          throw Error('INVALID_RESPONSE');
+        return result;
+      };
+      // Registrar el receptor antes de anunciar que el canal está listo.
       if (payload.ok && apiReceiver)
         window.addEventListener('message', (event) => {
           if (
@@ -106,27 +153,112 @@
           )
             return;
           const reply = (result) =>
-            apiReceiver.postMessage(
-              {
-                type: 'finances.api.response.v1',
-                state: payload.state,
-                callId: message.callId,
-                result,
-              },
-              appOrigin,
-            );
-          google.script.run
-            .withSuccessHandler(reply)
-            .withFailureHandler(() =>
-              reply({
-                ok: false,
-                error: 'RESPONSE_UNCERTAIN',
-                message:
-                  'No se pudo confirmar la respuesta de Google. Reintenta la misma solicitud.',
-              }),
-            )
-            .financialApi(message.request);
+            send({
+              type: 'finances.api.response.v1',
+              state: payload.state,
+              callId: message.callId,
+              result,
+            });
+          if (!ready) {
+            reply({ ok: false, error: 'NOT_READY' });
+            return;
+          }
+          const writing = ['transact', 'refreshPrices'].includes(
+            message.request.action,
+          );
+          const fail = () =>
+            reply({
+              ok: false,
+              error: writing ? 'RESPONSE_UNCERTAIN' : 'READ_CHANNEL_FAILED',
+              message: writing
+                ? 'Envío sin confirmar. Se conserva la solicitud para consultar su recibo, sin duplicarla.'
+                : 'Google no ha completado la lectura. Vuelve a abrir el libro; no se ha enviado ninguna operación.',
+            });
+          send({
+            type: 'finances.api.progress.v1',
+            state: payload.state,
+            callId: message.callId,
+            phase: 'received',
+          });
+          status.textContent = writing
+            ? 'Confirmando la operación…'
+            : 'Leyendo el libro…';
+          try {
+            google.script.run
+              .withSuccessHandler((raw) => {
+                try {
+                  const result = parse(raw);
+                  status.textContent = result.ok
+                    ? 'Respuesta enviada a Finanzas.'
+                    : 'La solicitud necesita revisión.';
+                  reply(result);
+                } catch (error) {
+                  fail();
+                }
+              })
+              .withFailureHandler(fail)
+              .financialApiJson(JSON.stringify(message.request));
+          } catch (error) {
+            fail();
+          }
         });
+      // Google inicializa su runner dentro del iframe. No basta con tener HTML.
+      function start() {
+        if (!payload.ok) {
+          connected(payload.error);
+          return;
+        }
+        if (payload.buildVersion !== BRIDGE_VERSION) {
+          connected('UPDATE_REQUIRED');
+          return;
+        }
+        status.textContent = 'Comprobando el canal privado de Google…';
+        detail.textContent =
+          'La estructura está leída; falta confirmar la comunicación de las operaciones.';
+        const deadline = Date.now() + 10000;
+        const waitRunner = () => {
+          if (
+            typeof google === 'undefined' ||
+            !google.script?.run?.withSuccessHandler
+          ) {
+            if (Date.now() < deadline) setTimeout(waitRunner, 100);
+            else connected('TRANSPORT_UNAVAILABLE');
+            return;
+          }
+          let done = false;
+          const finish = (error) => {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            connected(error);
+          };
+          const timer = setTimeout(() => finish('TRANSPORT_TIMEOUT'), 30000);
+          try {
+            google.script.run
+              .withSuccessHandler((raw) => {
+                try {
+                  const result = parse(raw);
+                  finish(
+                    !result.ok
+                      ? result.error || 'INVALID_RESPONSE'
+                      : result.buildVersion !== BRIDGE_VERSION ||
+                          result.apiTransport !== API_TRANSPORT
+                        ? 'UPDATE_REQUIRED'
+                        : null,
+                  );
+                } catch (error) {
+                  finish('INVALID_RESPONSE');
+                }
+              })
+              .withFailureHandler(() => finish('TRANSPORT_UNAVAILABLE'))
+              .financialApiJson('{"action":"ping"}');
+          } catch (error) {
+            finish('TRANSPORT_UNAVAILABLE');
+          }
+        };
+        waitRunner();
+      }
+      start();
     </script>
   </body>
 </html>

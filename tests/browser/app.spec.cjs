@@ -90,7 +90,8 @@ test('el instalador copia cada archivo en su botón y Bridge comienza por HTML',
 const snapshot = {
   ok: true,
   apiVersion: '3.3.0',
-  bookKey: 'fixture-book-hash',
+  bookKey: 'a'.repeat(64),
+  environment: 'test',
   revision: 'r1',
   checkedAt: '2026-01-02T12:00:00Z',
   backendReady: true,
@@ -171,6 +172,7 @@ const snapshot = {
       },
     ],
     tDeudas: [],
+    tVinculos: [],
     tNominas: [],
     tObjetivos: [],
     tAsignaciones: [],
@@ -333,7 +335,7 @@ async function setupChannel(page, { delayed = false } = {}) {
             reply({ok:true,revision:'r2',results:[]});
           }
         });
-        opener.postMessage({type:'finances.connection.v1',state,ok:true,apiVersion:'3.3.0',environment:'test',modelVersion:3,sheetCount:10,checkedAt:'2026-01-02T10:00:00Z'},'http://127.0.0.1:4173');
+        opener.postMessage({type:'finances.connection.v1',state,ok:true,apiVersion:'3.3.0',apiTransport:'finances.rpc.json.v1',rpcReady:true,environment:'test',modelVersion:3,sheetCount:10,checkedAt:'2026-01-02T10:00:00Z'},'http://127.0.0.1:4173');
       </script>`,
     }),
   );

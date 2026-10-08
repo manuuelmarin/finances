@@ -116,18 +116,33 @@ if (typeof document !== 'undefined') {
         '[data-connection-label]',
       )) {
         label.textContent =
-          state === 'success'
-            ? 'Lectura comprobada'
+          {
+            loaded: 'Datos cargados',
+            offline: 'Copia local',
+            loading: 'Cargando libro',
+            error: 'Revisar lectura',
+            readonly: 'Datos · solo lectura',
+          }[document.documentElement.dataset.bookState] ||
+          (state === 'success'
+            ? 'Estructura comprobada'
             : state === 'error'
               ? 'Revisar conexión'
               : deploymentUrl
                 ? 'Pendiente de comprobar'
-                : 'Sin conectar';
+                : 'Sin conectar');
       }
       for (const indicator of document.querySelectorAll(
         '[data-connection-indicator]',
       )) {
-        indicator.dataset.state = state;
+        const bookState = document.documentElement.dataset.bookState;
+        indicator.dataset.state =
+          bookState === 'loaded'
+            ? 'success'
+            : bookState === 'error'
+              ? 'error'
+              : ['offline', 'loading', 'readonly'].includes(bookState)
+                ? 'pending'
+                : state;
       }
     }
 
@@ -277,6 +292,14 @@ if (typeof document !== 'undefined') {
             'Revisa el libro conectado: sus pestañas, tablas y columnas deben corresponder al modelo 3.',
           READ_FAILED:
             'No se ha podido leer Google Sheets. Hay que revisar Apps Script.',
+          UPDATE_REQUIRED:
+            'Actualiza los tres archivos desde el instalador y publica Nueva versión de la implementación de pruebas.',
+          TRANSPORT_UNAVAILABLE:
+            'Google no ha iniciado el canal privado. Vuelve a abrir la conexión con la sesión de Google iniciada.',
+          TRANSPORT_TIMEOUT:
+            'La estructura se ha leído, pero el canal privado no ha respondido. Vuelve a abrir Google y mantén la ventana abierta.',
+          INVALID_RESPONSE:
+            'El puente publicado no tiene el formato vigente. Actualiza los tres archivos y publica Nueva versión.',
         };
         show(
           'error',
@@ -303,7 +326,9 @@ if (typeof document !== 'undefined') {
         new Date(data.checkedAt).toLocaleString('es-ES');
       show(
         'success',
-        'Lectura de Sheets recibida',
+        data.rpcReady
+          ? 'Estructura y canal privado comprobados'
+          : 'Estructura de Sheets recibida',
         'Google ha leído ' +
           (data.environment === 'production'
             ? 'el libro principal'

@@ -113,7 +113,8 @@ const TABLE_SCHEMA_ = [
 ];
 
 const API_VERSION_ = '3.3.0';
-const BUILD_VERSION_ = '3.5.2';
+const BUILD_VERSION_ = '3.6.0';
+const API_TRANSPORT_ = 'finances.rpc.json.v1';
 // El motor de fórmulas no cambia en el paso 4; conserva su sello de capacidad.
 const CAPACITY_VERSION_ = '3.1.0';
 const INPUT_SCHEMA_ = {
@@ -361,7 +362,21 @@ function doGet(e) {
     ) {
       throw new Error('INVALID_REQUEST');
     }
-    result = Object.assign(result, readConnection_());
+    if (e.parameter.read === '1') {
+      const config = authorizedConfig_(),
+        snapshot = publicSnapshot_(readState_(config));
+      result = Object.assign(result, {
+        ok: true,
+        environment: snapshot.environment,
+        modelVersion: snapshot.modelVersion,
+        sheetCount: snapshot.businessSheetCount,
+        checkedAt: snapshot.checkedAt,
+        apiVersion: API_VERSION_,
+        buildVersion: BUILD_VERSION_,
+        supportsBookBinding: true,
+        snapshot,
+      });
+    } else result = Object.assign(result, readConnection_());
   } catch (error) {
     // No devolver excepciones de Google: pueden contener identificadores privados.
     const codes = [
@@ -379,11 +394,21 @@ function doGet(e) {
     template.appOrigin = APP_ORIGIN_;
     return template.evaluate().setTitle('Finanzas · Tu libro');
   } catch (error) {
+    const safeState = /^[0-9a-f-]{36}$/i.test(state) ? state : '';
+    const notice = JSON.stringify({
+      type: CONNECTION_TYPE_,
+      state: safeState,
+      ok: false,
+      error: 'UPDATE_REQUIRED',
+    });
     return HtmlService.createHtmlOutput(
       '<!doctype html><html lang="es"><meta charset="utf-8"><title>Finanzas · Revisar Bridge</title>' +
         '<h1>Revisa Bridge.html</h1><p>Este archivo debe contener el bloque HTML del archivo 2 de 3. ' +
         'Copia Bridge.html, guarda y publica una Nueva versión de la implementación existente.</p>' +
-        '<a href="https://manuuelmarin.github.io/finances/install.html">Abrir instalador</a></html>',
+        '<a href="https://manuuelmarin.github.io/finances/install.html">Abrir instalador</a>' +
+        '<script>try{window.top.opener.postMessage(' +
+        notice +
+        ',"https://manuuelmarin.github.io");}catch(e){}</script></html>',
     );
   }
 }
@@ -394,7 +419,9 @@ function bridgeTemplate_() {
     !/^\s*<!doctype html>/i.test(raw) ||
     !/id=["']payload["']/.test(raw) ||
     !/id=["']origin["']/.test(raw) ||
-    raw.indexOf('google.script.run') < 0
+    raw.indexOf('google.script.run') < 0 ||
+    raw.indexOf(API_TRANSPORT_) < 0 ||
+    raw.indexOf('financialApiJson') < 0
   )
     throw new Error('BRIDGE_INVALID');
   return template;
@@ -437,6 +464,7 @@ function readConnection_() {
     checkedAt: new Date().toISOString(),
     apiVersion: API_VERSION_,
     buildVersion: BUILD_VERSION_,
+    apiTransport: API_TRANSPORT_,
     supportsBookBinding: true,
     backendReady: [
       '_Finanzas_Solicitudes',
@@ -2580,6 +2608,24 @@ function nativeSummary_(s, data) {
 }
 
 // Único punto remoto de la API. No se admiten IDs de libro o instrucciones de celda.
+// El puente intercambia cadenas JSON: nunca objetos de servicio o fechas vivas de Google.
+function financialApiJson(requestJson) {
+  try {
+    authorizedConfig_();
+    if (typeof requestJson !== 'string' || requestJson.length > 60000)
+      fail_('INVALID_REQUEST');
+    let request;
+    try {
+      request = JSON.parse(requestJson);
+    } catch (error) {
+      fail_('INVALID_REQUEST');
+    }
+    return JSON.stringify(financialApi(request));
+  } catch (error) {
+    return JSON.stringify(apiError_(error));
+  }
+}
+
 function financialApi(request) {
   try {
     const config = authorizedConfig_();
@@ -2600,6 +2646,16 @@ function financialApi(request) {
       )
     )
       fail_('INVALID_REQUEST');
+    if (request.action === 'ping') {
+      if (Object.keys(request).length !== 1) fail_('INVALID_REQUEST');
+      return {
+        ok: true,
+        apiVersion: API_VERSION_,
+        buildVersion: BUILD_VERSION_,
+        apiTransport: API_TRANSPORT_,
+        environment: config.environment,
+      };
+    }
     if (request.action === 'quotePrices') return quotePrices_(request, config);
     if (request.action === 'refreshPrices')
       return refreshPrices_(config, request);

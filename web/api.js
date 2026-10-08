@@ -2,8 +2,10 @@
 
 const API_REQUEST_TYPE = 'finances.api.request.v1';
 const API_RESPONSE_TYPE = 'finances.api.response.v1';
+const API_PROGRESS_TYPE = 'finances.api.progress.v1';
+const API_TRANSPORT = 'finances.rpc.json.v1';
 
-function acceptsApiMessage(event, session, callId) {
+function acceptsApiEnvelope(event, session, callId) {
   if (
     !session ||
     !session.source ||
@@ -28,12 +30,19 @@ function acceptsApiMessage(event, session, callId) {
   }
   const data = event.data;
   return (
-    data.type === API_RESPONSE_TYPE &&
+    [API_RESPONSE_TYPE, API_PROGRESS_TYPE].includes(data.type) &&
     data.state === session.state &&
-    data.callId === callId &&
+    data.callId === callId
+  );
+}
+function acceptsApiMessage(event, session, callId) {
+  const data = event.data;
+  return Boolean(
+    acceptsApiEnvelope(event, session, callId) &&
+    data.type === API_RESPONSE_TYPE &&
     data.result &&
     typeof data.result === 'object' &&
-    typeof data.result.ok === 'boolean'
+    typeof data.result.ok === 'boolean',
   );
 }
 
@@ -50,6 +59,8 @@ class FinanceApiClient {
     this.revision = null;
     this.bookKey = null;
     this.supportsBookBinding = false;
+    this.pending = new Set();
+    this.onProgress = null;
   }
   // Llamar desde un clic para que el navegador permita abrir Google.
   connect() {
@@ -59,6 +70,7 @@ class FinanceApiClient {
     const state = this.runtime.crypto.randomUUID(),
       url = new URL(this.url);
     url.searchParams.set('state', state);
+    url.searchParams.set('read', '1');
     const popup = this.runtime.open(
       url.href,
       '_blank',
@@ -68,21 +80,35 @@ class FinanceApiClient {
     const session = { state, popup };
     this.session = session;
     return new Promise((resolve, reject) => {
-      let timer;
+      let timer, poll;
+      const release = () => {
+        this.runtime.removeEventListener('message', listener);
+        this.runtime.clearTimeout(timer);
+        if (poll) this.runtime.clearInterval(poll);
+        this.pending.delete(cancel);
+      };
+      const cancel = () => {
+        release();
+        reject(new Error('NOT_CONNECTED'));
+      };
       const listener = (event) => {
         if (
           this.session !== session ||
           !acceptsConnectionMessage(event, session)
         )
           return;
-        this.runtime.removeEventListener('message', listener);
-        this.runtime.clearTimeout(timer);
+        release();
         if (!event.data.ok) {
           this.close();
-          reject(new Error(event.data.error));
+          reject(new Error(event.data.error || 'INVALID_RESPONSE'));
           return;
         }
-        if (event.data.apiVersion !== '3.3.0') {
+        if (
+          event.data.apiVersion !== '3.3.0' ||
+          event.data.apiTransport !== API_TRANSPORT ||
+          (event.data.rpcReady !== true &&
+            !(event.data.readOnly === true && event.data.snapshot))
+        ) {
           this.close();
           reject(new Error('UPDATE_REQUIRED'));
           return;
@@ -90,54 +116,146 @@ class FinanceApiClient {
         this.session.source = event.source;
         this.supportsBookBinding = event.data.supportsBookBinding === true;
         this.session.origin = event.origin;
+        this.session.initialSnapshot = event.data.snapshot || null;
+        this.session.rpcReady = event.data.rpcReady === true;
+        this.session.transportError = event.data.transportError || null;
         resolve(event.data);
       };
       timer = this.runtime.setTimeout(() => {
-        this.runtime.removeEventListener('message', listener);
+        release();
         if (this.session === session) this.close();
         reject(new Error('CONNECTION_TIMEOUT'));
       }, 90000);
+      if (typeof this.runtime.setInterval === 'function')
+        poll = this.runtime.setInterval(() => {
+          if (!popup.closed) return;
+          release();
+          if (this.session === session) this.close();
+          reject(new Error('GOOGLE_WINDOW_CLOSED'));
+        }, 500);
+      this.pending.add(cancel);
       this.runtime.addEventListener('message', listener);
     });
   }
   request(body) {
     if (!this.session || !this.session.source || this.session.popup.closed)
       return Promise.reject(new Error('NOT_CONNECTED'));
+    if (this.session.rpcReady === false)
+      return Promise.reject(
+        new Error(this.session.transportError || 'TRANSPORT_UNAVAILABLE'),
+      );
     const callId = this.runtime.crypto.randomUUID(),
       session = this.session;
+    const writing = ['transact', 'refreshPrices'].includes(body?.action);
     return new Promise((resolve, reject) => {
-      let timer;
+      let timer,
+        poll,
+        done = false;
+      const error = (code) => {
+        const e = new Error(writing ? 'RESPONSE_UNCERTAIN' : code);
+        e.envelope = body;
+        return e;
+      };
+      const cancel = () => finish(error('NOT_CONNECTED'));
+      const finish = (failure, result) => {
+        if (done) return;
+        done = true;
+        this.runtime.removeEventListener('message', listener);
+        this.runtime.clearTimeout(timer);
+        if (poll) this.runtime.clearInterval(poll);
+        this.pending.delete(cancel);
+        if (failure) reject(failure);
+        else {
+          if (body.action !== 'read') this.acceptResult(result);
+          resolve(result);
+        }
+      };
       const listener = (event) => {
         if (
           this.session !== session ||
-          !acceptsApiMessage(event, session, callId)
+          !acceptsApiEnvelope(event, session, callId)
         )
           return;
-        this.runtime.removeEventListener('message', listener);
-        this.runtime.clearTimeout(timer);
-        const result = event.data.result;
-        if (result.revision && result.ok && !result.replayed)
-          this.revision = result.revision;
-        if (result.bookKey && result.ok) this.bookKey = result.bookKey;
-        if (result.supportsBookBinding === true)
-          this.supportsBookBinding = true;
-        resolve(result);
+        if (event.data.type === API_PROGRESS_TYPE) {
+          if (event.data.phase === 'received')
+            this.onProgress?.({ action: body.action, phase: 'received' });
+          return;
+        }
+        if (!acceptsApiMessage(event, session, callId)) {
+          finish(error('INVALID_RESPONSE'));
+          return;
+        }
+        finish(null, event.data.result);
       };
       timer = this.runtime.setTimeout(() => {
-        this.runtime.removeEventListener('message', listener);
-        const e = new Error('RESPONSE_UNCERTAIN');
-        e.envelope = body;
-        reject(e);
-      }, 45000);
+        finish(error('READ_TIMEOUT'));
+      }, 90000);
+      if (typeof this.runtime.setInterval === 'function')
+        poll = this.runtime.setInterval(() => {
+          if (session.popup.closed) finish(error('GOOGLE_WINDOW_CLOSED'));
+        }, 500);
+      this.pending.add(cancel);
       this.runtime.addEventListener('message', listener);
-      session.source.postMessage(
-        { type: API_REQUEST_TYPE, state: session.state, callId, request: body },
-        session.origin,
-      );
+      try {
+        session.source.postMessage(
+          {
+            type: API_REQUEST_TYPE,
+            state: session.state,
+            callId,
+            request: body,
+          },
+          session.origin,
+        );
+      } catch {
+        finish(error('READ_CHANNEL_FAILED'));
+      }
     });
   }
+  acceptResult(result) {
+    if (result.revision && result.ok && !result.replayed)
+      this.revision = result.revision;
+    if (result.bookKey && result.ok) this.bookKey = result.bookKey;
+    if (result.supportsBookBinding === true) this.supportsBookBinding = true;
+  }
   async read() {
-    return this.request({ action: 'read' });
+    let result;
+    // Esta primera copia procede del doGet autenticado; el siguiente read usa RPC.
+    if (this.session?.initialSnapshot) {
+      result = this.session.initialSnapshot;
+      this.session.initialSnapshot = null;
+    } else result = await this.request({ action: 'read' });
+    if (!result.ok) return result;
+    if (
+      result.apiVersion !== '3.3.0' ||
+      !/^[0-9a-f]{64}$/.test(result.bookKey) ||
+      typeof result.revision !== 'string' ||
+      !['test', 'production'].includes(result.environment) ||
+      !Number.isFinite(Date.parse(result.checkedAt)) ||
+      !result.settings ||
+      !['start', 'asof', 'valuation'].every((k) =>
+        /^\d{4}-\d{2}-\d{2}$/.test(result.settings[k]),
+      ) ||
+      !result.tables ||
+      ![
+        'tMovimientos',
+        'tCuentas',
+        'tProductos',
+        'tCategorias',
+        'tDeudas',
+        'tOperaciones',
+        'tPrecios',
+        'tNominas',
+        'tObjetivos',
+        'tAsignaciones',
+        'tVinculos',
+      ].every((k) => Array.isArray(result.tables[k])) ||
+      !result.summary ||
+      !Array.isArray(result.summary.metrics) ||
+      !Array.isArray(result.summary.missingPrices)
+    )
+      throw Error('INVALID_SNAPSHOT');
+    this.acceptResult(result);
+    return result;
   }
   async diagnostics() {
     return this.request({ action: 'diagnostics' });
@@ -188,6 +306,7 @@ class FinanceApiClient {
     });
   }
   close() {
+    for (const cancel of this.pending) cancel();
     if (this.session && this.session.popup && !this.session.popup.closed)
       this.session.popup.close();
     this.session = null;
