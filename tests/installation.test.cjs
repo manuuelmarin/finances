@@ -27,3 +27,21 @@ test('los bloques copiables contienen exactamente los tres archivos vigentes', (
     );
   }
 });
+
+test('las versiones del instalador y backend coinciden con el paquete vigente', () => {
+  const version = JSON.parse(
+    fs.readFileSync(path.join(root, 'package.json'), 'utf8'),
+  ).version;
+  const backend = fs.readFileSync(
+    path.join(root, 'apps-script/Code.gs'),
+    'utf8',
+  );
+  assert.equal(backend.match(/const BUILD_VERSION_ = '([^']+)';/)[1], version);
+  const page = fs.readFileSync(path.join(root, 'web/install.html'), 'utf8');
+  const versions = [
+    ...page.matchAll(/(?:Entrega|ENTREGA|buildVersion) (\d+\.\d+\.\d+)/g),
+  ].map((m) => m[1]);
+  assert.ok(versions.length >= 3);
+  assert.deepEqual([...new Set(versions)], [version]);
+  assert.ok(page.includes('La activación del principal está suspendida'));
+});

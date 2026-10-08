@@ -209,6 +209,7 @@ async function setup(
   page,
   {
     lost = false,
+    bridgeFailure = false,
     missing = false,
     hostile = false,
     production = false,
@@ -248,17 +249,23 @@ async function setup(
     seed.tables.tMovimientos[0].Concepto =
       '<img src=x onerror="window.compromised=true">';
   await page.addInitScript(
-    ({ deployment, seed, lost }) => {
+    ({ deployment, seed, lost, bridgeFailure }) => {
       localStorage.setItem('finances.appsScriptUrl', deployment);
       if (!localStorage.getItem('fixture.server'))
         localStorage.setItem(
           'fixture.server',
-          JSON.stringify({ snapshot: seed, journal: {}, calls: [], lost }),
+          JSON.stringify({
+            snapshot: seed,
+            journal: {},
+            calls: [],
+            lost,
+            bridgeFailure,
+          }),
         );
     },
-    { deployment, seed, lost },
+    { deployment, seed, lost, bridgeFailure },
   );
-  const mock = `\nFinanceApiClient = class {constructor(url){this.url=url;this.session=null;}connect(){this.session={};return Promise.resolve({ok:true,apiVersion:'3.3.0'});}close(){this.session=null;}acceptance(){const s=JSON.parse(localStorage.getItem('fixture.server')).snapshot;return Promise.resolve({ok:true,readOnly:true,environment:s.environment,buildVersion:'3.4.0',technicalReady:true,checks:{backend:true,calculations:true,summary:true,bridge:true,sources:true,stable:true},results:[]});}read(){return Promise.resolve(JSON.parse(localStorage.getItem('fixture.server')).snapshot);}async submit(envelope){const s=JSON.parse(localStorage.getItem('fixture.server'));s.calls.push(envelope);if(!s.journal[envelope.requestId]){s.snapshot.revision='r'+(s.calls.length+1);for(const op of envelope.operations||[]){if(op.process==='presupuesto'){const b=s.snapshot.budgets.find(b=>b.month===op.month&&b.category===op.category);if(b)b.amount=op.amount;else s.snapshot.budgets.push({month:op.month,category:op.category,amount:op.amount});}if(op.process==='quitar_presupuesto')s.snapshot.budgets=s.snapshot.budgets.filter(b=>b.month!==op.month||b.category!==op.category);if(op.process==='gasto')s.snapshot.tables.tMovimientos.push({ID:'NEW-'+envelope.requestId,Fecha:op.date,Tipo:'Gasto',Concepto:op.concept,Origen:op.account,Subcategoría:op.category,Importe:op.amount,Recuperable:op.recoverable,Localización:op.location,Recurrente:op.recurring});}s.journal[envelope.requestId]={ok:true,revision:s.snapshot.revision,results:[],complete:envelope.action!=='refreshPrices'};if(envelope.action==='refreshPrices')s.journal[envelope.requestId].results=[{ok:false,referenceName:'Fondo ficticio',message:'Fuente sin identidad verificable'}];}const result=s.journal[envelope.requestId];const lost=s.lost;s.lost=false;localStorage.setItem('fixture.server',JSON.stringify(s));if(lost)throw Error('RESPONSE_UNCERTAIN');return result;}requestStatus(envelope){return Promise.resolve(JSON.parse(localStorage.getItem('fixture.server')).journal[envelope.requestId]||{ok:true,found:false});}};`;
+  const mock = `\nFinanceApiClient = class {constructor(url){this.url=url;this.session=null;}connect(){this.session={};return Promise.resolve({ok:true,apiVersion:'3.3.0'});}close(){this.session=null;}acceptance(){const s=JSON.parse(localStorage.getItem('fixture.server')).snapshot;return Promise.resolve({ok:true,readOnly:true,environment:s.environment,buildVersion:'3.4.0',technicalReady:true,checks:{backend:true,calculations:true,summary:true,bridge:true,sources:true,stable:true},results:[]});}read(){return Promise.resolve(JSON.parse(localStorage.getItem('fixture.server')).snapshot);}async submit(envelope){const s=JSON.parse(localStorage.getItem('fixture.server'));s.calls.push(envelope);if(!s.journal[envelope.requestId]){s.snapshot.revision='r'+(s.calls.length+1);for(const op of envelope.operations||[]){if(op.process==='presupuesto'){const b=s.snapshot.budgets.find(b=>b.month===op.month&&b.category===op.category);if(b)b.amount=op.amount;else s.snapshot.budgets.push({month:op.month,category:op.category,amount:op.amount});}if(op.process==='quitar_presupuesto')s.snapshot.budgets=s.snapshot.budgets.filter(b=>b.month!==op.month||b.category!==op.category);if(op.process==='gasto')s.snapshot.tables.tMovimientos.push({ID:'NEW-'+envelope.requestId,Fecha:op.date,Tipo:'Gasto',Concepto:op.concept,Origen:op.account,Subcategoría:op.category,Importe:op.amount,Recuperable:op.recoverable,Localización:op.location,Recurrente:op.recurring});}s.journal[envelope.requestId]={ok:true,revision:s.snapshot.revision,results:[],complete:envelope.action!=='refreshPrices'};if(envelope.action==='refreshPrices')s.journal[envelope.requestId].results=[{ok:false,referenceName:'Fondo ficticio',message:'Fuente sin identidad verificable'}];}const result=s.journal[envelope.requestId];const lost=s.lost;s.lost=false;localStorage.setItem('fixture.server',JSON.stringify(s));if(lost)throw Error('RESPONSE_UNCERTAIN');if(s.bridgeFailure){s.bridgeFailure=false;localStorage.setItem('fixture.server',JSON.stringify(s));return {ok:false,error:'RESPONSE_UNCERTAIN',message:'Respuesta de Google no confirmada'};}return result;}requestStatus(envelope){return Promise.resolve(JSON.parse(localStorage.getItem('fixture.server')).journal[envelope.requestId]||{ok:true,found:false});}};`;
   await page.route('**/api.js', (route) =>
     route.fulfill({
       contentType: 'text/javascript',
@@ -663,4 +670,69 @@ test('presupuesto se revisa, persiste al reabrir y se retira sin crear un movimi
   await expect(page.locator('#budget-spent')).toHaveText('Sin dato');
   await expect(page.locator('#saving-goals')).toBeEmpty();
   await expect(page.locator('#dashboard-charts')).toBeEmpty();
+});
+
+test('fallo del puente no permite descartar ni recrear y consulta el recibo al reabrir', async ({
+  page,
+}) => {
+  await setup(page, { bridgeFailure: true });
+  await expense(page);
+  await page.locator('#review-confirm').click();
+  const queue = page.locator('#finance-queue');
+  await expect(queue).toContainText('sin confirmar');
+  await expect(queue.getByRole('button', { name: 'Descartar' })).toHaveCount(0);
+  await expect(
+    queue.getByRole('button', { name: 'Revisar', exact: true }),
+  ).toHaveCount(0);
+  const before = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('fixture.server')).calls,
+  );
+  await page.reload();
+  await page.locator('#finance-connect').click();
+  await page.locator('#finance-sync').click();
+  await expect(queue).toContainText('Confirmada por Google');
+  expect(
+    await page.evaluate(
+      () => JSON.parse(localStorage.getItem('fixture.server')).calls,
+    ),
+  ).toEqual(before);
+});
+
+test('cambiar de implementación durante la conexión cancela la lectura antigua sin mezclar libros', async ({
+  page,
+}) => {
+  await setup(page, { open: false });
+  await page.evaluate(() => {
+    FinanceApiClient.prototype.connect = function () {
+      this.session = {};
+      return new Promise((resolve) => {
+        window.finishHandshake = () =>
+          resolve({ ok: true, apiVersion: '3.3.0' });
+      });
+    };
+  });
+  await page.locator('#finance-connect').click();
+  await nav(page, 'connection').click();
+  await page.locator('#setup-toggle').click();
+  const next = 'https://script.google.com/macros/s/other-fixture/exec';
+  await page.locator('#deployment-url').fill(next);
+  await page.locator('#setup-save').click();
+  await expect(page.locator('#finance-state')).toContainText(
+    'Abre Google para cargar',
+  );
+  await page.evaluate(() => window.finishHandshake());
+  await expect(page.locator('#finance-state')).toContainText(
+    'La configuración cambió',
+  );
+  const saved = await page.evaluate(async (next) => {
+    const store = new FinanceSync.BrowserStore();
+    return store.get(await FinanceSync.namespace(next));
+  }, next);
+  expect(saved.snapshot).toBeNull();
+  expect(saved.bookKey).toBeNull();
+  expect(
+    await page.evaluate(
+      () => JSON.parse(localStorage.getItem('fixture.server')).calls,
+    ),
+  ).toEqual([]);
 });

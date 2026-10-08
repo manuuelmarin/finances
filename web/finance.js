@@ -26,6 +26,7 @@
     review = null,
     editing = null,
     loading = false,
+    configurationEpoch = 0,
     limit = 50;
   const store = new FinanceSync.BrowserStore();
   const el = (tag, text, cls) => {
@@ -59,6 +60,8 @@
       INVALID_SNAPSHOT:
         'La respuesta no identifica el libro. Actualiza Google a API 3.3.0.',
       CONFLICT: 'El libro cambió. Revisa el pendiente con la lectura actual.',
+      CONFIGURATION_CHANGED:
+        'La configuración cambió durante la conexión. Abre Google de nuevo para leer la implementación seleccionada.',
     })[error.message] ||
     error.message ||
     'No se ha confirmado la operación.';
@@ -83,15 +86,19 @@
   async function configure() {
     const next = savedDeployment(window.localStorage);
     if (url === next && queue) return;
+    const epoch = ++configurationEpoch;
     client?.close();
     client = null;
     snapshot = null;
     queue = null;
     url = next;
     if (url) {
-      const key = await FinanceSync.namespace(url);
-      queue = new FinanceSync.Queue(store, key);
-      const data = await queue.get();
+      const key = await FinanceSync.namespace(next);
+      if (epoch !== configurationEpoch) return;
+      const configuredQueue = new FinanceSync.Queue(store, key);
+      const data = await configuredQueue.get();
+      if (epoch !== configurationEpoch) return;
+      queue = configuredQueue;
       snapshot = data.snapshot;
       status(
         snapshot
@@ -102,9 +109,15 @@
     await render();
   }
   async function refresh() {
-    const result = await client.read();
+    const readingClient = client,
+      readingQueue = queue;
+    const result = await readingClient.read();
+    if (client !== readingClient || queue !== readingQueue)
+      throw Error('CONFIGURATION_CHANGED');
     if (!result.ok) throw Error(result.message || result.error);
-    await queue.saveSnapshot(result);
+    await readingQueue.saveSnapshot(result);
+    if (client !== readingClient || queue !== readingQueue)
+      throw Error('CONFIGURATION_CHANGED');
     snapshot = result;
     status(
       'Lectura confirmada · ' +
@@ -135,6 +148,12 @@
     status('Abriendo Google… Usa la cuenta propietaria y vuelve a la app.');
     try {
       await Promise.all([configure(), handshake]);
+      if (
+        savedDeployment(window.localStorage) !== next ||
+        url !== next ||
+        !queue
+      )
+        throw Error('CONFIGURATION_CHANGED');
       client = opening;
       await refresh();
       return true;
