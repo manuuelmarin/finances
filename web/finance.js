@@ -21,6 +21,7 @@
   const numbers = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 12 });
   let queue = null,
     client = null,
+    openingClient = null,
     snapshot = null,
     url = null,
     review = null,
@@ -44,12 +45,26 @@
   const errorText = (error) =>
     ({
       UPDATE_REQUIRED:
-        'Actualiza los tres archivos de Google a API 3.3.0 y publica una nueva versión desde el instalador.',
+        'Actualiza Code.gs, Bridge.html y appsscript.json desde el instalador 3.6.0 y publica Nueva versión de la implementación de pruebas. Guardar el editor no actualiza el enlace /exec.',
       POPUP_BLOCKED:
         'Permite abrir la ventana de Google y vuelve a pulsar Abrir mi libro.',
       NOT_CONNECTED: 'Abre Google para leer o enviar los pendientes.',
       CONNECTION_TIMEOUT:
         'No se ha confirmado la conexión. Los pendientes se conservan.',
+      READ_TIMEOUT:
+        'Google no ha respondido a la lectura. Vuelve a abrir el libro y mantén abierta la ventana de Google. No se ha enviado ninguna operación.',
+      READ_CHANNEL_FAILED:
+        'El canal privado no ha completado la lectura. Vuelve a abrir el libro; si persiste, actualiza la implementación desde el instalador.',
+      GOOGLE_WINDOW_CLOSED:
+        'Se ha cerrado la ventana de Google durante la lectura. Pulsa Abrir mi libro y mantenla abierta mientras usas el libro.',
+      TRANSPORT_UNAVAILABLE:
+        'Google no ha iniciado el canal privado. Vuelve a abrir el libro con la sesión de Google iniciada y la implementación actualizada.',
+      TRANSPORT_TIMEOUT:
+        'Google no ha respondido a la comprobación del canal. Mantén abierta su ventana y vuelve a abrir el libro.',
+      INVALID_RESPONSE:
+        'Google no ha devuelto el formato vigente. Actualiza los tres archivos desde el instalador y publica Nueva versión.',
+      RESPONSE_UNCERTAIN:
+        'Envío sin confirmar. La solicitud se conserva para consultar el recibo antes de reintentar.',
       STORAGE_UNAVAILABLE:
         'Este navegador no permite guardar cambios. No se enviará ninguna operación hasta disponer de almacenamiento local.',
       BOOK_CHANGED:
@@ -65,17 +80,40 @@
     })[error.message] ||
     error.message ||
     'No se ha confirmado la operación.';
-  function status(text) {
+  function status(text, state) {
     $('finance-state').textContent = text;
     for (const target of document.querySelectorAll('[data-finance-state]'))
       target.textContent = text;
+    if (state) {
+      document.documentElement.dataset.bookState = state;
+      const labels = {
+        loaded: 'Datos cargados',
+        offline: 'Copia local',
+        loading: 'Cargando libro',
+        error: 'Revisar lectura',
+        readonly: 'Datos · solo lectura',
+        unread: 'Libro sin cargar',
+      };
+      for (const label of document.querySelectorAll('[data-connection-label]'))
+        label.textContent = labels[state];
+      for (const indicator of document.querySelectorAll(
+        '[data-connection-indicator]',
+      ))
+        indicator.dataset.state =
+          state === 'loaded'
+            ? 'success'
+            : state === 'error'
+              ? 'error'
+              : 'pending';
+    }
   }
   function enabled() {
     $('finance-new').disabled = loading;
     $('finance-prices').disabled = !snapshot || loading;
-    $('operation-connection').hidden = Boolean(snapshot);
+    const channelBlocked = client?.session?.rpcReady === false;
+    $('operation-connection').hidden = Boolean(snapshot) && !channelBlocked;
     $('operation-load').disabled = loading;
-    $('operation-review').disabled = !snapshot || loading;
+    $('operation-review').disabled = !snapshot || loading || channelBlocked;
     for (const target of document.querySelectorAll(
       '[data-operation], [data-open-book]',
     ))
@@ -88,8 +126,19 @@
   }
   async function configure() {
     const next = savedDeployment(window.localStorage);
+    if (openingClient && openingClient.url !== next) {
+      openingClient.close();
+      openingClient = null;
+    }
     if (url === next && queue) return;
     const epoch = ++configurationEpoch;
+    // Un borrador/revisión pertenece al libro del que se cargaron sus referencias.
+    if (url && url !== next) {
+      review = null;
+      editing = null;
+      for (const id of ['review-dialog', 'operation-dialog', 'budget-dialog'])
+        if ($(id).open) $(id).close();
+    }
     client?.close();
     client = null;
     snapshot = null;
@@ -107,8 +156,10 @@
         snapshot
           ? 'Copia local · sin conexión. Abre Google para leer cambios o enviar pendientes.'
           : 'Abre Google para cargar los registros de tu libro.',
+        snapshot ? 'offline' : 'unread',
       );
-    } else status('Configura el enlace de Google para leer tu libro.');
+    } else
+      status('Configura el enlace de Google para leer tu libro.', 'unread');
     await render();
   }
   async function refresh() {
@@ -123,7 +174,9 @@
       throw Error('CONFIGURATION_CHANGED');
     snapshot = result;
     status(
-      'Lectura confirmada · ' +
+      (readingClient.session?.rpcReady === false
+        ? 'Datos leídos · solo lectura. Actualiza la implementación desde el instalador para habilitar las operaciones. '
+        : 'Lectura confirmada · ') +
         new Date(result.checkedAt).toLocaleString('es-ES', {
           timeZone: 'Europe/Madrid',
         }) +
@@ -131,6 +184,7 @@
         (result.environment === 'production'
           ? 'libro principal'
           : 'copia de pruebas'),
+      readingClient.session?.rpcReady === false ? 'readonly' : 'loaded',
     );
     await render();
   }
@@ -145,10 +199,22 @@
     }
     client?.close();
     const opening = new FinanceApiClient(next);
+    openingClient = opening;
+    opening.onProgress = ({ action }) => {
+      if (client !== opening) return;
+      status(
+        ['transact', 'refreshPrices'].includes(action)
+          ? 'Google ha recibido la solicitud. Esperando su confirmación…'
+          : 'Google está leyendo el libro. Mantén abierta su ventana…',
+      );
+    };
     const handshake = opening.connect();
     loading = true;
     enabled();
-    status('Abriendo Google… Usa la cuenta propietaria y vuelve a la app.');
+    status(
+      'Cargando el libro desde Google… Usa la cuenta propietaria y mantén abierta su ventana.',
+      'loading',
+    );
     try {
       await Promise.all([configure(), handshake]);
       if (
@@ -164,9 +230,10 @@
       opening.close();
       client?.close();
       client = null;
-      status(errorText(error));
+      status(errorText(error), 'error');
       return false;
     } finally {
+      if (openingClient === opening) openingClient = null;
       loading = false;
       enabled();
     }
@@ -184,9 +251,12 @@
         void render();
       });
       snapshot = (await saved()).snapshot;
-      status('Sincronización terminada. Revisa el estado de cada operación.');
+      status(
+        'Sincronización terminada. Revisa el estado de cada operación.',
+        snapshot ? 'loaded' : 'unread',
+      );
     } catch (error) {
-      status(errorText(error));
+      status(errorText(error), 'error');
     } finally {
       loading = false;
       await render();
@@ -581,7 +651,7 @@
             showReview(
               [],
               item.label,
-              () => queue.discard(item.envelope.requestId),
+              (bookQueue) => bookQueue.discard(item.envelope.requestId),
               'Se descarta este pendiente sin modificar Google.',
             );
           }),
@@ -823,7 +893,16 @@
     );
   }
   function showReview(operations, label, action, note) {
-    review = { operations, label, action };
+    review = {
+      operations,
+      label,
+      action,
+      epoch: configurationEpoch,
+      queue,
+      url,
+      bookKey: snapshot?.bookKey,
+      client,
+    };
     const dl = $('review-fields');
     dl.replaceChildren();
     for (const op of operations) {
@@ -865,9 +944,9 @@
       showReview(
         [],
         item.label,
-        async () => {
-          await queue.discard(item.envelope.requestId);
-          await queue.enqueue(
+        async (bookQueue) => {
+          await bookQueue.discard(item.envelope.requestId);
+          await bookQueue.enqueue(
             [],
             item.label,
             'refreshPrices',
@@ -881,9 +960,9 @@
     showReview(
       item.envelope.operations,
       item.label,
-      async () => {
-        await queue.enqueue(item.envelope.operations, item.label);
-        await queue.discard(item.envelope.requestId);
+      async (bookQueue) => {
+        await bookQueue.enqueue(item.envelope.operations, item.label);
+        await bookQueue.discard(item.envelope.requestId);
       },
       'Google rechazó el envío anterior. Revisa los datos de la lectura actual antes de preparar una nueva solicitud. Si necesita cambiar campos, descarta este pendiente y crea la operación corregida.',
     );
@@ -939,8 +1018,17 @@
     const current = review;
     $('review-confirm').disabled = true;
     try {
-      if (current.action) await current.action();
-      else await queue.enqueue(current.operations, current.label);
+      if (
+        current.epoch !== configurationEpoch ||
+        current.queue !== queue ||
+        current.url !== savedDeployment(window.localStorage) ||
+        current.bookKey !== snapshot?.bookKey
+      )
+        throw Error('CONFIGURATION_CHANGED');
+      if (current.action) await current.action(current.queue, current.client);
+      else await current.queue.enqueue(current.operations, current.label);
+      if (current.epoch !== configurationEpoch || current.queue !== queue)
+        throw Error('CONFIGURATION_CHANGED');
       $('review-dialog').close();
       $('operation-dialog').close();
       $('budget-dialog').close();
@@ -992,7 +1080,7 @@
     try {
       await refresh();
     } catch (error) {
-      status(errorText(error));
+      status(errorText(error), 'error');
     } finally {
       loading = false;
       enabled();
@@ -1010,10 +1098,10 @@
     showReview(
       [],
       'Actualizar precios',
-      async () => {
+      async (bookQueue) => {
         const batches = Math.ceil(products.length / 20);
         for (let i = 0; i < products.length; i += 20) {
-          await queue.enqueue(
+          await bookQueue.enqueue(
             [],
             'Actualizar precios' +
               (batches > 1 ? ' · lote ' + (i / 20 + 1) + '/' + batches : ''),
@@ -1029,11 +1117,16 @@
     showReview(
       [],
       'Borrar copia local',
-      async () => {
-        if (queue) await queue.clear();
-        client?.close();
+      async (bookQueue, bookClient) => {
+        if (bookQueue) await bookQueue.clear();
+        bookClient?.close();
+        if (review?.epoch !== configurationEpoch) return;
         client = null;
         snapshot = null;
+        status(
+          'Copia local borrada. Abre Google para leer de nuevo el libro.',
+          'unread',
+        );
       },
       'Se borra la copia de lectura y las confirmaciones de este navegador. El libro de Google se conserva. Los pendientes bloquean este borrado.',
     );
@@ -1058,6 +1151,7 @@
   window.addEventListener('offline', () =>
     status(
       'Sin conexión · copia local. Los pendientes se conservan en este navegador.',
+      snapshot ? 'offline' : 'unread',
     ),
   );
   window.addEventListener('online', () => {

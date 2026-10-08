@@ -74,7 +74,7 @@ test('una respuesta de una sesión cerrada no actualiza el libro de la sesión n
   });
   assert.equal(client.revision, null);
   timeout();
-  await assert.rejects(request, /RESPONSE_UNCERTAIN/);
+  await assert.rejects(request, /READ_TIMEOUT/);
 });
 test('Bridge valida origen, ventana, sesión y llamada antes de ejecutar la función autenticada de Google', () => {
   const fs = require('node:fs'),
@@ -95,6 +95,7 @@ test('Bridge valida origen, ventana, sesión y llamada antes de ejecutar la func
     modelVersion: 3,
     sheetCount: 10,
     state: 'session-nonce',
+    buildVersion: '3.6.0',
   };
   const runner = {
     withSuccessHandler(fn) {
@@ -104,9 +105,20 @@ test('Bridge valida origen, ventana, sesión y llamada antes de ejecutar la func
     withFailureHandler(fn) {
       return this;
     },
-    financialApi(request) {
+    financialApiJson(json) {
+      const request = JSON.parse(json);
+      if (request.action === 'ping') {
+        this.success(
+          JSON.stringify({
+            ok: true,
+            buildVersion: '3.6.0',
+            apiTransport: 'finances.rpc.json.v1',
+          }),
+        );
+        return;
+      }
       calls.push(request);
-      this.success({ ok: true });
+      this.success(JSON.stringify({ ok: true }));
     },
   };
   const elements = {
@@ -114,6 +126,7 @@ test('Bridge valida origen, ventana, sesión y llamada antes de ejecutar la func
     origin: { textContent: 'https://manuuelmarin.github.io' },
     status: {},
     detail: {},
+    'return-to-app': { addEventListener() {} },
   };
   vm.runInNewContext(script, {
     window: {
@@ -122,6 +135,8 @@ test('Bridge valida origen, ventana, sesión y llamada antes de ejecutar la func
     },
     document: { getElementById: (id) => elements[id] },
     google: { script: { run: runner } },
+    setTimeout,
+    clearTimeout,
   });
   const valid = {
     origin: 'https://manuuelmarin.github.io',

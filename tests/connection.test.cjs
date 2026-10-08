@@ -393,6 +393,7 @@ test('el servidor lee el libro configurado y no admite cambiarlo desde el client
   );
   assert.equal(calls[1].range, "'Configuración'!B6:C10");
   assert.deepEqual(Object.keys(result).sort(), [
+    'apiTransport',
     'apiVersion',
     'backendReady',
     'buildVersion',

@@ -5,7 +5,7 @@
       content="default-src 'none'; script-src 'self'; style-src 'self' 'sha256-jR88ekepLVmRCqwXwaAoX2UqZfjqnti3UPxbLOjltSc='; img-src 'self'; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
     /><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="referrer" content="no-referrer"><title>Finanzas · Instalar conexión</title><style>
 :root{color-scheme:dark;--ink:#10191b;--panel:#172325;--line:#2d3f3e;--text:#efeee5;--muted:#a4b6ad;--mint:#b9d6bf;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}*{box-sizing:border-box}body{margin:0;background:var(--ink);color:var(--text);line-height:1.65}main{max-width:1000px;margin:auto;padding:36px 32px 70px}a{color:var(--mint);text-underline-offset:4px}.back{display:inline-flex;padding:8px 0;margin-bottom:30px;text-decoration:none}.eyebrow{font-size:11px;letter-spacing:.16em;color:var(--mint);font-weight:650;margin:0 0 10px}h1{font-weight:500;letter-spacing:-.045em;font-size:clamp(32px,5vw,54px);line-height:1.12;margin:0 0 20px}h2{font-size:22px;font-weight:500;margin:0;color:var(--text);letter-spacing:-.025em}.intro{color:var(--muted);max-width:650px;font-size:17px}.code-section{margin:28px 0;border:1px solid var(--line);padding:25px;background:var(--panel);border-radius:12px}.code-section header{display:flex;gap:20px;align-items:center;justify-content:space-between}.code-section>p{color:var(--muted);font-size:14px}button{border:0;padding:12px 18px;border-radius:8px;min-height:44px;background:var(--mint);color:#142019;font:inherit;font-size:14px;font-weight:650;cursor:pointer}button:focus-visible,a:focus-visible,summary:focus-visible,pre:focus-visible{outline:3px solid #e1eddf;outline-offset:4px}summary{cursor:pointer;padding:8px 0;color:var(--mint);font-size:14px}pre{white-space:pre;overflow:auto;max-height:450px;padding:18px;border:1px solid var(--line);background:var(--ink);font:12px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace;border-radius:6px}ol{padding-left:25px;color:var(--muted)}li{padding:8px 0}strong{color:var(--text)}table{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed}td,th{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}th{color:var(--mint);font-weight:500}td:first-child,th:first-child{width:48%}code{font-family:ui-monospace,monospace;font-size:.9em}.notice{padding:18px 20px;border-left:2px solid var(--mint);background:#162123;color:var(--muted);font-size:14px;margin:24px 0}#copy-status{color:var(--mint);font-size:14px;min-height:24px}.configuration{margin-top:44px}footer{margin-top:45px;padding-top:20px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}@media(max-width:580px){main{padding:24px 18px 50px}.code-section{padding:20px 16px}.code-section header{align-items:flex-start;flex-direction:column;gap:14px}.code-section header button{width:100%}td,th{padding:12px 6px;font-size:12px}}
-</style><script src="install.js" defer></script></head><body><main><a class="back" href="./#connection">← Volver a Finanzas</a><p class="eyebrow">GOOGLE SHEETS · CONEXIÓN PRIVADA</p><h1>Tu libro.<br>Una conexión sencilla.</h1><p class="intro">Copia estos tres archivos en tu proyecto de Apps Script. Entrega 3.5.2: movimientos accesibles, gráficos nativos y presupuestos mensuales. Prueba primero en la copia separada. Cada botón copia un archivo diferente.</p><p class="notice">Actualiza tu proyecto existente. Conserva las propiedades de pruebas que ya configuraste. Mantén ENVIRONMENT=test durante estas mejoras. El principal se activará únicamente cuando lo decidas. Los límites crean una hoja técnica privada de presupuestos; las diez pestañas originales se conservan. El manifiesto añade permiso para consultar las fuentes públicas de precios. Mantén el acceso privado de Google.</p><p id="copy-status" role="status" aria-live="polite"></p>
+</style><script src="install.js" defer></script></head><body><main><a class="back" href="./#connection">← Volver a Finanzas</a><p class="eyebrow">GOOGLE SHEETS · CONEXIÓN PRIVADA</p><h1>Tu libro.<br>Una conexión sencilla.</h1><p class="intro">Copia estos tres archivos en tu proyecto de Apps Script. Entrega 3.6.0: lectura completa al abrir el libro, comprobación del canal privado, gráficos y presupuestos mensuales. Prueba primero en la copia separada. Cada botón copia un archivo diferente.</p><p class="notice">Actualiza tu proyecto existente. Conserva las propiedades de pruebas que ya configuraste. Mantén ENVIRONMENT=test durante estas mejoras. El principal se activará únicamente cuando lo decidas. Los límites crean una hoja técnica privada de presupuestos; las diez pestañas originales se conservan. El manifiesto añade permiso para consultar las fuentes públicas de precios. Mantén el acceso privado de Google.</p><p id="copy-status" role="status" aria-live="polite"></p>
 <section class="code-section" aria-labelledby="file-0"><header><div><p class="eyebrow">ARCHIVO 1 DE 3</p><h2 id="file-0">Code.gs</h2></div><button type="button" data-copy="code-0">Copiar Code.gs</button></header><p>Sustituye todo el contenido de Code.gs por este código.</p><details><summary>Ver código completo</summary><pre id="code-0" tabindex="0">// Pasos 2, 3 y 4: conexión privada, API financiera y cotizaciones por ISIN.
 // Libros privados separados por ENVIRONMENT; no incluye datos personales.
 const CONNECTION_TYPE_ = &#x27;finances.connection.v1&#x27;;
@@ -121,7 +121,8 @@ const TABLE_SCHEMA_ = [
 ];
 
 const API_VERSION_ = &#x27;3.3.0&#x27;;
-const BUILD_VERSION_ = &#x27;3.5.2&#x27;;
+const BUILD_VERSION_ = &#x27;3.6.0&#x27;;
+const API_TRANSPORT_ = &#x27;finances.rpc.json.v1&#x27;;
 // El motor de fórmulas no cambia en el paso 4; conserva su sello de capacidad.
 const CAPACITY_VERSION_ = &#x27;3.1.0&#x27;;
 const INPUT_SCHEMA_ = {
@@ -369,7 +370,21 @@ function doGet(e) {
     ) {
       throw new Error(&#x27;INVALID_REQUEST&#x27;);
     }
-    result = Object.assign(result, readConnection_());
+    if (e.parameter.read === &#x27;1&#x27;) {
+      const config = authorizedConfig_(),
+        snapshot = publicSnapshot_(readState_(config));
+      result = Object.assign(result, {
+        ok: true,
+        environment: snapshot.environment,
+        modelVersion: snapshot.modelVersion,
+        sheetCount: snapshot.businessSheetCount,
+        checkedAt: snapshot.checkedAt,
+        apiVersion: API_VERSION_,
+        buildVersion: BUILD_VERSION_,
+        supportsBookBinding: true,
+        snapshot,
+      });
+    } else result = Object.assign(result, readConnection_());
   } catch (error) {
     // No devolver excepciones de Google: pueden contener identificadores privados.
     const codes = [
@@ -387,11 +402,21 @@ function doGet(e) {
     template.appOrigin = APP_ORIGIN_;
     return template.evaluate().setTitle(&#x27;Finanzas · Tu libro&#x27;);
   } catch (error) {
+    const safeState = /^[0-9a-f-]{36}$/i.test(state) ? state : &#x27;&#x27;;
+    const notice = JSON.stringify({
+      type: CONNECTION_TYPE_,
+      state: safeState,
+      ok: false,
+      error: &#x27;UPDATE_REQUIRED&#x27;,
+    });
     return HtmlService.createHtmlOutput(
       &#x27;&lt;!doctype html&gt;&lt;html lang=&quot;es&quot;&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;title&gt;Finanzas · Revisar Bridge&lt;/title&gt;&#x27; +
         &#x27;&lt;h1&gt;Revisa Bridge.html&lt;/h1&gt;&lt;p&gt;Este archivo debe contener el bloque HTML del archivo 2 de 3. &#x27; +
         &#x27;Copia Bridge.html, guarda y publica una Nueva versión de la implementación existente.&lt;/p&gt;&#x27; +
-        &#x27;&lt;a href=&quot;https://manuuelmarin.github.io/finances/install.html&quot;&gt;Abrir instalador&lt;/a&gt;&lt;/html&gt;&#x27;,
+        &#x27;&lt;a href=&quot;https://manuuelmarin.github.io/finances/install.html&quot;&gt;Abrir instalador&lt;/a&gt;&#x27; +
+        &#x27;&lt;script&gt;try{window.top.opener.postMessage(&#x27; +
+        notice +
+        &#x27;,&quot;https://manuuelmarin.github.io&quot;);}catch(e){}&lt;/script&gt;&lt;/html&gt;&#x27;,
     );
   }
 }
@@ -402,7 +427,9 @@ function bridgeTemplate_() {
     !/^\s*&lt;!doctype html&gt;/i.test(raw) ||
     !/id=[&quot;&#x27;]payload[&quot;&#x27;]/.test(raw) ||
     !/id=[&quot;&#x27;]origin[&quot;&#x27;]/.test(raw) ||
-    raw.indexOf(&#x27;google.script.run&#x27;) &lt; 0
+    raw.indexOf(&#x27;google.script.run&#x27;) &lt; 0 ||
+    raw.indexOf(API_TRANSPORT_) &lt; 0 ||
+    raw.indexOf(&#x27;financialApiJson&#x27;) &lt; 0
   )
     throw new Error(&#x27;BRIDGE_INVALID&#x27;);
   return template;
@@ -445,6 +472,7 @@ function readConnection_() {
     checkedAt: new Date().toISOString(),
     apiVersion: API_VERSION_,
     buildVersion: BUILD_VERSION_,
+    apiTransport: API_TRANSPORT_,
     supportsBookBinding: true,
     backendReady: [
       &#x27;_Finanzas_Solicitudes&#x27;,
@@ -2588,6 +2616,24 @@ function nativeSummary_(s, data) {
 }
 
 // Único punto remoto de la API. No se admiten IDs de libro o instrucciones de celda.
+// El puente intercambia cadenas JSON: nunca objetos de servicio o fechas vivas de Google.
+function financialApiJson(requestJson) {
+  try {
+    authorizedConfig_();
+    if (typeof requestJson !== &#x27;string&#x27; || requestJson.length &gt; 60000)
+      fail_(&#x27;INVALID_REQUEST&#x27;);
+    let request;
+    try {
+      request = JSON.parse(requestJson);
+    } catch (error) {
+      fail_(&#x27;INVALID_REQUEST&#x27;);
+    }
+    return JSON.stringify(financialApi(request));
+  } catch (error) {
+    return JSON.stringify(apiError_(error));
+  }
+}
+
 function financialApi(request) {
   try {
     const config = authorizedConfig_();
@@ -2608,6 +2654,16 @@ function financialApi(request) {
       )
     )
       fail_(&#x27;INVALID_REQUEST&#x27;);
+    if (request.action === &#x27;ping&#x27;) {
+      if (Object.keys(request).length !== 1) fail_(&#x27;INVALID_REQUEST&#x27;);
+      return {
+        ok: true,
+        apiVersion: API_VERSION_,
+        buildVersion: BUILD_VERSION_,
+        apiTransport: API_TRANSPORT_,
+        environment: config.environment,
+      };
+    }
     if (request.action === &#x27;quotePrices&#x27;) return quotePrices_(request, config);
     if (request.action === &#x27;refreshPrices&#x27;)
       return refreshPrices_(config, request);
@@ -4522,7 +4578,10 @@ function comprobarCierre() {
       &lt;p id=&quot;status&quot; role=&quot;status&quot;&gt;Comprobando la lectura…&lt;/p&gt;
       &lt;p id=&quot;detail&quot;&gt;Puedes volver a la página de Finanzas al terminar.&lt;/p&gt;
       &lt;a
+        id=&quot;return-to-app&quot;
         href=&quot;https://manuuelmarin.github.io/finances/#connection&quot;
+        target=&quot;_blank&quot;
+        rel=&quot;noopener noreferrer&quot;
         style=&quot;color: #b6e5ba&quot;
         &gt;Volver a Finanzas&lt;/a
       &gt;
@@ -4538,6 +4597,8 @@ function comprobarCierre() {
       const appOrigin = document.getElementById(&#x27;origin&#x27;).textContent;
       const status = document.getElementById(&#x27;status&#x27;);
       const detail = document.getElementById(&#x27;detail&#x27;);
+      const BRIDGE_VERSION = &#x27;3.6.0&#x27;;
+      const API_TRANSPORT = &#x27;finances.rpc.json.v1&#x27;;
       const errors = {
         INVALID_REQUEST:
           &#x27;Abre Finanzas y pulsa Comprobar conexión. Abrir este enlace directamente no inicia la prueba.&#x27;,
@@ -4549,33 +4610,75 @@ function comprobarCierre() {
           &#x27;Revisa el libro conectado: deben estar las diez pestañas y las doce tablas del modelo 3.&#x27;,
         READ_FAILED:
           &#x27;Revisa el servicio avanzado Sheets, los permisos y el acceso al libro conectado.&#x27;,
+        UPDATE_REQUIRED:
+          &#x27;Actualiza Code.gs y Bridge.html desde el instalador y publica Nueva versión de la implementación existente.&#x27;,
+        TRANSPORT_UNAVAILABLE:
+          &#x27;Google no ha iniciado el canal privado. Vuelve a abrir el libro con la sesión de Google iniciada.&#x27;,
+        TRANSPORT_TIMEOUT:
+          &#x27;Google no ha respondido a la prueba del canal. Vuelve a abrir el libro; si persiste, revisa la implementación privada.&#x27;,
+        INVALID_RESPONSE:
+          &#x27;La implementación no devuelve el formato vigente. Actualiza los tres archivos y publica Nueva versión.&#x27;,
       };
-      status.textContent = payload.ok
-        ? &#x27;Lectura de Google completada.&#x27;
-        : &#x27;La comprobación necesita revisión.&#x27;;
-      detail.textContent = payload.ok
-        ? &#x27;Modelo &#x27; +
-          payload.modelVersion +
-          &#x27; · &#x27; +
-          payload.sheetCount +
-          &#x27; pestañas. Vuelve a Finanzas para comprobar que ha recibido la respuesta.&#x27;
-        : errors[payload.error] || errors.READ_FAILED;
-      try {
-        // HtmlService ejecuta este documento dentro de un iframe de Google.
-        const receiver = window.top.opener;
-        if (receiver) receiver.postMessage(payload, appOrigin);
-        else if (payload.ok)
-          detail.textContent +=
-            &#x27; Si acabas de iniciar sesión, repite la prueba desde Finanzas con esta sesión abierta.&#x27;;
-      } catch (error) {
-        detail.textContent +=
-          &#x27; No se ha podido comunicar el resultado a la ventana anterior; vuelve a Finanzas y repite la prueba.&#x27;;
-      }
-      // Datos financieros por canal autenticado de Google; no se envían en la URL ni por JSONP.
       let apiReceiver;
+      let ready = false;
       try {
         apiReceiver = window.top.opener;
       } catch (error) {}
+      document
+        .getElementById(&#x27;return-to-app&#x27;)
+        .addEventListener(&#x27;click&#x27;, (event) =&gt; {
+          if (!apiReceiver) return;
+          event.preventDefault();
+          apiReceiver.focus();
+        });
+      const send = (message) =&gt; {
+        try {
+          if (apiReceiver) apiReceiver.postMessage(message, appOrigin);
+        } catch (error) {
+          status.textContent = &#x27;Vuelve a abrir el libro desde Finanzas.&#x27;;
+        }
+      };
+      const connected = (error) =&gt; {
+        ready = !error;
+        const readOnly = Boolean(
+          payload.snapshot &amp;&amp;
+          [
+            &#x27;TRANSPORT_UNAVAILABLE&#x27;,
+            &#x27;TRANSPORT_TIMEOUT&#x27;,
+            &#x27;INVALID_RESPONSE&#x27;,
+          ].includes(error),
+        );
+        status.textContent = readOnly
+          ? &#x27;Datos leídos · canal de operaciones pendiente.&#x27;
+          : error
+            ? &#x27;La conexión necesita revisión.&#x27;
+            : payload.snapshot
+              ? &#x27;Datos del libro leídos.&#x27;
+              : &#x27;Estructura y canal privado comprobados.&#x27;;
+        detail.textContent = error
+          ? errors[error] || errors.READ_FAILED
+          : &#x27;Mantén esta ventana abierta para leer cambios y confirmar operaciones desde Finanzas.&#x27;;
+        if (!apiReceiver)
+          detail.textContent +=
+            &#x27; Vuelve a Finanzas y abre el libro de nuevo con esta sesión de Google iniciada.&#x27;;
+        send({
+          ...payload,
+          ok: !error || readOnly,
+          ...(error &amp;&amp; !readOnly ? { error, snapshot: undefined } : {}),
+          ...(readOnly ? { readOnly: true, transportError: error } : {}),
+          bridgeVersion: BRIDGE_VERSION,
+          apiTransport: API_TRANSPORT,
+          rpcReady: ready,
+        });
+      };
+      const parse = (raw) =&gt; {
+        if (typeof raw !== &#x27;string&#x27;) throw Error(&#x27;INVALID_RESPONSE&#x27;);
+        const result = JSON.parse(raw);
+        if (!result || typeof result.ok !== &#x27;boolean&#x27;)
+          throw Error(&#x27;INVALID_RESPONSE&#x27;);
+        return result;
+      };
+      // Registrar el receptor antes de anunciar que el canal está listo.
       if (payload.ok &amp;&amp; apiReceiver)
         window.addEventListener(&#x27;message&#x27;, (event) =&gt; {
           if (
@@ -4599,27 +4702,112 @@ function comprobarCierre() {
           )
             return;
           const reply = (result) =&gt;
-            apiReceiver.postMessage(
-              {
-                type: &#x27;finances.api.response.v1&#x27;,
-                state: payload.state,
-                callId: message.callId,
-                result,
-              },
-              appOrigin,
-            );
-          google.script.run
-            .withSuccessHandler(reply)
-            .withFailureHandler(() =&gt;
-              reply({
-                ok: false,
-                error: &#x27;RESPONSE_UNCERTAIN&#x27;,
-                message:
-                  &#x27;No se pudo confirmar la respuesta de Google. Reintenta la misma solicitud.&#x27;,
-              }),
-            )
-            .financialApi(message.request);
+            send({
+              type: &#x27;finances.api.response.v1&#x27;,
+              state: payload.state,
+              callId: message.callId,
+              result,
+            });
+          if (!ready) {
+            reply({ ok: false, error: &#x27;NOT_READY&#x27; });
+            return;
+          }
+          const writing = [&#x27;transact&#x27;, &#x27;refreshPrices&#x27;].includes(
+            message.request.action,
+          );
+          const fail = () =&gt;
+            reply({
+              ok: false,
+              error: writing ? &#x27;RESPONSE_UNCERTAIN&#x27; : &#x27;READ_CHANNEL_FAILED&#x27;,
+              message: writing
+                ? &#x27;Envío sin confirmar. Se conserva la solicitud para consultar su recibo, sin duplicarla.&#x27;
+                : &#x27;Google no ha completado la lectura. Vuelve a abrir el libro; no se ha enviado ninguna operación.&#x27;,
+            });
+          send({
+            type: &#x27;finances.api.progress.v1&#x27;,
+            state: payload.state,
+            callId: message.callId,
+            phase: &#x27;received&#x27;,
+          });
+          status.textContent = writing
+            ? &#x27;Confirmando la operación…&#x27;
+            : &#x27;Leyendo el libro…&#x27;;
+          try {
+            google.script.run
+              .withSuccessHandler((raw) =&gt; {
+                try {
+                  const result = parse(raw);
+                  status.textContent = result.ok
+                    ? &#x27;Respuesta enviada a Finanzas.&#x27;
+                    : &#x27;La solicitud necesita revisión.&#x27;;
+                  reply(result);
+                } catch (error) {
+                  fail();
+                }
+              })
+              .withFailureHandler(fail)
+              .financialApiJson(JSON.stringify(message.request));
+          } catch (error) {
+            fail();
+          }
         });
+      // Google inicializa su runner dentro del iframe. No basta con tener HTML.
+      function start() {
+        if (!payload.ok) {
+          connected(payload.error);
+          return;
+        }
+        if (payload.buildVersion !== BRIDGE_VERSION) {
+          connected(&#x27;UPDATE_REQUIRED&#x27;);
+          return;
+        }
+        status.textContent = &#x27;Comprobando el canal privado de Google…&#x27;;
+        detail.textContent =
+          &#x27;La estructura está leída; falta confirmar la comunicación de las operaciones.&#x27;;
+        const deadline = Date.now() + 10000;
+        const waitRunner = () =&gt; {
+          if (
+            typeof google === &#x27;undefined&#x27; ||
+            !google.script?.run?.withSuccessHandler
+          ) {
+            if (Date.now() &lt; deadline) setTimeout(waitRunner, 100);
+            else connected(&#x27;TRANSPORT_UNAVAILABLE&#x27;);
+            return;
+          }
+          let done = false;
+          const finish = (error) =&gt; {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            connected(error);
+          };
+          const timer = setTimeout(() =&gt; finish(&#x27;TRANSPORT_TIMEOUT&#x27;), 30000);
+          try {
+            google.script.run
+              .withSuccessHandler((raw) =&gt; {
+                try {
+                  const result = parse(raw);
+                  finish(
+                    !result.ok
+                      ? result.error || &#x27;INVALID_RESPONSE&#x27;
+                      : result.buildVersion !== BRIDGE_VERSION ||
+                          result.apiTransport !== API_TRANSPORT
+                        ? &#x27;UPDATE_REQUIRED&#x27;
+                        : null,
+                  );
+                } catch (error) {
+                  finish(&#x27;INVALID_RESPONSE&#x27;);
+                }
+              })
+              .withFailureHandler(() =&gt; finish(&#x27;TRANSPORT_UNAVAILABLE&#x27;))
+              .financialApiJson(&#x27;{&quot;action&quot;:&quot;ping&quot;}&#x27;);
+          } catch (error) {
+            finish(&#x27;TRANSPORT_UNAVAILABLE&#x27;);
+          }
+        };
+        waitRunner();
+      }
+      start();
     &lt;/script&gt;
   &lt;/body&gt;
 &lt;/html&gt;
@@ -4647,4 +4835,4 @@ function comprobarCierre() {
   }
 }
 </pre></details></section>
-<section class="configuration"><p class="eyebrow">PASO 5 · ENTREGA 3.5.2 · API 3.3.0</p><h2>Leer el libro y registrar operaciones</h2><ol><li>Sustituye los tres archivos del proyecto existente por estos bloques y guarda. Conserva TEST_SPREADSHEET_ID, OWNER_EMAIL y ENVIRONMENT=test. No cambies a la copia principal.</li><li>Ejecuta <strong>comprobarPaso4</strong> si necesitas preparar las hojas técnicas; después <strong>comprobarPaso5</strong>. Debe indicar API 3.3.0, doce tablas, backendReady y calculationReady correctos; buildVersion 3.5.2 y bridgeReady true. summaryReady comprueba que el resumen nativo dispone de cifras y precios al corte; no acredita la consulta de fuentes.</li><li>Ejecuta <strong>probarFuentesPaso4</strong>. Esta prueba solo consulta. Revisa <strong>complete</strong> y cada <strong>results[].ok</strong>: ok:true en la respuesta general solo confirma que la función terminó. Un fallo incluye el estado HTTP, tamaño, título y huella de la página pública recibida, sin datos de tu libro. Conserva el último precio guardado.</li><li>Actualiza la implementación: Implementar → Gestionar implementaciones → lápiz → Nueva versión. Mantén Ejecutar como: Yo y acceso Solo yo. El repositorio no actualiza automáticamente tu proyecto de Google.</li><li>Vuelve a Finanzas y pulsa <strong>Abrir mi libro</strong>. Usa la cuenta propietaria. Comprueba resumen, cortes y registros; después registra una operación de prueba y su anulación desde la revisión previa.</li><li>Para consultar y guardar cotizaciones verificadas utiliza <strong>Mi libro → Actualizar precios</strong> o <strong>actualizarPreciosPaso4</strong> desde el editor. No se sustituye un precio distinto de la misma fecha sin revisión. Un fallo no pone el fondo a cero.</li><li>La app se puede instalar desde el navegador cuando lo permita. Los cambios pendientes quedan en este dispositivo; abre la app y Google para enviarlos. Una respuesta perdida conserva la solicitud y consulta su estado antes de reintentar. No se promete envío con la app cerrada.</li></ol><p class="notice">El código mantiene pruebas si ENVIRONMENT=test. Los pasos siguientes preparan el uso real; la publicación del repositorio no cambia por sí sola tu libro o proyecto de Google. El resumen usa los resultados de Sheets; los filtros del listado no cambian los cortes financieros. Las copias locales permanecen en este navegador hasta borrarlas expresamente.</p></section><section class="configuration"><p class="eyebrow">PASOS 6–8 · COMPROBACIÓN EN PRUEBAS</p><h2>Terminar las pruebas y conservar el entorno</h2><ol><li>En test, ejecuta <strong>comprobarCierre</strong> o usa <strong>Conexión → Comprobar sistema</strong>. Solo lee y consulta fuentes; no guarda precios. Comprueba buildVersion 3.5.2, technicalReady true y todos los checks true. Un resumen correcto no acredita por sí solo las fuentes.</li><li>En tu teléfono, instala desde el menú del navegador cuando lo permita. Abre la app sin conexión y vuelve a abrir Google para enviar los pendientes. Prueba una operación ficticia y su anulación únicamente en test, con restauración confirmada. Resuelve todos los pendientes de cada dispositivo antes del cambio.</li><li>La activación del principal está suspendida hasta autorización expresa de Manu. El procedimiento siguiente se conserva como referencia futura; no lo ejecutes durante estas pruebas. Comprueba dónde están las últimas operaciones. Conserva una copia completa del libro principal y el XLSX original. Si alguno cambió después de la comparación, integra esas diferencias antes de declarar Sheets como única fuente. Conserva también el código y la configuración privada del proyecto.</li><li>Para uso real, conserva el proyecto de pruebas y su enlace. Crea un proyecto y una implementación privados separados para el principal, usando estos mismos tres archivos. Configura OWNER_EMAIL, TEST_SPREADSHEET_ID con el libro de pruebas y <strong>PRODUCTION_SPREADSHEET_ID</strong> con el principal: deben ser distintos. Configura <strong>ENVIRONMENT=production</strong>. Ejecuta comprobarPaso4 para preparar el backend del principal y luego comprobarCierre. No ejecutes transacciones ficticias en producción: el código las rechaza.</li><li>Publica Nueva versión como Yo y Solo yo, y guarda el nuevo /exec en la app. Debe mostrar <strong>Libro principal</strong> y pasar Comprobar sistema. No vuelvas a registrar como nuevas las operaciones ya migradas. Usa Sheets y esta API para las operaciones reales; conserva el XLSX como archivo histórico.</li></ol><h2>Mantenimiento y recuperación</h2><p>Haz una copia nativa completa antes de cambios de código, fórmulas o importaciones y conserva copias periódicas con fecha, revisión y cortes. Guarda de forma privada OWNER_EMAIL, los identificadores y la configuración de la implementación: una copia de Sheets no respalda el proyecto de Apps Script.</p><p>Para recuperar, detén los envíos y conserva el libro actual, pendientes y journal. Restaura la copia en otro libro, comprueba entradas, fórmulas y resumen, y recupera las operaciones posteriores usando auditoría, solicitudes y recibos. Nunca reenvíes en bloque pendientes sin confirmar: consulta primero su implementación original. Reconfigura una nueva implementación privada y comprueba su lectura antes de reanudar.</p></section><footer>Modelo 3 · Libro completo · Sin datos financieros en este código<br><a href="https://developers.google.com/apps-script/concepts/deployments" target="_blank" rel="noopener noreferrer">Documentación de implementaciones de Google</a></footer></main></body></html>
+<section class="configuration"><p class="eyebrow">PASO 5 · ENTREGA 3.6.0 · API 3.3.0</p><h2>Leer el libro y registrar operaciones</h2><ol><li>Sustituye los tres archivos del proyecto existente por estos bloques y guarda. Conserva TEST_SPREADSHEET_ID, OWNER_EMAIL y ENVIRONMENT=test. No cambies a la copia principal.</li><li>Ejecuta <strong>comprobarPaso4</strong> si necesitas preparar las hojas técnicas; después <strong>comprobarPaso5</strong>. Debe indicar API 3.3.0, doce tablas, backendReady y calculationReady correctos; buildVersion 3.6.0 y bridgeReady true. summaryReady comprueba que el resumen nativo dispone de cifras y precios al corte; no acredita la consulta de fuentes.</li><li>Ejecuta <strong>probarFuentesPaso4</strong>. Esta prueba solo consulta. Revisa <strong>complete</strong> y cada <strong>results[].ok</strong>: ok:true en la respuesta general solo confirma que la función terminó. Un fallo incluye el estado HTTP, tamaño, título y huella de la página pública recibida, sin datos de tu libro. Conserva el último precio guardado.</li><li>Actualiza la implementación: Implementar → Gestionar implementaciones → lápiz → Nueva versión. Mantén Ejecutar como: Yo y acceso Solo yo. El repositorio no actualiza automáticamente tu proyecto de Google.</li><li>Vuelve a Finanzas y pulsa <strong>Abrir mi libro</strong>. Usa la cuenta propietaria. Mantén abierta la ventana de Google mientras usas la app. Debe aparecer Datos cargados con las ocho tarjetas, cuentas y registros. Comprueba resumen, cortes y registros; después registra una operación de prueba y su anulación desde la revisión previa.</li><li>Para consultar y guardar cotizaciones verificadas utiliza <strong>Mi libro → Actualizar precios</strong> o <strong>actualizarPreciosPaso4</strong> desde el editor. No se sustituye un precio distinto de la misma fecha sin revisión. Un fallo no pone el fondo a cero.</li><li>La app se puede instalar desde el navegador cuando lo permita. Los cambios pendientes quedan en este dispositivo; abre la app y Google para enviarlos. Una respuesta perdida conserva la solicitud y consulta su estado antes de reintentar. No se promete envío con la app cerrada.</li></ol><p class="notice">El código mantiene pruebas si ENVIRONMENT=test. Los pasos siguientes preparan el uso real; la publicación del repositorio no cambia por sí sola tu libro o proyecto de Google. El resumen usa los resultados de Sheets; los filtros del listado no cambian los cortes financieros. Las copias locales permanecen en este navegador hasta borrarlas expresamente.</p></section><section class="configuration"><p class="eyebrow">PASOS 6–8 · COMPROBACIÓN EN PRUEBAS</p><h2>Terminar las pruebas y conservar el entorno</h2><ol><li>En test, ejecuta <strong>comprobarCierre</strong> o usa <strong>Conexión → Comprobar sistema</strong>. Solo lee y consulta fuentes; no guarda precios. Comprueba buildVersion 3.6.0, technicalReady true y todos los checks true. Un resumen correcto no acredita por sí solo las fuentes.</li><li>En tu teléfono, instala desde el menú del navegador cuando lo permita. Abre la app sin conexión y vuelve a abrir Google para enviar los pendientes. Prueba una operación ficticia y su anulación únicamente en test, con restauración confirmada. Resuelve todos los pendientes de cada dispositivo antes del cambio.</li><li>La activación del principal está suspendida hasta autorización expresa de Manu. El procedimiento siguiente se conserva como referencia futura; no lo ejecutes durante estas pruebas. Comprueba dónde están las últimas operaciones. Conserva una copia completa del libro principal y el XLSX original. Si alguno cambió después de la comparación, integra esas diferencias antes de declarar Sheets como única fuente. Conserva también el código y la configuración privada del proyecto.</li><li>Para uso real, conserva el proyecto de pruebas y su enlace. Crea un proyecto y una implementación privados separados para el principal, usando estos mismos tres archivos. Configura OWNER_EMAIL, TEST_SPREADSHEET_ID con el libro de pruebas y <strong>PRODUCTION_SPREADSHEET_ID</strong> con el principal: deben ser distintos. Configura <strong>ENVIRONMENT=production</strong>. Ejecuta comprobarPaso4 para preparar el backend del principal y luego comprobarCierre. No ejecutes transacciones ficticias en producción: el código las rechaza.</li><li>Publica Nueva versión como Yo y Solo yo, y guarda el nuevo /exec en la app. Debe mostrar <strong>Libro principal</strong> y pasar Comprobar sistema. No vuelvas a registrar como nuevas las operaciones ya migradas. Usa Sheets y esta API para las operaciones reales; conserva el XLSX como archivo histórico.</li></ol><h2>Mantenimiento y recuperación</h2><p>Haz una copia nativa completa antes de cambios de código, fórmulas o importaciones y conserva copias periódicas con fecha, revisión y cortes. Guarda de forma privada OWNER_EMAIL, los identificadores y la configuración de la implementación: una copia de Sheets no respalda el proyecto de Apps Script.</p><p>Para recuperar, detén los envíos y conserva el libro actual, pendientes y journal. Restaura la copia en otro libro, comprueba entradas, fórmulas y resumen, y recupera las operaciones posteriores usando auditoría, solicitudes y recibos. Nunca reenvíes en bloque pendientes sin confirmar: consulta primero su implementación original. Reconfigura una nueva implementación privada y comprueba su lectura antes de reanudar.</p></section><footer>Modelo 3 · Libro completo · Sin datos financieros en este código<br><a href="https://developers.google.com/apps-script/concepts/deployments" target="_blank" rel="noopener noreferrer">Documentación de implementaciones de Google</a></footer></main></body></html>

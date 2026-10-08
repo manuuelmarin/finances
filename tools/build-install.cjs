@@ -8,6 +8,12 @@ const version = JSON.parse(
 const backend = fs.readFileSync(path.join(root, 'apps-script/Code.gs'), 'utf8');
 if (backend.match(/const BUILD_VERSION_ = '([^']+)';/)?.[1] !== version)
   throw Error('Package and Apps Script build versions differ');
+const bridge = fs.readFileSync(
+  path.join(root, 'apps-script/Bridge.html'),
+  'utf8',
+);
+if (bridge.match(/const BRIDGE_VERSION = '([^']+)';/)?.[1] !== version)
+  throw Error('Package and Bridge build versions differ');
 const escapeHtml = (text) =>
   text
     .replace(/&/g, '&amp;')
