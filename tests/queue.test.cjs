@@ -160,3 +160,81 @@ test('el cliente nuevo conserva sobres compatibles con el backend anterior de pr
     false,
   );
 });
+
+test('fallo del puente después de aplicar conserva la incertidumbre y recupera el recibo sin reenviar', async () => {
+  const { q, store, client, r, calls } = setup();
+  await q.saveSnapshot(await client.read());
+  await q.enqueue([expense(1)], 'Respuesta no confirmada');
+  const original = (await q.get()).queue[0].envelope;
+  const submit = client.submit;
+  client.submit = async (envelope) => {
+    await submit(envelope);
+    return {
+      ok: false,
+      error: 'RESPONSE_UNCERTAIN',
+      message: 'Google no confirma la respuesta.',
+    };
+  };
+  await q.run(client);
+  assert.equal((await q.get()).queue[0].status, 'uncertain');
+  await assert.rejects(q.discard(original.requestId), /CANNOT_DISCARD/);
+  await assert.rejects(q.clear(), /PENDING_OPERATIONS/);
+  const reopened = new Queue(store, 'fixture', { locks: null });
+  await reopened.run(client);
+  assert.equal((await reopened.get()).queue[0].status, 'confirmed');
+  assert.deepEqual((await reopened.get()).queue[0].envelope, original);
+  assert.equal(calls.length, 1);
+  assert.equal(r.state().tables.tMovimientos.length, 1);
+});
+
+test('fallo del puente antes de aplicar consulta el journal y reintenta el mismo sobre', async () => {
+  const { q, client, r, calls } = setup();
+  await q.saveSnapshot(await client.read());
+  await q.enqueue([expense(1)], 'Fallo antes del servidor');
+  const original = (await q.get()).queue[0].envelope;
+  const submit = client.submit;
+  let failed = false,
+    statusChecked = false;
+  client.submit = async (envelope) => {
+    if (!failed) {
+      failed = true;
+      return { ok: false, error: 'RESPONSE_UNCERTAIN' };
+    }
+    assert.equal(statusChecked, true);
+    assert.deepEqual(envelope, original);
+    return submit(envelope);
+  };
+  const requestStatus = client.requestStatus;
+  client.requestStatus = async (envelope) => {
+    statusChecked = true;
+    return requestStatus(envelope);
+  };
+  await q.run(client);
+  assert.equal((await q.get()).queue[0].status, 'uncertain');
+  assert.equal(r.state().tables.tMovimientos.length, 0);
+  await q.run(client);
+  assert.equal((await q.get()).queue[0].status, 'confirmed');
+  assert.equal(calls.length, 1);
+  assert.equal(r.state().tables.tMovimientos.length, 1);
+});
+
+test('respuesta ambigua heredada como revisión se recupera sin permitir descarte ni otro UUID', async () => {
+  const { q, store, client, r, calls } = setup();
+  await q.saveSnapshot(await client.read());
+  await q.enqueue([expense(1)], 'Cliente anterior');
+  const original = (await q.get()).queue[0].envelope;
+  await client.submit(original);
+  await store.update('fixture', (data) => {
+    data.queue[0].status = 'review';
+    data.queue[0].result = { ok: false, error: 'RESPONSE_UNCERTAIN' };
+    return data;
+  });
+  const reopened = new Queue(store, 'fixture', { locks: null });
+  assert.equal((await reopened.get()).queue[0].status, 'uncertain');
+  await assert.rejects(reopened.discard(original.requestId), /CANNOT_DISCARD/);
+  await reopened.run(client);
+  assert.equal((await reopened.get()).queue[0].status, 'confirmed');
+  assert.deepEqual((await reopened.get()).queue[0].envelope, original);
+  assert.equal(calls.length, 1);
+  assert.equal(r.state().tables.tMovimientos.length, 1);
+});

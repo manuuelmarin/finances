@@ -70,3 +70,9 @@ Presupuestos permite crear, editar y retirar límites para un mes concreto, tota
 La hoja oculta _Finanzas_Presupuestos se crea al preparar el backend o al confirmar el primer límite. Su estado es entero 1/0; modificaciones, auditoría y recibo se guardan en un único lote financiero. Cambiar un límite cambia la revisión; renombrar una subcategoría conserva sus límites. La API sigue en 3.3.0; supportsBudgets identifica la ampliación. Un backend anterior conserva movimientos, pero exige actualizar los tres archivos y la implementación para mostrar gráficos y usar límites.
 
 Mantener ENVIRONMENT=test. Esta entrega no cambia propiedades privadas, no activa el principal y no declara el corte. Los agentes comparten los procesos presupuesto/quitar_presupuesto y los mismos sobres de reintento.
+
+### Revisión del flujo 3.5.1
+
+La cola conserva `RESPONSE_UNCERTAIN` como enviada sin confirmar y consulta su recibo con el mismo UUID antes de reintentar. Una respuesta ambigua no permite descartar o recrear la operación; también se recuperan las que una versión anterior guardó como revisión. App y agentes comparten esta protección.
+
+Cambiar la implementación durante una conexión cancela la lectura anterior; los resultados de otro cliente o almacén no se guardan bajo el nuevo enlace. El instalador sincroniza sus versiones humanas con el paquete y comprueba que coinciden con `BUILD_VERSION_`. La activación del principal continúa suspendida: mantener `ENVIRONMENT=test` hasta instrucción expresa.

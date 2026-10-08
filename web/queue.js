@@ -2,6 +2,8 @@
 
 const FinanceSync = (() => {
   const clone = (value) => JSON.parse(JSON.stringify(value));
+  const uncertainResult = (result) =>
+    ['WRITE_UNCERTAIN', 'RESPONSE_UNCERTAIN', 'BUSY'].includes(result?.error);
   class BrowserStore {
     constructor(indexedDB = globalThis.indexedDB) {
       this.indexedDB = indexedDB;
@@ -77,8 +79,13 @@ const FinanceSync = (() => {
       this.locks = locks;
       this.running = false;
     }
-    get() {
-      return this.store.get(this.key);
+    async get() {
+      const data = await this.store.get(this.key);
+      // Recuperar también respuestas ambiguas guardadas por clientes anteriores.
+      for (const item of data.queue)
+        if (item.status === 'review' && uncertainResult(item.result))
+          item.status = 'uncertain';
+      return data;
     }
     async saveSnapshot(snapshot) {
       if (!snapshot.ok || !snapshot.bookKey) throw Error('INVALID_SNAPSHOT');
@@ -131,7 +138,11 @@ const FinanceSync = (() => {
     async discard(id) {
       return this.store.update(this.key, (data) => {
         const item = data.queue.find((q) => q.envelope.requestId === id);
-        if (!item || !['pending', 'review'].includes(item.status))
+        if (
+          !item ||
+          !['pending', 'review'].includes(item.status) ||
+          uncertainResult(item.result)
+        )
           throw Error('CANNOT_DISCARD');
         item.status = 'discarded';
         item.updatedAt = this.now();
@@ -207,9 +218,7 @@ const FinanceSync = (() => {
               }
             }
             if (!result.ok) {
-              const uncertain = ['WRITE_UNCERTAIN', 'BUSY'].includes(
-                result.error,
-              );
+              const uncertain = uncertainResult(result);
               await this.status(
                 item.envelope.requestId,
                 uncertain ? 'uncertain' : 'review',
