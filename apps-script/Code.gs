@@ -113,7 +113,7 @@ const TABLE_SCHEMA_ = [
 ];
 
 const API_VERSION_ = '3.3.0';
-const BUILD_VERSION_ = '3.6.0';
+const BUILD_VERSION_ = '3.6.1';
 const API_TRANSPORT_ = 'finances.rpc.json.v1';
 // El motor de fórmulas no cambia en el paso 4; conserva su sello de capacidad.
 const CAPACITY_VERSION_ = '3.1.0';

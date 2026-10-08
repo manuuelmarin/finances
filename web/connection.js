@@ -147,8 +147,6 @@ if (typeof document !== 'undefined') {
     }
 
     function finish() {
-      if (pending) clearTimeout(pending.timeout);
-      if (pending) clearInterval(pending.poll);
       pending = null;
       button.disabled = !deploymentUrl;
       button.textContent = 'Comprobar conexión';
@@ -223,91 +221,33 @@ if (typeof document !== 'undefined') {
       dialog.close();
     });
 
-    button.addEventListener('click', () => {
+    button.addEventListener('click', async () => {
       if (!deploymentUrl || pending) return;
-      // Referencia automática y efímera de esta prueba, sin entrada manual de IDs.
-      const state = crypto.randomUUID();
-      const url = new URL(deploymentUrl);
-      url.searchParams.set('state', state);
-      const popup = window.open(
-        url.href,
-        '_blank',
-        'popup,width=480,height=720',
-      );
-      if (!popup) {
-        show(
-          'error',
-          'Google no se ha abierto',
-          'Permite la ventana emergente para esta página y vuelve a comprobar la conexión.',
-        );
-        return;
-      }
+      const checking = {};
+      pending = checking;
       button.disabled = true;
       button.textContent = 'Comprobando…';
       show(
         'pending',
-        'Esperando la lectura de Google',
-        'Completa el acceso en la ventana de Google. El resultado aparecerá aquí.',
+        'Comprobando tu libro',
+        'Se reutiliza la conexión de Google si ya está abierta. La primera conexión carga también tus datos.',
       );
-      pending = {
-        state,
-        popup,
-        timeout: setTimeout(() => {
+      try {
+        const data = await globalThis.FinanceBook.check('connection');
+        if (pending === checking) received(data);
+      } catch (error) {
+        if (pending === checking)
           show(
             'error',
-            'No se ha recibido la lectura',
-            'Si acabas de iniciar sesión en Google, vuelve a comprobar la conexión. Si continúa el aviso, falta revisar la implementación.',
+            'La conexión necesita revisión',
+            globalThis.FinanceBook.errorText(error),
           );
-          finish();
-        }, 120000),
-        poll: setInterval(() => {
-          if (!pending) return;
-          try {
-            if (popup.closed) {
-              show(
-                'error',
-                'La comprobación se ha interrumpido',
-                'Vuelve a comprobar con la sesión de Google abierta. Si persiste, revisa la implementación.',
-              );
-              finish();
-            }
-          } catch {
-            /* Las redirecciones de Google pueden separar las ventanas. */
-          }
-        }, 700),
-      };
+      } finally {
+        if (pending === checking) finish();
+      }
     });
 
-    window.addEventListener('message', (event) => {
-      if (!acceptsConnectionMessage(event, pending)) return;
-      const data = event.data;
-      finish();
-      if (!data.ok) {
-        const errors = {
-          ACCESS_DENIED: 'Accede con la cuenta propietaria del libro.',
-          NOT_CONFIGURED: 'Falta terminar la configuración de Apps Script.',
-          INVALID_REQUEST:
-            'Vuelve a iniciar la comprobación desde esta página.',
-          INVALID_MODEL:
-            'Revisa el libro conectado: sus pestañas, tablas y columnas deben corresponder al modelo 3.',
-          READ_FAILED:
-            'No se ha podido leer Google Sheets. Hay que revisar Apps Script.',
-          UPDATE_REQUIRED:
-            'Actualiza los tres archivos desde el instalador y publica Nueva versión de la implementación de pruebas.',
-          TRANSPORT_UNAVAILABLE:
-            'Google no ha iniciado el canal privado. Vuelve a abrir la conexión con la sesión de Google iniciada.',
-          TRANSPORT_TIMEOUT:
-            'La estructura se ha leído, pero el canal privado no ha respondido. Vuelve a abrir Google y mantén la ventana abierta.',
-          INVALID_RESPONSE:
-            'El puente publicado no tiene el formato vigente. Actualiza los tres archivos y publica Nueva versión.',
-        };
-        show(
-          'error',
-          'La conexión necesita revisión',
-          errors[data.error] || errors.READ_FAILED,
-        );
-        return;
-      }
+    function received(data) {
       for (const label of document.querySelectorAll(
         '[data-finance-environment]',
       ))
@@ -335,7 +275,7 @@ if (typeof document !== 'undefined') {
             : 'la copia de pruebas') +
           ' y ha devuelto estos resultados.',
       );
-    });
+    }
 
     deploymentUrl = savedDeployment(storage());
     configuredLocally = Boolean(deploymentUrl);

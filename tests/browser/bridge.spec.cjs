@@ -33,20 +33,36 @@ async function channel(context, options = {}) {
     });
     return result;
   };
-  const rawBridge = fs.readFileSync(
+  let rawBridge = fs.readFileSync(
     path.join(root, 'apps-script/Bridge.html'),
     'utf8',
   );
+  // La entrega privada anterior solo difiere en su identificador de build.
+  if (options.googleBuild)
+    rawBridge = rawBridge.replace(
+      /const BRIDGE_VERSION = '[^']+';/,
+      `const BRIDGE_VERSION = '${options.googleBuild}';`,
+    );
   let template;
   r.ctx.HtmlService = {
     createTemplateFromFile() {
       template = {
         getRawContent: () => rawBridge,
         evaluate: () => ({
-          setTitle: () =>
-            rawBridge
-              .replace('<?= payloadJson ?>', htmlEscape(template.payloadJson))
-              .replace('<?= appOrigin ?>', template.appOrigin),
+          setTitle: () => {
+            const payload = JSON.parse(template.payloadJson);
+            if (options.googleBuild) {
+              payload.buildVersion = options.googleBuild;
+              if (payload.snapshot)
+                payload.snapshot.buildVersion = options.googleBuild;
+            }
+            return rawBridge
+              .replace(
+                '<?= payloadJson ?>',
+                htmlEscape(JSON.stringify(payload)),
+              )
+              .replace('<?= appOrigin ?>', template.appOrigin);
+          },
         }),
       };
       return template;
@@ -120,7 +136,13 @@ async function channel(context, options = {}) {
       const request = JSON.parse(json);
       calls.push(request);
       if (options.holdRead && request.action === 'read') return;
+      if (options.holdAction === request.action) return;
       let response = r.ctx.financialApiJson(json);
+      if (options.googleBuild) {
+        const data = JSON.parse(response);
+        data.buildVersion = options.googleBuild;
+        response = JSON.stringify(data);
+      }
       if (options.badPing && request.action === 'ping')
         response = '{"ok":false}';
       if (options.badRead && request.action === 'read')
@@ -221,6 +243,194 @@ test('canal de operaciones inválido mantiene lectura nativa pero bloquea confir
   await page.locator('#finance-new').click();
   await expect(page.locator('#operation-review')).toBeDisabled();
   await expect(page.locator('#operation-connection')).toBeVisible();
+  expect(calls.filter((c) => c.action === 'transact')).toHaveLength(0);
+});
+
+test('conectar, comprobar y registrar reutilizan una sola ventana con Google 3.6.0', async ({
+  page,
+  context,
+}) => {
+  const { calls } = await channel(context, { googleBuild: '3.6.0' });
+  let popups = 0;
+  page.on('popup', () => popups++);
+  await page.goto(origin + '/finances/');
+  await page.locator('nav [data-view=connection]:visible').first().click();
+  const first = page.waitForEvent('popup');
+  await page.locator('#connect').click();
+  const google = await first;
+  await expect(page.locator('#status')).toHaveText(
+    'Estructura y canal privado comprobados',
+  );
+  await expect(page.locator('#sheet-count')).toHaveText('10');
+  await expect(page.locator('#finance-kpis .kpi-card')).toHaveCount(8);
+  await page.locator('#backend-check').click();
+  await expect(page.locator('#backend-result')).toContainText(
+    'Backend verificado',
+  );
+  await page.locator('#acceptance-check').click();
+  await expect(page.locator('#acceptance-result')).toContainText(
+    'versión 3.6.0',
+  );
+  expect(google.isClosed()).toBe(false);
+  await page.locator('#connect').click();
+  await expect(page.locator('#status')).toHaveText(
+    'Estructura y canal privado comprobados',
+  );
+  await page.locator('nav [data-view=home]:visible').first().click();
+  await page.locator('#finance-connect').click();
+  await expect(page.locator('#finance-state')).toContainText(
+    'Lectura confirmada',
+  );
+  await page.locator('#finance-new').click();
+  await page.locator('#operation-date').fill('2026-01-02');
+  await page
+    .locator('#operation-concept')
+    .fill('Gasto ficticio en el mismo canal');
+  await page.locator('#operation-account').selectOption('Cuenta A');
+  await page.locator('#operation-category').selectOption('Café');
+  await page.locator('#operation-amount').fill('1,23');
+  await page.locator('#operation-review').click();
+  await page.locator('#review-confirm').click();
+  await expect(page.locator('#finance-queue')).toContainText(
+    'Confirmada por Google',
+  );
+  expect(popups).toBe(1);
+  expect(calls.filter((c) => c.action === 'ping')).toHaveLength(1);
+  expect(calls.filter((c) => c.action === 'transact')).toHaveLength(1);
+  expect(google.isClosed()).toBe(false);
+});
+
+test('un canal bloqueado se recupera al primer reintento tras reparar Google', async ({
+  page,
+  context,
+}) => {
+  const options = { badPing: true };
+  const { calls } = await channel(context, options);
+  const blocked = await open(page);
+  await expect(page.locator('#finance-state')).toContainText('solo lectura');
+  options.badPing = false;
+  const replacement = page.waitForEvent('popup');
+  await page.locator('#finance-connect').click();
+  const google = await replacement;
+  await expect(page.locator('#finance-state')).toContainText(
+    'Lectura confirmada',
+  );
+  expect(blocked.isClosed()).toBe(true);
+  expect(google.isClosed()).toBe(false);
+  expect(calls.filter((c) => c.action === 'ping')).toHaveLength(2);
+  expect(calls.filter((c) => c.action === 'transact')).toHaveLength(0);
+});
+
+test('una lectura local retrasada no repone datos del libro anterior tras cambiar el enlace', async ({
+  page,
+  context,
+}) => {
+  const { calls } = await channel(context);
+  const google = await open(page);
+  await page.evaluate(() => {
+    const get = FinanceSync.Queue.prototype.get;
+    let hold = true;
+    FinanceSync.Queue.prototype.get = async function () {
+      const data = await get.call(this);
+      if (hold) {
+        hold = false;
+        window.heldRender = true;
+        await new Promise((resolve) => (window.releaseRender = resolve));
+      }
+      return data;
+    };
+    window.checkResult = null;
+    window.FinanceBook.check('connection').then(
+      (result) => (window.checkResult = { ok: true, result }),
+      (error) => (window.checkResult = { ok: false, error: error.message }),
+    );
+  });
+  await page.waitForFunction(() => window.heldRender === true);
+  await page.evaluate(() => {
+    localStorage.setItem(
+      'finances.appsScriptUrl',
+      'https://script.google.com/macros/s/fixture-second-book/exec',
+    );
+    window.dispatchEvent(new Event('finances:configuration'));
+  });
+  await expect(page.locator('#finance-kpis')).toContainText('Sin dato');
+  await expect(page.locator('#finance-kpis')).not.toContainText(/1[.]?015,00/);
+  await page.evaluate(() => window.releaseRender());
+  await page.waitForFunction(() => window.checkResult !== null);
+  expect(await page.evaluate(() => window.checkResult)).toEqual({
+    ok: false,
+    error: 'CONFIGURATION_CHANGED',
+  });
+  await expect(page.locator('#finance-kpis')).not.toContainText(/1[.]?015,00/);
+  expect(google.isClosed()).toBe(true);
+  expect(calls.filter((c) => c.action === 'transact')).toHaveLength(0);
+});
+
+test('cerrar Google durante comprobar sistema muestra un aviso claro y abre una sola sustitución', async ({
+  page,
+  context,
+}) => {
+  const options = { holdAction: 'acceptance' };
+  const { calls } = await channel(context, options);
+  let popups = 0;
+  page.on('popup', () => popups++);
+  const google = await open(page);
+  await page.locator('nav [data-view=connection]:visible').first().click();
+  await page.locator('#acceptance-check').click();
+  await expect
+    .poll(() => calls.some((c) => c.action === 'acceptance'))
+    .toBe(true);
+  await google.close();
+  await expect(page.locator('#acceptance-result')).toContainText(
+    'Se ha cerrado la ventana de Google',
+  );
+  await expect(page.locator('#acceptance-result')).not.toContainText(
+    'GOOGLE_WINDOW_CLOSED',
+  );
+  const replacement = page.waitForEvent('popup');
+  await page.locator('#backend-check').click();
+  const reopened = await replacement;
+  await expect(page.locator('#backend-result')).toContainText(
+    'Backend verificado',
+  );
+  expect(popups).toBe(2);
+  expect(reopened.isClosed()).toBe(false);
+  expect(calls.filter((c) => c.action === 'transact')).toHaveLength(0);
+});
+
+test('comprobación en curso bloquea duplicados y descarta el libro cambiado desde otra pestaña', async ({
+  page,
+  context,
+}) => {
+  const { calls } = await channel(context, { holdAction: 'acceptance' });
+  let popups = 0;
+  page.on('popup', () => popups++);
+  const google = await open(page);
+  await page.locator('nav [data-view=connection]:visible').first().click();
+  await page.locator('#acceptance-check').click();
+  await expect
+    .poll(() => calls.some((c) => c.action === 'acceptance'))
+    .toBe(true);
+  await page.locator('#backend-check').click();
+  await expect(page.locator('#backend-result')).toContainText(
+    'Hay una lectura o un envío en curso',
+  );
+  expect(popups).toBe(1);
+  const other = await context.newPage();
+  await other.goto(origin + '/finances/');
+  await other.evaluate(() =>
+    localStorage.setItem(
+      'finances.appsScriptUrl',
+      'https://script.google.com/macros/s/fixture-second-book/exec',
+    ),
+  );
+  await expect(page.locator('#acceptance-result')).toContainText(
+    'La configuración cambió',
+  );
+  await expect(page.locator('#acceptance-result')).not.toContainText(
+    'Comprobaciones técnicas correctas',
+  );
+  expect(google.isClosed()).toBe(true);
   expect(calls.filter((c) => c.action === 'transact')).toHaveLength(0);
 });
 

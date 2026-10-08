@@ -320,21 +320,22 @@ if (typeof module !== 'undefined' && module.exports)
   module.exports = { acceptsApiMessage, FinanceApiClient };
 
 if (typeof document !== 'undefined') {
+  const check = (action) => {
+    if (!globalThis.FinanceBook) throw Error('EMBEDDED_CONTEXT');
+    return globalThis.FinanceBook.check(action);
+  };
+  const checkError = (error) =>
+    globalThis.FinanceBook?.errorText(error) ||
+    'Abre Finanzas en su propia ventana para comprobar tu libro.';
   const acceptanceButton = document.getElementById('acceptance-check'),
     acceptanceOutput = document.getElementById('acceptance-result');
   if (acceptanceButton && acceptanceOutput)
     acceptanceButton.addEventListener('click', async () => {
-      let client;
       try {
-        const url = savedDeployment(window.localStorage);
-        if (!url) throw Error('NOT_CONFIGURED');
-        client = new FinanceApiClient(url);
-        const connected = client.connect();
         acceptanceButton.disabled = true;
         acceptanceOutput.textContent =
-          'Abre Google para comprobar resumen y fuentes. No se guardarán precios.';
-        await connected;
-        const result = await client.acceptance();
+          'Comprobando resumen y fuentes con la conexión del libro. No se guardarán precios.';
+        const result = await check('acceptance');
         if (!result.ok) throw Error(result.message || result.error);
         const names = {
           backend: 'estructura',
@@ -365,10 +366,9 @@ if (typeof document !== 'undefined') {
       } catch (error) {
         acceptanceOutput.textContent =
           'No se ha completado la comprobación: ' +
-          error.message +
+          checkError(error) +
           '. Los datos del libro se conservan.';
       } finally {
-        client?.close();
         acceptanceButton.disabled = false;
       }
     });
@@ -376,20 +376,10 @@ if (typeof document !== 'undefined') {
     output = document.getElementById('backend-result');
   if (button && output)
     button.addEventListener('click', async () => {
-      let url;
-      try {
-        url = savedDeployment(window.localStorage);
-      } catch (error) {}
-      if (!url) {
-        output.textContent = 'Configura primero el enlace de Google.';
-        return;
-      }
-      const client = new FinanceApiClient(url);
       button.disabled = true;
-      output.textContent = 'Abriendo Google para comprobar el backend…';
+      output.textContent = 'Comprobando el libro con su conexión de Google…';
       try {
-        await client.connect();
-        const result = await client.diagnostics();
+        const result = await check('diagnostics');
         if (!result.ok) output.textContent = result.message || result.error;
         else if (result.calculationReady === false)
           output.textContent =
@@ -410,13 +400,8 @@ if (typeof document !== 'undefined') {
             '. No se han registrado operaciones.';
       } catch (error) {
         output.textContent =
-          error.message === 'UPDATE_REQUIRED'
-            ? 'Actualiza los tres archivos de Apps Script y publica una nueva versión.'
-            : error.message === 'POPUP_BLOCKED'
-              ? 'Permite abrir la ventana de Google y repite la comprobación.'
-              : 'No se ha confirmado la lectura. Revisa la implementación y vuelve a comprobarla.';
+          'No se ha completado la comprobación: ' + checkError(error);
       } finally {
-        client.close();
         button.disabled = false;
       }
     });

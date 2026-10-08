@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const { runtime } = require('./helpers/runtime.cjs');
+const buildVersion = require('../package.json').version;
 
 test('el transporte JSON autentica antes de tocar Sheets y conserva el contrato de agentes', () => {
   for (const visitor of ['', 'other@example.test']) {
@@ -32,7 +33,7 @@ test('ping comprueba el servidor autenticado sin leer ni modificar registros', (
   const r = runtime();
   const result = JSON.parse(r.ctx.financialApiJson('{"action":"ping"}'));
   assert.equal(result.ok, true);
-  assert.equal(result.buildVersion, '3.6.0');
+  assert.equal(result.buildVersion, buildVersion);
   assert.equal(result.apiTransport, 'finances.rpc.json.v1');
   assert.equal(result.environment, 'test');
   assert.equal(r.readBooks.length, 0);
@@ -73,7 +74,7 @@ test('la carga inicial privada lleva el mismo snapshot que read, sin escribir y 
   assert.equal(result.ok, true);
   assert.equal(result.snapshot.ok, true);
   assert.equal(result.sheetCount, 10);
-  assert.equal(result.buildVersion, '3.6.0');
+  assert.equal(result.buildVersion, buildVersion);
   assert.equal(result.snapshot.revision, r.api({ action: 'read' }).revision);
   assert.deepEqual(
     JSON.parse(JSON.stringify(result.snapshot.tables)),
