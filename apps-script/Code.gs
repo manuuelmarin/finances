@@ -113,7 +113,7 @@ const TABLE_SCHEMA_ = [
 ];
 
 const API_VERSION_ = '3.3.0';
-const BUILD_VERSION_ = '3.4.0';
+const BUILD_VERSION_ = '3.5.0';
 // El motor de fórmulas no cambia en el paso 4; conserva su sello de capacidad.
 const CAPACITY_VERSION_ = '3.1.0';
 const INPUT_SCHEMA_ = {
@@ -193,6 +193,8 @@ const INPUT_SCHEMA_ = {
   },
 };
 const PROCESS_FIELDS_ = {
+  presupuesto: ['month', 'category', 'amount'],
+  quitar_presupuesto: ['month', 'category'],
   gasto: [
     'date',
     'concept',
@@ -557,6 +559,10 @@ const TECH_SCHEMA_ = {
       'Detalle',
     ],
   ],
+  budgets: [
+    '_Finanzas_Presupuestos',
+    ['ID', 'Mes', 'Subcategoría', 'Límite EUR', 'Activo', 'Fecha registro'],
+  ],
 };
 const DATE_FIELDS_ = ['Fecha', 'Fecha base', 'Fecha saldo'];
 const MOVEMENT_TYPES_ = [
@@ -862,6 +868,7 @@ function readState_(config) {
   let parameters = [],
     supportSignature = null,
     summaryValues = [];
+  const chartValues = {};
   specs.forEach((spec, i) => {
     const values = (response.valueRanges[i] || {}).values || [];
     if (spec.support) {
@@ -873,6 +880,7 @@ function readState_(config) {
       return;
     }
     if (spec.calculation) {
+      chartValues[spec.calculation] = values;
       values.forEach((row, i) =>
         row.forEach((v, j) => {
           if (
@@ -977,6 +985,7 @@ function readState_(config) {
     supportSignature,
     calculationErrors,
     summaryValues,
+    chartValues,
     bookKey: hash_(config.id),
   };
   validateFinancialState_(state);
@@ -996,6 +1005,7 @@ function revision_(s) {
     settings: s.settings,
     observations: s.technical.observations,
     funds: s.technical.funds,
+    ...(s.technical.budgets?.length ? { budgets: s.technical.budgets } : {}),
   });
 }
 
@@ -1038,6 +1048,23 @@ function validateFinancialState_(s) {
     debts = by('tDeudas', 'ID'),
     goals = by('tObjetivos', 'ID'),
     links = by('tVinculos', 'Movimiento');
+  const budgetKeys = new Set();
+  (s.technical.budgets || []).forEach((row) => {
+    check_(
+      typeof row[1] === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(row[1]),
+      'Mes de presupuesto inválido.',
+    );
+    number_(row[3], 'Límite mensual', false);
+    check_(row[4] === 0 || row[4] === 1, 'Estado de presupuesto inválido.');
+    const key = canonical_([row[1], row[2]]);
+    check_(!budgetKeys.has(key), 'Presupuesto mensual duplicado.');
+    budgetKeys.add(key);
+    if (row[4] && row[2] !== null)
+      check_(
+        categories.get(row[2])?.Grupo === 'Gastos',
+        'Subcategoría de presupuesto desconocida.',
+      );
+  });
   check_(
     new Set(t.tProductos.map((r) => r.Producto)).size === products.size,
     'Nombre de producto duplicado.',
@@ -1731,6 +1758,50 @@ function applyOperations_(initial, operations, requestId, now) {
         required(o, 'referenceName'),
         now,
       );
+    } else if (p === 'presupuesto' || p === 'quitar_presupuesto') {
+      const month = required(o, 'month');
+      check_(
+        typeof month === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(month),
+        'Mes inválido.',
+      );
+      serialDate_(month + '-01');
+      const category = blank_(o.category) ? null : o.category;
+      if (category !== null)
+        check_(
+          s.tables.tCategorias.some(
+            (c) => c.Subcategoría === category && c.Grupo === 'Gastos',
+          ),
+          'Subcategoría de gasto desconocida.',
+        );
+      const rows = s.technical.budgets;
+      let row = rows.find((r) => r[1] === month && r[2] === category);
+      if (p === 'quitar_presupuesto') {
+        check_(row && row[4], 'Presupuesto inexistente.');
+        row[4] = 0;
+      } else {
+        const amount = required(o, 'amount');
+        number_(amount, 'Límite mensual', false);
+        check_(
+          Math.abs(amount - money_(amount)) < 1e-7,
+          'Límite mensual: máximo dos decimales.',
+        );
+        if (row) {
+          row[3] = amount;
+          row[4] = 1;
+        } else {
+          row = [
+            'BUD-' + requestId + '-' + (index + 1),
+            month,
+            category,
+            amount,
+            1,
+            now,
+          ];
+          rows.push(row);
+        }
+      }
+      row[5] = now;
+      primary = row[0];
     } else if (p === 'objetivo') {
       primary = 'OBJ-' + requestId + '-' + (index + 1);
       putRow_(
@@ -1858,6 +1929,13 @@ function applyOperations_(initial, operations, requestId, now) {
       if (o.kind === 'cuenta')
         s.technical.observations.forEach((r) => {
           if (r[1] === old) r[1] = value;
+        });
+      if (o.kind === 'subcategoria')
+        s.technical.budgets.forEach((r) => {
+          if (r[2] === old) {
+            r[2] = value;
+            r[5] = now;
+          }
         });
       // Conserva los filtros existentes; el adaptador de escritura actualiza la selección si coincide.
       s.renames = (s.renames || []).concat([
@@ -2137,6 +2215,43 @@ function mutationRequests_(before, after, requestId, now, result) {
       audit.push([requestId, now, kind, row[0], 'null', canonical_(row)]),
     );
   });
+  const previousBudgets = before.technical.budgets || [];
+  const nextBudgets = after.technical.budgets || [];
+  nextBudgets.forEach((row, i) => {
+    if (canonical_(row) === canonical_(previousBudgets[i])) return;
+    if (!before.tech.budgets)
+      fail_(
+        'NOT_INITIALIZED',
+        'Prepara los presupuestos con la entrega vigente.',
+      );
+    if (i < previousBudgets.length)
+      requests.push({
+        updateCells: {
+          start: {
+            sheetId: before.tech.budgets.id,
+            rowIndex: i + 1,
+            columnIndex: 0,
+          },
+          rows: [{ values: row.map(cellValue_) }],
+          fields: 'userEnteredValue',
+        },
+      });
+    audit.push([
+      requestId,
+      now,
+      'presupuestos',
+      row[0],
+      canonical_(previousBudgets[i] || null),
+      canonical_(row),
+    ]);
+  });
+  if (nextBudgets.length > previousBudgets.length)
+    appendTechnical_(
+      requests,
+      before.tech.budgets,
+      previousBudgets,
+      nextBudgets.slice(previousBudgets.length),
+    );
   appendTechnical_(requests, before.tech.audit, before.technical.audit, audit);
   appendTechnical_(requests, before.tech.requests, before.technical.requests, [
     [
@@ -2238,7 +2353,9 @@ function diagnostics_(s) {
       ['requests', 'audit', 'observations'].every((k) => s.tech[k]) &&
       capacityReady &&
       calculationReady,
-    priceReady: Object.keys(TECH_SCHEMA_).every((k) => s.tech[k]),
+    priceReady: ['requests', 'audit', 'observations', 'funds', 'quotes'].every(
+      (k) => s.tech[k],
+    ),
     priceProviders: ['VDOS / Quefondos'],
     capacityReady,
     calculationReady,
@@ -2333,9 +2450,69 @@ function publicSnapshot_(s) {
     tables: data,
     observations,
     prices: priceSnapshot_(s),
+    supportsBudgets: true,
+    budgets: (s.technical.budgets || [])
+      .filter((r) => r[4])
+      .map((r) => ({ month: r[1], category: r[2], amount: r[3] })),
+    charts: nativeCharts_(s, data),
     summary: nativeSummary_(s, data),
     bookKey: s.bookKey,
   });
+}
+
+function nativeCharts_(s, data) {
+  const finite = (v) =>
+    typeof v === 'number' && Number.isFinite(v) ? v : null;
+  const block = (kind) => (s.chartValues || {})[SUPPORT_NAMES_[kind]] || [];
+  const summary = s.summaryValues || [];
+  const headerIndex = summary.findIndex((r) =>
+    ['Mes', 'Ingresos', 'Gastos', 'Efectivo'].every((label) =>
+      r.includes(label),
+    ),
+  );
+  const monthly = [];
+  if (headerIndex >= 0) {
+    const header = summary[headerIndex];
+    for (const row of summary.slice(headerIndex + 1, headerIndex + 13)) {
+      if (blank_(row[header.indexOf('Mes')])) continue;
+      monthly.push({
+        label: String(row[header.indexOf('Mes')]),
+        income: finite(row[header.indexOf('Ingresos')]),
+        expense: finite(row[header.indexOf('Gastos')]),
+        cash: finite(row[header.indexOf('Efectivo')]),
+      });
+    }
+  }
+  const pairs = (kind) =>
+    block(kind)
+      .filter((r) => !blank_(r[0]))
+      .map((r) => ({ label: String(r[0]), value: finite(r[1]) }));
+  const investments = block('months')
+    .filter((r) => !blank_(r[0]))
+    .map((r) => ({
+      label:
+        typeof r[0] === 'number' ? isoDate_(r[0]).slice(0, 7) : String(r[0]),
+      capital: finite(r[1]),
+      value: finite(r[2]),
+    }));
+  const missing = new Set(nativeSummary_(s, data).missingPrices);
+  const positions = data.tProductos.map((p) => ({
+    label: p.Producto,
+    group: p.Clase,
+    value: missing.has(p.Producto) ? null : finite(p.Valor),
+  }));
+  return {
+    source: 'Sheets · cálculos y tablas nativas',
+    monthly,
+    categories: pairs('categories'),
+    cities: pairs('cities'),
+    investments,
+    positions,
+    salary: data.tNominas.map((n) => {
+      const m = data.tMovimientos.find((row) => row.ID === n.Movimiento);
+      return { label: m?.Fecha || 'Sin fecha', value: finite(m?.Importe) };
+    }),
+  };
 }
 
 // Resumen leído del motor nativo, con cabeceras verificadas; nunca un motor paralelo.
@@ -2493,6 +2670,8 @@ function financialApi(request) {
         requestId,
         now,
       );
+      if (applied.state.technical.budgets.length && !before.tech.budgets)
+        before = initializeBackendUnlocked_(config);
       // La preparación de estructura no registra operaciones: las entradas, caja y solicitud
       // siguen en un único lote. Un fallo aquí permite reintentar el mismo sobre sin duplicar.
       before = prepareCapacity_(config, before, applied.state);
@@ -4026,7 +4205,11 @@ function refreshPrices_(config, request) {
     checkRequestBook_(request, state);
     const replay = replayPrices_(state, requestId, fingerprint);
     if (replay) return { replay };
-    if (!Object.keys(TECH_SCHEMA_).every((k) => state.tech[k]))
+    if (
+      !['requests', 'audit', 'observations', 'funds', 'quotes'].every(
+        (k) => state.tech[k],
+      )
+    )
       fail_('NOT_INITIALIZED', 'Ejecuta comprobarPaso4 desde el editor.');
     if (state.revision !== request.expectedRevision)
       fail_(

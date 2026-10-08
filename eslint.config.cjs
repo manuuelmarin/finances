@@ -27,6 +27,8 @@ module.exports = [
         CacheService: 'readonly',
         UrlFetchApp: 'readonly',
         FinanceDomain: 'readonly',
+        FinanceAnalytics: 'readonly',
+        FinanceDashboard: 'readonly',
         FinanceSync: 'readonly',
         FinanceApiClient: 'readonly',
         DEPLOYMENT_STORAGE_KEY: 'readonly',

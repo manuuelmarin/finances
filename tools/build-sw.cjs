@@ -12,6 +12,8 @@ const assets = [
   'domain.js',
   'queue.js',
   'finance.js',
+  'analytics.js',
+  'dashboard.js',
   'pwa.js',
   'config.json',
   'manifest.webmanifest',

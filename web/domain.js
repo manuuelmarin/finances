@@ -56,6 +56,23 @@ const FinanceDomain = (() => {
     'false',
   );
   const processes = {
+    presupuesto: {
+      label: 'Límite mensual de gasto',
+      ui: false,
+      fields: [
+        field('month', 'Mes AAAA-MM'),
+        field('category', 'Subcategoría · vacía para el total', 'text', false),
+        amount,
+      ],
+    },
+    quitar_presupuesto: {
+      label: 'Quitar límite mensual',
+      ui: false,
+      fields: [
+        field('month', 'Mes AAAA-MM'),
+        field('category', 'Subcategoría · vacía para el total', 'text', false),
+      ],
+    },
     gasto: {
       label: 'Gasto',
       fields: [
@@ -332,6 +349,11 @@ const FinanceDomain = (() => {
     }
     if (process === 'producto' && result.isin && !result.referenceName)
       result.referenceName = result.name;
+    if (
+      ['presupuesto', 'quitar_presupuesto'].includes(process) &&
+      !/^\d{4}-(0[1-9]|1[0-2])$/.test(result.month)
+    )
+      throw Error('El mes debe tener formato AAAA-MM.');
     if (process === 'traspaso' && result.from === result.to)
       throw Error('Elige cuentas de origen y destino distintas.');
     if (

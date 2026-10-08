@@ -5,7 +5,7 @@
       content="default-src 'none'; script-src 'self'; style-src 'self' 'sha256-jR88ekepLVmRCqwXwaAoX2UqZfjqnti3UPxbLOjltSc='; img-src 'self'; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
     /><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="referrer" content="no-referrer"><title>Finanzas · Instalar conexión</title><style>
 :root{color-scheme:dark;--ink:#10191b;--panel:#172325;--line:#2d3f3e;--text:#efeee5;--muted:#a4b6ad;--mint:#b9d6bf;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}*{box-sizing:border-box}body{margin:0;background:var(--ink);color:var(--text);line-height:1.65}main{max-width:1000px;margin:auto;padding:36px 32px 70px}a{color:var(--mint);text-underline-offset:4px}.back{display:inline-flex;padding:8px 0;margin-bottom:30px;text-decoration:none}.eyebrow{font-size:11px;letter-spacing:.16em;color:var(--mint);font-weight:650;margin:0 0 10px}h1{font-weight:500;letter-spacing:-.045em;font-size:clamp(32px,5vw,54px);line-height:1.12;margin:0 0 20px}h2{font-size:22px;font-weight:500;margin:0;color:var(--text);letter-spacing:-.025em}.intro{color:var(--muted);max-width:650px;font-size:17px}.code-section{margin:28px 0;border:1px solid var(--line);padding:25px;background:var(--panel);border-radius:12px}.code-section header{display:flex;gap:20px;align-items:center;justify-content:space-between}.code-section>p{color:var(--muted);font-size:14px}button{border:0;padding:12px 18px;border-radius:8px;min-height:44px;background:var(--mint);color:#142019;font:inherit;font-size:14px;font-weight:650;cursor:pointer}button:focus-visible,a:focus-visible,summary:focus-visible,pre:focus-visible{outline:3px solid #e1eddf;outline-offset:4px}summary{cursor:pointer;padding:8px 0;color:var(--mint);font-size:14px}pre{white-space:pre;overflow:auto;max-height:450px;padding:18px;border:1px solid var(--line);background:var(--ink);font:12px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace;border-radius:6px}ol{padding-left:25px;color:var(--muted)}li{padding:8px 0}strong{color:var(--text)}table{width:100%;border-collapse:collapse;font-size:14px;table-layout:fixed}td,th{text-align:left;padding:12px 10px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}th{color:var(--mint);font-weight:500}td:first-child,th:first-child{width:48%}code{font-family:ui-monospace,monospace;font-size:.9em}.notice{padding:18px 20px;border-left:2px solid var(--mint);background:#162123;color:var(--muted);font-size:14px;margin:24px 0}#copy-status{color:var(--mint);font-size:14px;min-height:24px}.configuration{margin-top:44px}footer{margin-top:45px;padding-top:20px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}@media(max-width:580px){main{padding:24px 18px 50px}.code-section{padding:20px 16px}.code-section header{align-items:flex-start;flex-direction:column;gap:14px}.code-section header button{width:100%}td,th{padding:12px 6px;font-size:12px}}
-</style><script src="install.js" defer></script></head><body><main><a class="back" href="./#connection">← Volver a Finanzas</a><p class="eyebrow">GOOGLE SHEETS · CONEXIÓN PRIVADA</p><h1>Tu libro.<br>Una conexión sencilla.</h1><p class="intro">Copia estos tres archivos en tu proyecto de Apps Script. Entrega 3.4.0: resumen, registros, precios por ISIN, PWA y preparación del uso real. Prueba primero en la copia separada. Cada botón copia un archivo diferente.</p><p class="notice">Actualiza tu proyecto existente. Conserva las propiedades de pruebas que ya configuraste. La selección del principal se configura por separado al efectuar el cambio al uso real. El manifiesto añade permiso para consultar las fuentes públicas de precios. Mantén el acceso privado de Google.</p><p id="copy-status" role="status" aria-live="polite"></p>
+</style><script src="install.js" defer></script></head><body><main><a class="back" href="./#connection">← Volver a Finanzas</a><p class="eyebrow">GOOGLE SHEETS · CONEXIÓN PRIVADA</p><h1>Tu libro.<br>Una conexión sencilla.</h1><p class="intro">Copia estos tres archivos en tu proyecto de Apps Script. Entrega 3.5.0: movimientos accesibles, gráficos nativos y presupuestos mensuales. Prueba primero en la copia separada. Cada botón copia un archivo diferente.</p><p class="notice">Actualiza tu proyecto existente. Conserva las propiedades de pruebas que ya configuraste. Mantén ENVIRONMENT=test durante estas mejoras. El principal se activará únicamente cuando lo decidas. Los límites crean una hoja técnica privada de presupuestos; las diez pestañas originales se conservan. El manifiesto añade permiso para consultar las fuentes públicas de precios. Mantén el acceso privado de Google.</p><p id="copy-status" role="status" aria-live="polite"></p>
 <section class="code-section" aria-labelledby="file-0"><header><div><p class="eyebrow">ARCHIVO 1 DE 3</p><h2 id="file-0">Code.gs</h2></div><button type="button" data-copy="code-0">Copiar Code.gs</button></header><p>Sustituye todo el contenido de Code.gs por este código.</p><details><summary>Ver código completo</summary><pre id="code-0" tabindex="0">// Pasos 2, 3 y 4: conexión privada, API financiera y cotizaciones por ISIN.
 // Libros privados separados por ENVIRONMENT; no incluye datos personales.
 const CONNECTION_TYPE_ = &#x27;finances.connection.v1&#x27;;
@@ -121,7 +121,7 @@ const TABLE_SCHEMA_ = [
 ];
 
 const API_VERSION_ = &#x27;3.3.0&#x27;;
-const BUILD_VERSION_ = &#x27;3.4.0&#x27;;
+const BUILD_VERSION_ = &#x27;3.5.0&#x27;;
 // El motor de fórmulas no cambia en el paso 4; conserva su sello de capacidad.
 const CAPACITY_VERSION_ = &#x27;3.1.0&#x27;;
 const INPUT_SCHEMA_ = {
@@ -201,6 +201,8 @@ const INPUT_SCHEMA_ = {
   },
 };
 const PROCESS_FIELDS_ = {
+  presupuesto: [&#x27;month&#x27;, &#x27;category&#x27;, &#x27;amount&#x27;],
+  quitar_presupuesto: [&#x27;month&#x27;, &#x27;category&#x27;],
   gasto: [
     &#x27;date&#x27;,
     &#x27;concept&#x27;,
@@ -565,6 +567,10 @@ const TECH_SCHEMA_ = {
       &#x27;Detalle&#x27;,
     ],
   ],
+  budgets: [
+    &#x27;_Finanzas_Presupuestos&#x27;,
+    [&#x27;ID&#x27;, &#x27;Mes&#x27;, &#x27;Subcategoría&#x27;, &#x27;Límite EUR&#x27;, &#x27;Activo&#x27;, &#x27;Fecha registro&#x27;],
+  ],
 };
 const DATE_FIELDS_ = [&#x27;Fecha&#x27;, &#x27;Fecha base&#x27;, &#x27;Fecha saldo&#x27;];
 const MOVEMENT_TYPES_ = [
@@ -870,6 +876,7 @@ function readState_(config) {
   let parameters = [],
     supportSignature = null,
     summaryValues = [];
+  const chartValues = {};
   specs.forEach((spec, i) =&gt; {
     const values = (response.valueRanges[i] || {}).values || [];
     if (spec.support) {
@@ -881,6 +888,7 @@ function readState_(config) {
       return;
     }
     if (spec.calculation) {
+      chartValues[spec.calculation] = values;
       values.forEach((row, i) =&gt;
         row.forEach((v, j) =&gt; {
           if (
@@ -985,6 +993,7 @@ function readState_(config) {
     supportSignature,
     calculationErrors,
     summaryValues,
+    chartValues,
     bookKey: hash_(config.id),
   };
   validateFinancialState_(state);
@@ -1004,6 +1013,7 @@ function revision_(s) {
     settings: s.settings,
     observations: s.technical.observations,
     funds: s.technical.funds,
+    ...(s.technical.budgets?.length ? { budgets: s.technical.budgets } : {}),
   });
 }
 
@@ -1046,6 +1056,23 @@ function validateFinancialState_(s) {
     debts = by(&#x27;tDeudas&#x27;, &#x27;ID&#x27;),
     goals = by(&#x27;tObjetivos&#x27;, &#x27;ID&#x27;),
     links = by(&#x27;tVinculos&#x27;, &#x27;Movimiento&#x27;);
+  const budgetKeys = new Set();
+  (s.technical.budgets || []).forEach((row) =&gt; {
+    check_(
+      typeof row[1] === &#x27;string&#x27; &amp;&amp; /^\d{4}-(0[1-9]|1[0-2])$/.test(row[1]),
+      &#x27;Mes de presupuesto inválido.&#x27;,
+    );
+    number_(row[3], &#x27;Límite mensual&#x27;, false);
+    check_(row[4] === 0 || row[4] === 1, &#x27;Estado de presupuesto inválido.&#x27;);
+    const key = canonical_([row[1], row[2]]);
+    check_(!budgetKeys.has(key), &#x27;Presupuesto mensual duplicado.&#x27;);
+    budgetKeys.add(key);
+    if (row[4] &amp;&amp; row[2] !== null)
+      check_(
+        categories.get(row[2])?.Grupo === &#x27;Gastos&#x27;,
+        &#x27;Subcategoría de presupuesto desconocida.&#x27;,
+      );
+  });
   check_(
     new Set(t.tProductos.map((r) =&gt; r.Producto)).size === products.size,
     &#x27;Nombre de producto duplicado.&#x27;,
@@ -1739,6 +1766,50 @@ function applyOperations_(initial, operations, requestId, now) {
         required(o, &#x27;referenceName&#x27;),
         now,
       );
+    } else if (p === &#x27;presupuesto&#x27; || p === &#x27;quitar_presupuesto&#x27;) {
+      const month = required(o, &#x27;month&#x27;);
+      check_(
+        typeof month === &#x27;string&#x27; &amp;&amp; /^\d{4}-(0[1-9]|1[0-2])$/.test(month),
+        &#x27;Mes inválido.&#x27;,
+      );
+      serialDate_(month + &#x27;-01&#x27;);
+      const category = blank_(o.category) ? null : o.category;
+      if (category !== null)
+        check_(
+          s.tables.tCategorias.some(
+            (c) =&gt; c.Subcategoría === category &amp;&amp; c.Grupo === &#x27;Gastos&#x27;,
+          ),
+          &#x27;Subcategoría de gasto desconocida.&#x27;,
+        );
+      const rows = s.technical.budgets;
+      let row = rows.find((r) =&gt; r[1] === month &amp;&amp; r[2] === category);
+      if (p === &#x27;quitar_presupuesto&#x27;) {
+        check_(row &amp;&amp; row[4], &#x27;Presupuesto inexistente.&#x27;);
+        row[4] = 0;
+      } else {
+        const amount = required(o, &#x27;amount&#x27;);
+        number_(amount, &#x27;Límite mensual&#x27;, false);
+        check_(
+          Math.abs(amount - money_(amount)) &lt; 1e-7,
+          &#x27;Límite mensual: máximo dos decimales.&#x27;,
+        );
+        if (row) {
+          row[3] = amount;
+          row[4] = 1;
+        } else {
+          row = [
+            &#x27;BUD-&#x27; + requestId + &#x27;-&#x27; + (index + 1),
+            month,
+            category,
+            amount,
+            1,
+            now,
+          ];
+          rows.push(row);
+        }
+      }
+      row[5] = now;
+      primary = row[0];
     } else if (p === &#x27;objetivo&#x27;) {
       primary = &#x27;OBJ-&#x27; + requestId + &#x27;-&#x27; + (index + 1);
       putRow_(
@@ -1866,6 +1937,13 @@ function applyOperations_(initial, operations, requestId, now) {
       if (o.kind === &#x27;cuenta&#x27;)
         s.technical.observations.forEach((r) =&gt; {
           if (r[1] === old) r[1] = value;
+        });
+      if (o.kind === &#x27;subcategoria&#x27;)
+        s.technical.budgets.forEach((r) =&gt; {
+          if (r[2] === old) {
+            r[2] = value;
+            r[5] = now;
+          }
         });
       // Conserva los filtros existentes; el adaptador de escritura actualiza la selección si coincide.
       s.renames = (s.renames || []).concat([
@@ -2145,6 +2223,43 @@ function mutationRequests_(before, after, requestId, now, result) {
       audit.push([requestId, now, kind, row[0], &#x27;null&#x27;, canonical_(row)]),
     );
   });
+  const previousBudgets = before.technical.budgets || [];
+  const nextBudgets = after.technical.budgets || [];
+  nextBudgets.forEach((row, i) =&gt; {
+    if (canonical_(row) === canonical_(previousBudgets[i])) return;
+    if (!before.tech.budgets)
+      fail_(
+        &#x27;NOT_INITIALIZED&#x27;,
+        &#x27;Prepara los presupuestos con la entrega vigente.&#x27;,
+      );
+    if (i &lt; previousBudgets.length)
+      requests.push({
+        updateCells: {
+          start: {
+            sheetId: before.tech.budgets.id,
+            rowIndex: i + 1,
+            columnIndex: 0,
+          },
+          rows: [{ values: row.map(cellValue_) }],
+          fields: &#x27;userEnteredValue&#x27;,
+        },
+      });
+    audit.push([
+      requestId,
+      now,
+      &#x27;presupuestos&#x27;,
+      row[0],
+      canonical_(previousBudgets[i] || null),
+      canonical_(row),
+    ]);
+  });
+  if (nextBudgets.length &gt; previousBudgets.length)
+    appendTechnical_(
+      requests,
+      before.tech.budgets,
+      previousBudgets,
+      nextBudgets.slice(previousBudgets.length),
+    );
   appendTechnical_(requests, before.tech.audit, before.technical.audit, audit);
   appendTechnical_(requests, before.tech.requests, before.technical.requests, [
     [
@@ -2246,7 +2361,9 @@ function diagnostics_(s) {
       [&#x27;requests&#x27;, &#x27;audit&#x27;, &#x27;observations&#x27;].every((k) =&gt; s.tech[k]) &amp;&amp;
       capacityReady &amp;&amp;
       calculationReady,
-    priceReady: Object.keys(TECH_SCHEMA_).every((k) =&gt; s.tech[k]),
+    priceReady: [&#x27;requests&#x27;, &#x27;audit&#x27;, &#x27;observations&#x27;, &#x27;funds&#x27;, &#x27;quotes&#x27;].every(
+      (k) =&gt; s.tech[k],
+    ),
     priceProviders: [&#x27;VDOS / Quefondos&#x27;],
     capacityReady,
     calculationReady,
@@ -2341,9 +2458,69 @@ function publicSnapshot_(s) {
     tables: data,
     observations,
     prices: priceSnapshot_(s),
+    supportsBudgets: true,
+    budgets: (s.technical.budgets || [])
+      .filter((r) =&gt; r[4])
+      .map((r) =&gt; ({ month: r[1], category: r[2], amount: r[3] })),
+    charts: nativeCharts_(s, data),
     summary: nativeSummary_(s, data),
     bookKey: s.bookKey,
   });
+}
+
+function nativeCharts_(s, data) {
+  const finite = (v) =&gt;
+    typeof v === &#x27;number&#x27; &amp;&amp; Number.isFinite(v) ? v : null;
+  const block = (kind) =&gt; (s.chartValues || {})[SUPPORT_NAMES_[kind]] || [];
+  const summary = s.summaryValues || [];
+  const headerIndex = summary.findIndex((r) =&gt;
+    [&#x27;Mes&#x27;, &#x27;Ingresos&#x27;, &#x27;Gastos&#x27;, &#x27;Efectivo&#x27;].every((label) =&gt;
+      r.includes(label),
+    ),
+  );
+  const monthly = [];
+  if (headerIndex &gt;= 0) {
+    const header = summary[headerIndex];
+    for (const row of summary.slice(headerIndex + 1, headerIndex + 13)) {
+      if (blank_(row[header.indexOf(&#x27;Mes&#x27;)])) continue;
+      monthly.push({
+        label: String(row[header.indexOf(&#x27;Mes&#x27;)]),
+        income: finite(row[header.indexOf(&#x27;Ingresos&#x27;)]),
+        expense: finite(row[header.indexOf(&#x27;Gastos&#x27;)]),
+        cash: finite(row[header.indexOf(&#x27;Efectivo&#x27;)]),
+      });
+    }
+  }
+  const pairs = (kind) =&gt;
+    block(kind)
+      .filter((r) =&gt; !blank_(r[0]))
+      .map((r) =&gt; ({ label: String(r[0]), value: finite(r[1]) }));
+  const investments = block(&#x27;months&#x27;)
+    .filter((r) =&gt; !blank_(r[0]))
+    .map((r) =&gt; ({
+      label:
+        typeof r[0] === &#x27;number&#x27; ? isoDate_(r[0]).slice(0, 7) : String(r[0]),
+      capital: finite(r[1]),
+      value: finite(r[2]),
+    }));
+  const missing = new Set(nativeSummary_(s, data).missingPrices);
+  const positions = data.tProductos.map((p) =&gt; ({
+    label: p.Producto,
+    group: p.Clase,
+    value: missing.has(p.Producto) ? null : finite(p.Valor),
+  }));
+  return {
+    source: &#x27;Sheets · cálculos y tablas nativas&#x27;,
+    monthly,
+    categories: pairs(&#x27;categories&#x27;),
+    cities: pairs(&#x27;cities&#x27;),
+    investments,
+    positions,
+    salary: data.tNominas.map((n) =&gt; {
+      const m = data.tMovimientos.find((row) =&gt; row.ID === n.Movimiento);
+      return { label: m?.Fecha || &#x27;Sin fecha&#x27;, value: finite(m?.Importe) };
+    }),
+  };
 }
 
 // Resumen leído del motor nativo, con cabeceras verificadas; nunca un motor paralelo.
@@ -2501,6 +2678,8 @@ function financialApi(request) {
         requestId,
         now,
       );
+      if (applied.state.technical.budgets.length &amp;&amp; !before.tech.budgets)
+        before = initializeBackendUnlocked_(config);
       // La preparación de estructura no registra operaciones: las entradas, caja y solicitud
       // siguen en un único lote. Un fallo aquí permite reintentar el mismo sobre sin duplicar.
       before = prepareCapacity_(config, before, applied.state);
@@ -4034,7 +4213,11 @@ function refreshPrices_(config, request) {
     checkRequestBook_(request, state);
     const replay = replayPrices_(state, requestId, fingerprint);
     if (replay) return { replay };
-    if (!Object.keys(TECH_SCHEMA_).every((k) =&gt; state.tech[k]))
+    if (
+      ![&#x27;requests&#x27;, &#x27;audit&#x27;, &#x27;observations&#x27;, &#x27;funds&#x27;, &#x27;quotes&#x27;].every(
+        (k) =&gt; state.tech[k],
+      )
+    )
       fail_(&#x27;NOT_INITIALIZED&#x27;, &#x27;Ejecuta comprobarPaso4 desde el editor.&#x27;);
     if (state.revision !== request.expectedRevision)
       fail_(
