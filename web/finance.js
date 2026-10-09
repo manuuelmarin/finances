@@ -32,7 +32,7 @@
   const store = new FinanceSync.BrowserStore();
   const el = (tag, text, cls) => {
     const e = document.createElement(tag);
-    if (text !== undefined) e.textContent = text;
+    if (text !== undefined) e.textContent = presentation(text);
     if (cls) e.className = cls;
     return e;
   };
@@ -359,6 +359,45 @@
       await render();
     }
   }
+  function presentation(value) {
+    return typeof value === 'string'
+      ? value.replace(/\bEFECTIVO\b/g, 'Efectivo')
+      : value;
+  }
+  const displayValue = (key, value, book) =>
+    presentation(D.displayValue(key, value, book));
+  function priceSource(value) {
+    const raw = String(value || 'Sin dato');
+    try {
+      const url = new URL(raw);
+      if (
+        url.protocol === 'https:' &&
+        url.hostname === 'www.quefondos.com' &&
+        !url.username &&
+        !url.password &&
+        (!url.port || url.port === '443')
+      ) {
+        const link = el('a', 'Fuente');
+        link.href = url.href;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.setAttribute(
+          'aria-label',
+          'Fuente de precios · Quefondos (abre en otra pestaña)',
+        );
+        return link;
+      }
+      return el('span', 'Fuente sin enlace verificado');
+    } catch {
+      return el(
+        'span',
+        /(?:https?:|javascript:|data:|www\.)/i.test(raw)
+          ? 'Fuente sin enlace verificado'
+          : raw,
+      );
+    }
+  }
+  const tableState = new Map();
   function cell(key, value) {
     const labels = {
       desconocido: 'Hora o corte desconocido',
@@ -383,63 +422,138 @@
         return numbers.format(value);
       return money.format(value);
     }
-    return D.displayValue(key, value, snapshot);
+    return displayValue(key, value, snapshot);
   }
   function table(parent, rows, columns, name, actions = true) {
     parent.replaceChildren();
-    if (!rows.length) {
-      parent.append(
-        el(
-          'p',
-          snapshot
-            ? 'No hay registros para esta selección.'
-            : 'Abre el libro para cargar sus registros.',
-          'empty-state',
-        ),
+    const state = tableState.get(name) || { filters: {}, sort: null };
+    tableState.set(name, state);
+    const visibleColumns = columns;
+    const numericColumn = (key) =>
+      rows.some((row) => typeof row[key] === 'number') ||
+      /Importe|Saldo|Valor|Resultado|Rentabilidad|Participaciones|Precio|Comisión|Retención|Recuperable|Meta|Asignado|Pendiente|Avance|Neto|Bruto|Cotización|IRPF|deducciones|VL EUR|amount|difference/.test(
+        key,
       );
-      return;
-    }
+    const dateColumn = (key) => /Fecha|^date$/.test(key);
+    const filtered = rows.filter((row) =>
+      visibleColumns.every(([key]) => {
+        const filter = state.filters[key] || {};
+        if (numericColumn(key) || dateColumn(key)) {
+          if (!filter.min && !filter.max) return true;
+          const value = row[key];
+          if (value === null || value === undefined || value === '')
+            return false;
+          return (
+            (!filter.min ||
+              value >=
+                (numericColumn(key) ? Number(filter.min) : filter.min)) &&
+            (!filter.max ||
+              value <= (numericColumn(key) ? Number(filter.max) : filter.max))
+          );
+        }
+        return (
+          !filter.text ||
+          D.normalize(cell(key, row[key])).includes(D.normalize(filter.text))
+        );
+      }),
+    );
+    if (state.sort)
+      filtered.sort((a, b) => {
+        const key = state.sort.key,
+          av = a[key],
+          bv = b[key];
+        if (av === null || av === undefined || av === '')
+          return bv === null || bv === undefined || bv === '' ? 0 : 1;
+        if (bv === null || bv === undefined || bv === '') return -1;
+        const order = numericColumn(key)
+          ? av - bv
+          : String(dateColumn(key) ? av : cell(key, av)).localeCompare(
+              String(dateColumn(key) ? bv : cell(key, bv)),
+              'es',
+              { numeric: true },
+            );
+        return state.sort.direction === 'ascending' ? order : -order;
+      });
     const wrap = el('div', undefined, 'table-scroll');
     const t = el('table', undefined, 'finance-table');
-    const visibleColumns =
-      name === 'tMovimientos' && actions
-        ? columns.filter(([key]) =>
-            ['Fecha', 'Tipo', 'Concepto', 'Origen', 'Importe'].includes(key),
-          )
-        : columns;
-    const compact = visibleColumns.length < columns.length;
+    const compact = name === 'tMovimientos';
     const caption = el(
       'caption',
-      `${Math.min(rows.length, limit)}${rows.length > limit ? ' de ' + rows.length : ''} registros`,
+      `${Math.min(filtered.length, limit)}${filtered.length > limit ? ' de ' + filtered.length : ''} registros`,
     );
     t.append(caption);
     const head = el('thead'),
       hr = el('tr');
+    const filterRow = el('tr', undefined, 'table-filter-row');
     for (const [key, label] of visibleColumns) {
-      const th = el('th', label || key);
+      const title = label || key;
+      const th = el('th');
       th.scope = 'col';
+      th.setAttribute(
+        'aria-sort',
+        state.sort?.key === key ? state.sort.direction : 'none',
+      );
+      const sort = button(title, () => {
+        state.sort = {
+          key,
+          direction:
+            state.sort?.key === key && state.sort.direction === 'ascending'
+              ? 'descending'
+              : 'ascending',
+        };
+        table(parent, rows, columns, name, actions);
+        parent.querySelector(`[data-sort-key="${key}"]`)?.focus();
+      });
+      sort.classList.add('column-sort');
+      sort.dataset.sortKey = key;
+      sort.setAttribute('aria-label', 'Ordenar por ' + title);
+      th.append(sort);
+      const filterCell = el('td');
+      filterCell.dataset.label = 'Filtrar ' + title;
+      for (const part of numericColumn(key) || dateColumn(key)
+        ? ['min', 'max']
+        : ['text']) {
+        const input = el('input', undefined, 'column-filter');
+        input.type = dateColumn(key)
+          ? 'date'
+          : numericColumn(key)
+            ? 'number'
+            : 'search';
+        if (input.type === 'number') input.step = 'any';
+        input.value = state.filters[key]?.[part] || '';
+        input.setAttribute(
+          'aria-label',
+          'Filtrar ' +
+            title +
+            (part === 'min' ? ' desde' : part === 'max' ? ' hasta' : ''),
+        );
+        input.placeholder =
+          part === 'min' ? 'Desde' : part === 'max' ? 'Hasta' : 'Filtrar';
+        input.addEventListener('change', () => {
+          state.filters[key] = { ...state.filters[key], [part]: input.value };
+          limit = 50;
+          table(parent, rows, columns, name, actions);
+        });
+        filterCell.append(input);
+      }
+      filterRow.append(filterCell);
       if (rows.some((row) => typeof row[key] === 'number'))
         th.className = 'numeric';
       hr.append(th);
     }
     if (actions) hr.append(el('th', 'Acciones'));
-    head.append(hr);
+    if (actions) filterRow.append(el('td'));
+    head.append(hr, filterRow);
     t.append(head);
     const body = el('tbody');
-    for (const [index, row] of rows.slice(0, limit).entries()) {
+    for (const [index, row] of filtered.slice(0, limit).entries()) {
       const tr = el('tr');
       for (const [key, label] of visibleColumns) {
-        const td = el('td', cell(key, row[key]));
+        const td = el('td');
+        if (key === 'Fuente') td.append(priceSource(row[key]));
+        else td.textContent = cell(key, row[key]);
         td.dataset.label = label || key;
         if (typeof row[key] === 'number') td.className = 'numeric';
-        if (compact && key === 'Concepto' && row.Subcategoría)
-          td.append(
-            el(
-              'span',
-              D.displayValue('Subcategoría', row.Subcategoría, snapshot),
-              'cell-secondary',
-            ),
-          );
         tr.append(td);
       }
       let detailRow;
@@ -477,14 +591,27 @@
       body.append(tr);
       if (detailRow) body.append(detailRow);
     }
+    if (!filtered.length) {
+      const empty = el('tr'),
+        message = el(
+          'td',
+          snapshot
+            ? 'No hay registros para esta selección.'
+            : 'Abre el libro para cargar sus registros.',
+          'empty-state',
+        );
+      message.colSpan = visibleColumns.length + (actions ? 1 : 0);
+      empty.append(message);
+      body.append(empty);
+    }
     t.append(body);
     wrap.append(t);
     parent.append(wrap);
-    if (rows.length > limit)
+    if (filtered.length > limit)
       parent.append(
-        button(`Mostrar más (${rows.length - limit})`, () => {
+        button(`Mostrar más (${filtered.length - limit})`, () => {
           limit += 50;
-          renderRegister();
+          table(parent, rows, columns, name, actions);
         }),
       );
   }
@@ -503,6 +630,7 @@
     ],
     tProductos: [
       ['Producto'],
+      ['ISIN'],
       ['Cuenta'],
       ['Clase'],
       ['Participaciones'],
@@ -514,6 +642,7 @@
     tOperaciones: [
       ['Fecha'],
       ['Producto'],
+      ['ISIN'],
       ['Tipo'],
       ['Participaciones'],
       ['Precio'],
@@ -521,7 +650,7 @@
       ['Retención'],
       ['Importe'],
     ],
-    tPrecios: [['Producto'], ['Fecha'], ['VL EUR'], ['Fuente']],
+    tPrecios: [['Producto'], ['ISIN'], ['Fecha'], ['VL EUR'], ['Fuente']],
     tCuentas: [
       ['Cuenta'],
       ['Saldo inicial'],
@@ -580,7 +709,8 @@
   };
   const registerSelection = new Map(),
     registerFilters = new Map();
-  let registerView = 'book';
+  let registerView = 'book',
+    activeView = location.hash.slice(1) || 'home';
   function selectRegister(name, focus = false) {
     registerFilters.set($('finance-section').value, {
       search: $('finance-search').value,
@@ -606,6 +736,7 @@
     renderRegister();
   }
   function registerContext(view) {
+    activeView = view;
     if (!registerViews[view]) return;
     registerView = view;
     document
@@ -658,6 +789,15 @@
       name === 'observations'
         ? snapshot?.observations || []
         : snapshot?.tables[name] || [];
+    if (['tProductos', 'tOperaciones', 'tPrecios'].includes(name))
+      rows = rows.map((row) => ({
+        ...row,
+        ISIN:
+          snapshot?.prices?.find(
+            (price) =>
+              price.product === (name === 'tProductos' ? row.ID : row.Producto),
+          )?.isin || null,
+      }));
     rows = rows.filter((row) => {
       const date = row.Fecha || row['Fecha cobro'] || row.date;
       return (
@@ -665,7 +805,7 @@
         (!to || (date && date <= to)) &&
         (!query ||
           columns[name].some(([k]) =>
-            D.normalize(D.displayValue(k, row[k], snapshot)).includes(query),
+            D.normalize(displayValue(k, row[k], snapshot)).includes(query),
           ))
       );
     });
@@ -703,10 +843,15 @@
           el('strong', price.name + ' · '),
           document.createTextNode(
             price.lastValid
-              ? `Último precio guardado: ${numbers.format(price.lastValid.price)} EUR · ${price.lastValid.date} · ${price.lastValid.source}. `
+              ? `Último precio guardado: ${numbers.format(price.lastValid.price)} EUR · ${price.lastValid.date}. `
               : 'Sin precio guardado. ',
           ),
         );
+        if (price.lastValid?.source)
+          p.append(
+            priceSource(price.lastValid.source),
+            document.createTextNode('. '),
+          );
         const attempt = price.lastAttempt?.detail;
         p.append(
           document.createTextNode(
@@ -751,39 +896,6 @@
           .map(([k, v]) => k + ' ' + v)
           .join(' · ')}.`
       : '';
-    const kpis = $('finance-kpis');
-    kpis.hidden = !snapshot;
-    kpis.replaceChildren();
-    const metrics =
-      snapshot?.summary?.metrics ||
-      [
-        'Patrimonio neto',
-        'Efectivo',
-        'Inversiones',
-        'Deuda',
-        'Ingresos',
-        'Gastos propios',
-        'Ahorro',
-        'Tasa de ahorro',
-      ].map((label) => ({ label, value: null }));
-    for (const m of metrics) {
-      const card = el('article', undefined, 'kpi-card');
-      card.append(
-        el('span', m.label),
-        el(
-          'strong',
-          m.value === null
-            ? 'Sin dato'
-            : m.label === 'Tasa de ahorro'
-              ? new Intl.NumberFormat('es-ES', {
-                  style: 'percent',
-                  maximumFractionDigits: 1,
-                }).format(m.value)
-              : money.format(m.value),
-        ),
-      );
-      kpis.append(card);
-    }
     const warnings = [];
     if (snapshot?.calculationState === 'needs_review')
       warnings.push(
@@ -814,16 +926,6 @@
       );
     $('finance-warning').textContent = warnings.join(' ');
     $('finance-warning').hidden = !warnings.length;
-    table(
-      $('finance-recent'),
-      (snapshot?.tables.tMovimientos || [])
-        .slice()
-        .sort((a, b) => b.Fecha.localeCompare(a.Fecha))
-        .slice(0, 5),
-      [['Fecha'], ['Concepto'], ['Importe']],
-      'tMovimientos',
-      false,
-    );
     renderRegister();
     renderQueue(data.queue);
     FinanceDashboard.render(snapshot, { review: showReview });
@@ -940,7 +1042,8 @@
               ['true', 'Sí'],
               ['false', 'No'],
             ];
-      for (const [id, name] of values) input.append(new Option(name, id));
+      for (const [id, name] of values)
+        input.append(new Option(presentation(name), id));
     } else {
       input = el('input');
       input.type = ['date', 'time'].includes(f.type) ? f.type : 'text';
@@ -962,6 +1065,8 @@
       spec = D.processes[process];
     $('operation-title').textContent = spec.label;
     const parent = $('operation-fields');
+    const additionalOpen =
+      parent.querySelector('.operation-additional')?.open || false;
     parent.replaceChildren();
     const today = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Europe/Madrid',
@@ -969,12 +1074,39 @@
       month: '2-digit',
       day: '2-digit',
     }).format(new Date());
+    const simple = ['gasto', 'ingreso', 'traspaso'].includes(process);
+    const additional = el('details', undefined, 'operation-additional');
+    additional.open = additionalOpen;
+    additional.append(el('summary', 'Opciones adicionales'));
     for (const f of spec.fields) {
       let initial = f.initial;
       if (f.type === 'date' && f.required)
         initial = snapshot?.settings[f.key] || today;
       if (Object.hasOwn(values, f.key)) initial = values[f.key];
-      parent.append(fieldInput(f, initial));
+      const optionalConcept = simple && f.key === 'concept';
+      const field = fieldInput(
+        optionalConcept
+          ? { ...f, required: false, label: 'Concepto (opcional)' }
+          : f,
+        initial,
+      );
+      if (
+        simple &&
+        !['date', 'account', 'from', 'to', 'category', 'amount'].includes(f.key)
+      )
+        additional.append(field);
+      else parent.append(field);
+    }
+    if (simple) {
+      additional.append(
+        el(
+          'p',
+          'Si dejas el concepto vacío se guardará «' +
+            spec.label +
+            '». Revisa esa descripción antes de confirmar.',
+        ),
+      );
+      parent.append(additional);
     }
     if (process === 'renombrar')
       $('operation-kind').form.elements.kind.addEventListener('change', () => {
@@ -1009,6 +1141,7 @@
   async function newOperation(process) {
     try {
       if ($('operation-dialog').open) return;
+      operationChoices(process);
       if (typeof process === 'string') $('operation-kind').value = process;
       editing = null;
       $('operation-kind-field').hidden = false;
@@ -1165,14 +1298,14 @@
         if (['process', 'table', 'key'].includes(key)) continue;
         if (key === 'changes') {
           for (const [k, v] of Object.entries(value)) {
-            dl.append(el('dt', k), el('dd', D.displayValue(k, v, snapshot)));
+            dl.append(el('dt', k), el('dd', displayValue(k, v, snapshot)));
           }
           continue;
         }
         const f = D.processes[op.process]?.fields.find((f) => f.key === key);
         dl.append(
           el('dt', f?.label || key),
-          el('dd', D.displayValue(key, value, snapshot)),
+          el('dd', displayValue(key, value, snapshot)),
         );
       }
     }
@@ -1257,6 +1390,11 @@
         label = 'Corregir ' + D.readable(editing.name, editing.row, snapshot);
       } else {
         const process = $('operation-kind').value;
+        if (
+          ['gasto', 'ingreso', 'traspaso'].includes(process) &&
+          !String(values.concept || '').trim()
+        )
+          values.concept = D.processes[process].label;
         op = D.operation(process, values);
         label =
           D.processes[process].label +
@@ -1308,9 +1446,49 @@
   $('operation-cancel').addEventListener('click', () =>
     $('operation-dialog').close(),
   );
-  for (const [key, spec] of Object.entries(D.processes))
-    if (spec.ui !== false)
-      $('operation-kind').append(new Option(spec.label, key));
+  const viewProcesses = {
+    book: [
+      'gasto',
+      'ingreso',
+      'traspaso',
+      'devolucion_gasto',
+      'cobro_compartido',
+    ],
+    investments: [
+      'compra',
+      'venta',
+      'rendimiento',
+      'producto',
+      'precio',
+      'vincular_isin',
+    ],
+    accounts: [
+      'cuenta',
+      'saldo_observado',
+      'deuda_inicial',
+      'prestamo',
+      'pago_deuda',
+      'renombrar',
+    ],
+    salary: ['nomina'],
+    goals: ['objetivo', 'asignacion'],
+    connection: ['categoria', 'fechas', 'renombrar'],
+  };
+  function operationChoices(process) {
+    const choices =
+      activeView === 'home'
+        ? ['gasto', 'ingreso', 'traspaso']
+        : viewProcesses[registerView] || viewProcesses.book;
+    const contextual = choices.includes(process)
+      ? choices
+      : Object.values(viewProcesses).find((list) => list.includes(process)) ||
+        choices;
+    $('operation-kind').replaceChildren();
+    for (const key of contextual)
+      if (D.processes[key]?.ui !== false && D.processes[key])
+        $('operation-kind').append(new Option(D.processes[key].label, key));
+  }
+  operationChoices();
   $('operation-kind').addEventListener('change', () => processFields());
   $('operation-load').addEventListener('click', () => {
     void loadOperation();
@@ -1399,8 +1577,9 @@
   window.addEventListener('finances:navigate', (event) =>
     registerContext(event.detail.view),
   );
+  registerContext('book');
   registerContext(
-    registerViews[location.hash.slice(1)] ? location.hash.slice(1) : 'book',
+    registerViews[location.hash.slice(1)] ? location.hash.slice(1) : 'home',
   );
   window.addEventListener('finances:configuration', () => {
     void configure().catch((error) => status(errorText(error)));

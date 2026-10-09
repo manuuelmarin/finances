@@ -6,336 +6,511 @@ const FinanceDashboard = (() => {
     style: 'currency',
     currency: 'EUR',
   });
+  const percentage = new Intl.NumberFormat('es-ES', {
+    maximumFractionDigits: 2,
+  });
+  const known = FinanceAnalytics.finite;
+  const amount = (v) => (known(v) ? money.format(v) : 'Sin dato');
+  const labelAccount = (v) => (v === 'EFECTIVO' ? 'Efectivo' : v);
   const el = (tag, text, cls) => {
-    const element = document.createElement(tag);
-    if (text !== undefined) element.textContent = text;
-    if (cls) element.className = cls;
-    return element;
+    const node = document.createElement(tag);
+    if (text !== undefined) node.textContent = text;
+    if (cls) node.className = cls;
+    return node;
   };
-  const svg = (tag, attributes = {}, text) => {
-    const element = document.createElementNS('http://www.w3.org/2000/svg', tag);
-    for (const [key, value] of Object.entries(attributes))
-      element.setAttribute(key, value);
-    if (text !== undefined) element.textContent = text;
-    return element;
-  };
-  let current = null;
-  let api = null;
-  let month = null;
-  const palettes = [
-    'chart-mint',
-    'chart-copper',
-    'chart-blue',
-    'chart-lilac',
-    'chart-gold',
-  ];
-  function series(parent, title, rows, fields, line = false) {
-    const card = el('article', undefined, 'chart-card');
-    const heading = el('div', undefined, 'chart-heading');
-    heading.append(el('h3', title), el('span', 'EUR', 'chart-unit'));
-    card.append(heading);
-    const legend = el('div', undefined, 'chart-legend');
-    fields.forEach(([key, label], i) =>
-      legend.append(el('span', label, palettes[i])),
+  let current = null,
+    api = null,
+    month = null,
+    cashMonth = null,
+    spendMonth = null,
+    excluded = '',
+    product = '',
+    range = 'all';
+  const metric = (name) =>
+    current?.summary?.metrics?.find((r) => r.label === name)?.value ?? null;
+  function stat(parent, label, value, note = '', primary = false) {
+    const node = el('article', undefined, primary ? 'kpi kpi-primary' : 'kpi');
+    node.append(
+      el('span', label, 'kpi-label'),
+      el('strong', value, 'kpi-value'),
     );
-    card.append(legend);
-    const known = rows
-      .flatMap((r) => fields.map(([key]) => r[key]))
-      .filter(FinanceAnalytics.finite);
-    if (!known.length || known.every((v) => v === 0)) {
-      card.append(
-        el(
-          'p',
-          known.length
-            ? 'Sin importe en este periodo.'
-            : 'Sin datos de cálculo disponibles.',
-          'chart-empty',
-        ),
-      );
-    } else {
-      const width = window.innerWidth <= 600 ? 360 : 560;
-      const left = 56,
-        right = width - 16,
-        plotWidth = right - left;
-      const chart = svg('svg', {
-        viewBox: `0 0 ${width} 250`,
-        role: 'img',
-        'aria-label': title,
-        class: 'finance-chart',
-      });
-      const min = Math.min(0, ...known),
-        max = Math.max(0, ...known),
-        span = max - min || 1;
-      const y = (v) => 207 - ((v - min) / span) * 175;
-      const x = (i) =>
-        left + ((i + 0.5) * plotWidth) / Math.max(rows.length, 1);
-      for (let i = 0; i <= 3; i++) {
-        const value = min + (span * i) / 3;
-        chart.append(
-          svg('line', {
-            x1: left,
-            x2: right,
-            y1: y(value),
-            y2: y(value),
-            class: 'chart-gridline',
-          }),
-          svg(
-            'text',
-            {
-              x: left - 6,
-              y: y(value) + 4,
-              'text-anchor': 'end',
-              class: 'chart-axis',
-            },
-            new Intl.NumberFormat('es-ES', {
-              notation: 'compact',
-              maximumFractionDigits: 1,
-            }).format(value),
-          ),
-        );
-      }
-      fields.forEach(([key], color) => {
-        let previous = null;
-        rows.forEach((row, i) => {
-          const value = row[key];
-          if (!FinanceAnalytics.finite(value)) {
-            previous = null;
-            return;
-          }
-          if (line) {
-            if (previous)
-              chart.append(
-                svg('line', {
-                  x1: previous.x,
-                  y1: previous.y,
-                  x2: x(i),
-                  y2: y(value),
-                  class: 'chart-line ' + palettes[color],
-                }),
-              );
-            const dot = svg('circle', {
-              cx: x(i),
-              cy: y(value),
-              r: 4,
-              class: palettes[color],
-            });
-            dot.append(
-              svg('title', {}, row.label + ' · ' + money.format(value)),
-            );
-            chart.append(dot);
-            previous = { x: x(i), y: y(value) };
-          } else {
-            const width = Math.max(
-              2,
-              Math.min(32, (plotWidth * 0.8) / rows.length / fields.length),
-            );
-            const bar = svg('rect', {
-              x: x(i) + (color - fields.length / 2) * width,
-              y: Math.min(y(value), y(0)),
-              width: width - 1,
-              height: Math.max(1, Math.abs(y(value) - y(0))),
-              rx: 3,
-              class: palettes[color],
-            });
-            bar.append(
-              svg('title', {}, row.label + ' · ' + money.format(value)),
-            );
-            chart.append(bar);
-          }
-        });
-      });
-      const ticks = width <= 360 ? 3 : 6;
-      const tickCount = Math.min(ticks, rows.length);
-      const tickIndices = new Set(
-        Array.from({ length: tickCount }, (_, i) =>
-          Math.round((i * (rows.length - 1)) / Math.max(1, tickCount - 1)),
-        ),
-      );
-      rows.forEach((row, i) => {
-        if (tickIndices.has(i))
-          chart.append(
-            svg(
-              'text',
-              { x: x(i), y: 234, 'text-anchor': 'middle', class: 'chart-axis' },
-              row.label.slice(0, width <= 360 ? 10 : 12),
-            ),
-          );
-      });
-      card.append(chart);
-    }
-    const details = el('details', undefined, 'chart-data');
-    details.append(el('summary', 'Ver datos'));
-    const table = el('table', undefined, 'chart-table');
-    table.append(el('caption', title + ' · EUR'));
-    const head = el('tr');
-    head.append(el('th', 'Periodo / categoría'));
-    fields.forEach(([, label]) => head.append(el('th', label)));
-    table.append(head);
-    for (const row of rows) {
-      const tr = el('tr');
-      tr.append(el('th', row.label));
-      fields.forEach(([key]) =>
-        tr.append(
-          el(
-            'td',
-            FinanceAnalytics.finite(row[key])
-              ? money.format(row[key])
-              : 'Sin dato',
-          ),
-        ),
-      );
-      table.append(tr);
-    }
-    details.append(table);
-    card.append(details);
-    parent.append(card);
+    if (note) node.append(el('small', note, 'kpi-note'));
+    parent.append(node);
   }
-  function distribution(parent, title, rows) {
-    const card = el('article', undefined, 'chart-card');
-    card.append(el('h3', title));
-    const valid = rows.filter(
-      (r) => FinanceAnalytics.finite(r.value) && r.value > 0,
-    );
-    const total = valid.reduce((sum, r) => sum + r.value, 0);
-    if (rows.some((r) => r.value === null))
-      card.append(
-        el(
-          'p',
-          'Distribución parcial: hay valores desconocidos.',
-          'field-message',
-        ),
-      );
-    if (rows.some((r) => r.value < 0))
-      card.append(
-        el(
-          'p',
-          'El reparto muestra importes positivos. Los negativos se conservan en el gráfico de categorías.',
-          'calculator-note',
-        ),
-      );
-    if (!total) card.append(el('p', 'Sin importes positivos.', 'chart-empty'));
-    else {
-      const chart = svg('svg', {
-        viewBox: '0 0 260 210',
-        class: 'donut-chart',
-        role: 'img',
-        'aria-label': title,
-      });
-      let start = -Math.PI / 2;
-      valid.forEach((row, i) => {
-        const angle = (row.value / total) * Math.PI * 2;
-        const end = start + Math.min(angle, Math.PI * 2 - 0.00001);
-        const path = svg('path', {
-          d: `M130 105 L${130 + 76 * Math.cos(start)} ${105 + 76 * Math.sin(start)} A76 76 0 ${angle > Math.PI ? 1 : 0} 1 ${130 + 76 * Math.cos(end)} ${105 + 76 * Math.sin(end)} Z`,
-          class: palettes[i % palettes.length],
-        });
-        path.append(
-          svg('title', {}, row.label + ' · ' + money.format(row.value)),
-        );
-        chart.append(path);
-        start += angle;
-      });
-      chart.append(
-        svg('circle', { cx: 130, cy: 105, r: 53, class: 'donut-hole' }),
-        svg(
-          'text',
-          { x: 130, y: 103, 'text-anchor': 'middle', class: 'donut-total' },
-          money.format(total),
-        ),
-        svg(
-          'text',
-          { x: 130, y: 123, 'text-anchor': 'middle', class: 'chart-axis' },
-          'valor conocido',
-        ),
-      );
-      card.append(chart);
-    }
-    const list = el('ul', undefined, 'allocation-list');
-    rows.forEach((row, i) => {
-      const item = el('li');
-      item.append(
-        el('span', row.label, palettes[i % palettes.length]),
-        el('strong', row.value === null ? 'Sin dato' : money.format(row.value)),
-      );
-      list.append(item);
+  function selectOptions(id, items, selected) {
+    const node = $(id);
+    node.replaceChildren();
+    for (const [value, label] of items) node.append(new Option(label, value));
+    node.value = items.some(([v]) => v === selected)
+      ? selected
+      : items[0]?.[0] || '';
+    return node.value;
+  }
+  function cashChart(target, title) {
+    const rows = FinanceAnalytics.cashTimeline(current, cashMonth).map((r) => ({
+      ...r,
+      ...Object.fromEntries(
+        Object.entries(r.accounts).map(([k, v]) => ['account:' + k, v]),
+      ),
+    }));
+    FinanceCharts.plot(target, {
+      title,
+      rows,
+      fields: [
+        { key: 'total', label: 'Efectivo total', tone: 'chart-mint' },
+        ...(current.tables.tCuentas || []).map((a, i) => ({
+          key: 'account:' + a.Cuenta,
+          label: labelAccount(a.Cuenta),
+          tone: [
+            'chart-blue',
+            'chart-lilac',
+            'chart-copper',
+            'chart-gold',
+            'chart-red',
+          ][i % 5],
+        })),
+      ],
+      description:
+        cashMonth +
+        ' · saldo al cierre de cada día, hasta la fecha del informe. Selecciona las cuentas en la leyenda.',
     });
-    card.append(list);
-    parent.append(card);
+  }
+  function renderSummary() {
+    const kpis = $('finance-kpis');
+    kpis.replaceChildren();
+    kpis.hidden = !current;
+    const parent = $('dashboard-charts');
+    FinanceCharts.clear(parent);
+    $('dashboard-empty').hidden = Boolean(current);
+    $('dashboard-grid').hidden = !current;
+    if (!current) return;
+    const reportMonth = current.settings.asof.slice(0, 7);
+    const net = metric('Patrimonio neto'),
+      cash = metric('Efectivo'),
+      invested = metric('Inversiones'),
+      debt = metric('Deuda');
+    const assets = known(cash) && known(invested) ? cash + invested : null;
+    const weight =
+      known(assets) && assets > 0
+        ? percentage.format((invested / assets) * 100) + ' % sobre activos'
+        : 'Peso sin dato';
+    stat(
+      kpis,
+      'Patrimonio neto',
+      amount(net),
+      'Informe ' + current.settings.asof,
+      true,
+    );
+    stat(kpis, 'Inversiones', amount(invested), weight);
+    const free = FinanceAnalytics.freeBudget(current, reportMonth);
+    stat(
+      kpis,
+      'Saldo libre del mes',
+      amount(free),
+      reportMonth +
+        (free === null
+          ? ' · define un límite total en Presupuestos'
+          : free < 0
+            ? ' · por encima del presupuesto'
+            : ' · presupuesto total menos gasto propio'),
+    );
+    const layout = el('article', undefined, 'asset-breakdown');
+    const heading = el('div', undefined, 'section-heading');
+    heading.append(
+      el('h3', 'Composición del patrimonio'),
+      el('span', 'Informe ' + current.settings.asof, 'heading-note'),
+    );
+    layout.append(heading);
+    const rows = [
+      { label: 'Inversiones', value: invested, class: 'asset-investments' },
+      ...(current.tables.tCuentas || []).map((a) => ({
+        label: labelAccount(a.Cuenta),
+        value: a['Saldo calculado'],
+        class: 'asset-cash',
+      })),
+    ];
+    const positive = rows.reduce(
+      (sum, r) => sum + (known(r.value) && r.value > 0 ? r.value : 0),
+      0,
+    );
+    // Native progress is CSP-safe: no inline style or guessed balances.
+    for (const r of rows) {
+      if (!known(r.value)) continue;
+      const line = el('div', undefined, 'asset-row');
+      const value = el('strong', amount(r.value));
+      line.append(el('span', r.label), value);
+      const bar = el('progress', undefined, r.class);
+      bar.max = Math.max(1, positive);
+      bar.value = Math.max(0, r.value);
+      bar.setAttribute(
+        'aria-label',
+        'Peso de ' + r.label + ' sobre activos positivos conocidos',
+      );
+      line.append(bar);
+      layout.append(line);
+    }
+    layout.append(
+      el(
+        'p',
+        'Efectivo total ' + amount(cash) + ' · Deuda ' + amount(debt),
+        'asset-footnote',
+      ),
+    );
+    parent.append(layout);
+    const a = FinanceAnalytics.spendingAnalysis(current, reportMonth);
+    FinanceCharts.donut(parent, {
+      title: 'Gastos del mes',
+      rows: a.categories,
+      description:
+        reportMonth +
+        ' · gasto propio por categoría. El total incluye todas las categorías.',
+    });
+    cashChart(parent, 'Evolución diaria del efectivo');
+    $('cash-month').value = cashMonth;
+    $('chart-cut').textContent =
+      'Informe ' +
+      current.settings.asof +
+      ' · valoración de inversiones ' +
+      current.settings.valuation +
+      '. Las series analíticas usan registros completos; los filtros del resumen nativo se indican arriba.';
+  }
+  function renderSpending() {
+    const target = $('spending-charts');
+    FinanceCharts.clear(target);
+    $('spending-summary').replaceChildren();
+    if (!current) {
+      target.append(
+        el('p', 'Abre el libro para analizar tus gastos.', 'empty-state'),
+      );
+      return;
+    }
+    const all = FinanceAnalytics.spendingAnalysis(current, spendMonth);
+    excluded = selectOptions(
+      'spending-exclude',
+      [
+        ['', 'Todas las categorías'],
+        ...all.categories.map((r) => [r.label, 'Sin ' + r.label]),
+      ],
+      excluded,
+    );
+    $('spending-month').value = spendMonth;
+    const a = FinanceAnalytics.spendingAnalysis(current, spendMonth, {
+      excludeCategory: excluded || null,
+    });
+    stat(
+      $('spending-summary'),
+      'Gasto propio',
+      amount(a.total),
+      spendMonth + (excluded ? ' · excluye ' + excluded : ''),
+    );
+    const daily = a.daily.filter((r) => known(r.value) && r.value > 0);
+    stat(
+      $('spending-summary'),
+      'Días con gasto',
+      String(daily.length),
+      'Hasta ' + current.settings.asof,
+    );
+    stat(
+      $('spending-summary'),
+      'Gasto recurrente',
+      amount(a.recurring.find((r) => r.label === 'Recurrente')?.value ?? 0),
+      'Solo los registros clasificados como recurrentes',
+    );
+    $('spending-note').textContent = excluded
+      ? 'Excluido ' +
+        excluded +
+        ': ' +
+        amount(a.excluded) +
+        '. Los porcentajes usan el total restante.'
+      : 'Importe menos parte recuperable y devoluciones. No incluye inversiones, transferencias ni pagos de deuda.';
+    FinanceCharts.donut(target, {
+      title: excluded
+        ? 'Distribución sin ' + excluded
+        : 'Distribución del gasto',
+      rows: a.categories,
+      description: spendMonth + ' · importe y porcentaje seleccionables',
+    });
+    FinanceCharts.plot(target, {
+      title: 'Gasto acumulado del mes',
+      rows: a.daily,
+      fields: [
+        {
+          key: 'cumulative',
+          label: 'Acumulado',
+          tone: 'chart-copper',
+          shape: 'step',
+        },
+      ],
+      description:
+        'Cambios en los días con registros; devoluciones conservan su signo.',
+    });
+    FinanceCharts.donut(target, {
+      title: 'Gasto por ciudad',
+      rows: a.cities,
+      description: 'Las ubicaciones sin indicar permanecen sin clasificar.',
+    });
+    FinanceCharts.donut(target, {
+      title: 'Recurrencia del gasto',
+      rows: a.recurring,
+      description: 'Se utiliza la clasificación guardada en cada movimiento.',
+    });
+  }
+  function renderInvestments() {
+    const target = $('investment-charts');
+    FinanceCharts.clear(target);
+    $('investment-kpis').replaceChildren();
+    if (!current) {
+      target.append(
+        el('p', 'Abre el libro para consultar tu cartera.', 'empty-state'),
+      );
+      $('investment-coverage').textContent = '';
+      return;
+    }
+    product = selectOptions(
+      'investment-product',
+      [
+        ['', 'Cartera completa'],
+        ...(current.tables.tProductos || []).map((p) => [p.ID, p.Producto]),
+      ],
+      product,
+    );
+    $('investment-range').value = range;
+    const metrics = FinanceAnalytics.investmentMetrics(
+      current,
+      product || null,
+    );
+    stat(
+      $('investment-kpis'),
+      'Valor de mercado',
+      amount(metrics.value),
+      'Valoración ' + current.settings.valuation,
+    );
+    stat(
+      $('investment-kpis'),
+      'Aportación neta',
+      amount(metrics.capital),
+      'Base + compras − ventas',
+    );
+    const relative = known(metrics.returnPct)
+      ? metrics.returnPct
+      : known(metrics.gain) && known(metrics.capital) && metrics.capital > 0
+        ? (metrics.gain / metrics.capital) * 100
+        : null;
+    stat(
+      $('investment-kpis'),
+      'Resultado',
+      amount(metrics.gain),
+      relative === null
+        ? 'Porcentaje sin dato'
+        : percentage.format(relative) + ' % · resultado sobre aportación neta',
+    );
+    const timeline = FinanceAnalytics.investmentTimeline(current, {
+      productId: product || null,
+      range,
+    });
+    const productName = product
+      ? (current.tables.tProductos || []).find((p) => p.ID === product)
+          ?.Producto
+      : 'Cartera';
+    $('investment-coverage').textContent =
+      (timeline.firstDate
+        ? 'Histórico ' + timeline.firstDate + ' → ' + timeline.lastDate + '. '
+        : '') +
+      timeline.coverage.notices.join(' ') +
+      (timeline.coverage.missingDays
+        ? ' ' +
+          timeline.coverage.missingDays +
+          ' días sin valoración verificable.'
+        : '') +
+      (timeline.coverage.carriedDays
+        ? ' ' + timeline.coverage.carriedDays + ' días utilizan un VL anterior.'
+        : '');
+    FinanceCharts.plot(target, {
+      title: 'Valor de mercado y aportación neta',
+      rows: timeline.rows,
+      fields: [
+        {
+          key: 'capital',
+          label: 'Aportación neta',
+          shape: 'step',
+          tone: 'chart-blue',
+        },
+        { key: 'value', label: 'Valor de mercado', tone: 'chart-red' },
+      ],
+      description:
+        productName +
+        ' · aportaciones en escalera y valor con último VL registrado. No se interpolan cotizaciones.',
+    });
+    FinanceCharts.plot(target, {
+      title: product
+        ? 'Variación del valor liquidativo'
+        : 'Rentabilidad de la cartera',
+      rows: timeline.rows,
+      unit: '%',
+      fields: [
+        {
+          key: 'returnPct',
+          label: product ? 'Variación de VL' : 'Rentabilidad TWR',
+          tone: 'chart-mint',
+        },
+      ],
+      description: product
+        ? 'Desde la primera cotización real observada; no incluye distribuciones.'
+        : 'Rendimiento neutralizado por aportaciones, únicamente donde existen las valoraciones diarias necesarias. Los huecos permanecen sin dato.',
+    });
+    const positions = (current.tables.tProductos || [])
+      .filter((p) => !product || p.ID === product)
+      .map((p) => ({ label: p.Producto, value: p.Valor, group: p.Clase }));
+    if (!product)
+      FinanceCharts.donut(target, {
+        title: 'Distribución de la cartera',
+        rows: positions,
+        description:
+          'Peso sobre el valor de mercado conocido, al corte de valoración.',
+      });
+    $('prices-history-note').textContent =
+      'Los precios se guardan por producto y fecha en el libro. La fuente actual ofrece la última valoración verificable; el histórico diario anterior requiere una fuente adicional. La actualización diaria opcional se configura en Ajustes.';
+  }
+  function renderAccounts() {
+    const target = $('account-charts');
+    FinanceCharts.clear(target);
+    $('account-summary').replaceChildren();
+    if (!current) return;
+    stat(
+      $('account-summary'),
+      'Efectivo',
+      amount(metric('Efectivo')),
+      'Informe ' + current.settings.asof,
+    );
+    stat(
+      $('account-summary'),
+      'Deuda',
+      amount(metric('Deuda')),
+      'Obligaciones pendientes al corte',
+    );
+    FinanceCharts.donut(target, {
+      title: 'Saldo por cuenta',
+      rows: (current.tables.tCuentas || []).map((r) => ({
+        label: labelAccount(r.Cuenta),
+        value: r['Saldo calculado'],
+      })),
+      description:
+        'Saldos calculados a partir de la apertura y los movimientos. Los saldos negativos se conservan en la tabla.',
+    });
+    cashChart(target, 'Saldos diarios por cuenta');
+  }
+  function renderSalary() {
+    const target = $('salary-charts');
+    FinanceCharts.clear(target);
+    FinanceCharts.clear($('salary-saving-charts'));
+    if (!current) return;
+    const rows = FinanceAnalytics.salarySavings(current).map((r) => ({
+      ...r,
+      date: r.month + '-01',
+      value: r.payroll,
+    }));
+    FinanceCharts.plot(target, {
+      title: 'Nóminas registradas por mes',
+      rows,
+      fields: [
+        { key: 'value', label: 'Neto', shape: 'bar', tone: 'chart-blue' },
+      ],
+    });
+    FinanceCharts.plot($('salary-saving-charts'), {
+      title: 'Ahorro mensual sobre nómina',
+      rows,
+      unit: '%',
+      fields: [
+        {
+          key: 'rate',
+          label: 'Ahorro / nómina',
+          shape: 'bar',
+          tone: 'chart-mint',
+        },
+      ],
+      description:
+        '100 × (nómina neta − gasto propio del mes) / nómina neta. No incluye compras de inversión ni transferencias. Sin nómina positiva, no se calcula.',
+    });
   }
   function render(snapshot, handlers) {
-    if (current?.bookKey !== snapshot?.bookKey) month = null;
+    if (current?.bookKey !== snapshot?.bookKey) {
+      month = null;
+      cashMonth = null;
+      spendMonth = null;
+      product = '';
+      excluded = '';
+      range = 'all';
+    }
     current = snapshot;
     api = handlers;
-    const container = $('dashboard-charts');
-    const spending = $('spending-charts'),
-      investments = $('investment-charts'),
-      salary = $('salary-charts');
-    for (const target of [container, spending, investments, salary])
-      target.replaceChildren();
-    $('dashboard-empty').hidden = Boolean(snapshot);
-    $('dashboard-grid').hidden = !snapshot;
-    if (snapshot) {
-      const c = snapshot.charts;
-      $('chart-cut').textContent =
-        'Cortes de Sheets: informe ' +
-        snapshot.settings.asof +
-        ' · inversiones ' +
-        snapshot.settings.valuation +
-        '. Los gráficos respetan sus filtros.';
-      if (!c)
-        container.append(
-          el(
-            'p',
-            'Para mostrar los gráficos nativos, actualiza los tres archivos de Google a la entrega 3.5.0. Puedes seguir registrando movimientos.',
-            'empty-state',
-          ),
-        );
-      else {
-        series(container, 'Ingresos y gastos por mes', c.monthly, [
-          ['income', 'Ingresos'],
-          ['expense', 'Gastos propios'],
-        ]);
-        series(
-          container,
-          'Evolución del efectivo',
-          c.monthly,
-          [['cash', 'Efectivo']],
-          true,
-        );
-        series(container, 'Gasto por categoría', c.categories, [
-          ['value', 'Gasto propio'],
-        ]);
-        distribution(spending, 'Distribución del gasto', c.categories);
-        series(spending, 'Gasto por ciudad', c.cities, [
-          ['value', 'Gasto propio'],
-        ]);
-        series(
-          investments,
-          'Valor de mercado y capital invertido',
-          c.investments,
-          [
-            ['capital', 'Capital invertido'],
-            ['value', 'Valor de mercado'],
-          ],
-          true,
-        );
-        distribution(investments, 'Peso de las posiciones', c.positions);
-        distribution(
-          investments,
-          'Clases de activo',
-          FinanceAnalytics.groups(c.positions),
-        );
-        series(salary, 'Nóminas registradas', c.salary, [['value', 'Neto']]);
-      }
-      if (!month) month = snapshot.settings.asof.slice(0, 7);
+    if (current) {
+      month ||= current.settings.asof.slice(0, 7);
+      cashMonth ||= month;
+      spendMonth ||= month;
       $('budget-month').value = month;
     }
+    renderSummary();
+    renderSpending();
+    renderInvestments();
+    renderAccounts();
+    renderSalary();
     renderBudgets();
+    $('settings-environment').textContent = current
+      ? current.environment === 'production'
+        ? 'Libro principal'
+        : 'Copia de pruebas'
+      : 'Libro sin cargar';
+    $('settings-api').textContent = current?.apiVersion || 'Sin lectura';
+    $('settings-check').textContent = current?.checkedAt
+      ? new Date(current.checkedAt).toLocaleString('es-ES')
+      : 'Sin lectura';
   }
+  for (const [id, update] of [
+    [
+      'cash-month',
+      (v) => {
+        cashMonth = v;
+        renderSummary();
+        renderAccounts();
+      },
+    ],
+    [
+      'spending-month',
+      (v) => {
+        spendMonth = v;
+        renderSpending();
+      },
+    ],
+    [
+      'spending-exclude',
+      (v) => {
+        excluded = v;
+        renderSpending();
+      },
+    ],
+    [
+      'investment-product',
+      (v) => {
+        product = v;
+        renderInvestments();
+      },
+    ],
+    [
+      'investment-range',
+      (v) => {
+        range = v;
+        renderInvestments();
+      },
+    ],
+  ])
+    $(id).addEventListener('change', (event) => {
+      if (current) update(event.target.value);
+    });
   function renderBudgets() {
     const parent = $('budget-cards');
     parent.replaceChildren();
     $('saving-goals').replaceChildren();
+    FinanceCharts.clear($('goal-charts'));
     $('budget-spent').textContent = 'Sin dato';
     $('budget-new').disabled = !current?.supportsBudgets;
     $('budget-note').textContent = !current
@@ -440,8 +615,43 @@ const FinanceDashboard = (() => {
           card.append(progress);
         }
       }
+      if (known(g.Meta) && known(g.Asignado)) {
+        const remaining = Math.max(0, g.Meta - g.Asignado);
+        card.append(
+          el('p', amount(remaining) + ' pendientes', 'goal-remaining'),
+        );
+        if (g.Meta > 0)
+          card.append(
+            el(
+              'strong',
+              percentage.format((100 * g.Asignado) / g.Meta) + ' % de la meta',
+              'goal-ratio',
+            ),
+          );
+      }
       goals.append(card);
     }
+    FinanceCharts.clear($('goal-charts'));
+    if ((current.tables.tObjetivos || []).length)
+      FinanceCharts.plot($('goal-charts'), {
+        title: 'Asignación y meta por objetivo',
+        rows: current.tables.tObjetivos.map((g) => ({
+          label: g.Objetivo,
+          assigned: g.Asignado,
+          target: g.Meta,
+        })),
+        fields: [
+          {
+            key: 'assigned',
+            label: 'Asignado',
+            shape: 'bar',
+            tone: 'chart-mint',
+          },
+          { key: 'target', label: 'Meta', shape: 'bar', tone: 'chart-blue' },
+        ],
+        description:
+          'Asignación actual de activos; no es un histórico de aportaciones.',
+      });
     if (!goals.children.length)
       goals.append(
         el(

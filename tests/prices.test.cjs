@@ -621,3 +621,229 @@ test('dos respuestas sin campos verificables conservan diagnóstico y ningún pr
   assert.equal(result.responseInfo.hasValuationBlock, false);
   assert.equal(result.price, undefined);
 });
+
+test('HTTP y red de ficha clásica prueban la móvil y conservan diagnósticos de ambos intentos', () => {
+  for (const failure of [
+    () => ({ status: 503, body: '' }),
+    () => {
+      throw Error('secret-network');
+    },
+  ]) {
+    const r = runtime({
+      fetch: (source) =>
+        source.includes('/m/es/') ? { body: mobilePage() } : failure(),
+    });
+    const result = quote(r);
+    assert.equal(result.ok, true);
+    assert.equal(result.responseInfo.attempts.length, 2);
+    assert.equal(r.fetches.length, 2);
+    assert.equal(JSON.stringify(result).includes('secret-network'), false);
+  }
+  const limited = runtime({ fetch: () => ({ status: 429, body: '' }) });
+  const result = quote(limited);
+  assert.equal(result.error, 'SOURCE_RATE_LIMITED');
+  assert.equal(result.responseInfo.httpStatus, 429);
+  assert.equal(result.responseInfo.attempts.length, 2);
+});
+
+test('caché corrupta o identidad distinta exige otra consulta verificable', () => {
+  for (const cached of [
+    '{broken',
+    JSON.stringify({ isin: SECOND, price: 42 }),
+  ]) {
+    const r = runtime({ fetch: () => ({ body: page() }) });
+    r.cache.set('nav-v3-' + ISIN, cached);
+    const result = quote(r);
+    assert.equal(result.ok, true);
+    assert.equal(result.cached, false);
+    assert.equal(result.price, 345.19706);
+    assert.equal(r.fetches.length, 1);
+  }
+});
+
+test('la serie de cortes mensuales del proveedor no se importa como fechas diarias de NAV', () => {
+  const r = configured({
+    fetch: () => ({
+      body:
+        page() +
+        '<script>var fondo = [["08/31/2025",248.712120],["09/30/2025",256.288290],["10/02/2026",345.197060]]; var categoria = [["08/31/2025",18076.870597]];</script>',
+    }),
+  });
+  const before = r.state().tables.tPrecios.length,
+    result = r.api(envelope(r));
+  assert.equal(result.results[0].historyAvailability.status, 'LATEST_ONLY');
+  assert.equal(r.state().tables.tPrecios.length, before + 1);
+  assert.equal(
+    r.state().tables.tPrecios.some((p) => p.Fecha === serial('2025-08-31')),
+    false,
+  );
+});
+
+function dailyRuntime(options = {}) {
+  const r = configured(options),
+    properties = new Map(
+      Object.entries({
+        TEST_SPREADSHEET_ID: 'fixture-book',
+        OWNER_EMAIL: 'owner@example.test',
+        ENVIRONMENT: 'test',
+      }),
+    ),
+    triggers = [];
+  r.ctx.PropertiesService = {
+    getScriptProperties: () => ({
+      getProperty: (key) => properties.get(key),
+      setProperty: (key, value) => properties.set(key, value),
+      deleteProperty: (key) => properties.delete(key),
+    }),
+  };
+  r.ctx.ScriptApp = {
+    getProjectTriggers: () => [...triggers],
+    deleteTrigger: (trigger) => triggers.splice(triggers.indexOf(trigger), 1),
+    newTrigger: (handler) => {
+      const builder = {
+        timeBased: () => builder,
+        everyDays: (days) => {
+          assert.equal(days, 1);
+          return builder;
+        },
+        atHour: (hour) => {
+          assert.equal(hour, 20);
+          return builder;
+        },
+        inTimezone: (zone) => {
+          assert.equal(zone, 'Europe/Madrid');
+          return builder;
+        },
+        create: () => {
+          const trigger = {
+            getHandlerFunction: () => handler,
+            getUniqueId: () => 'test-trigger-uid',
+          };
+          triggers.push(trigger);
+          return trigger;
+        },
+      };
+      return builder;
+    },
+  };
+  r.ctx.Session.getEffectiveUser = () => ({
+    getEmail: () => options.effectiveUser || 'owner@example.test',
+  });
+  return { r, properties, triggers };
+}
+
+test('rutina diaria requiere activación expresa, se instala una vez y guarda receipts sin duplicados', () => {
+  const { r, triggers } = dailyRuntime();
+  assert.throws(
+    () => r.ctx.actualizacionDiariaPreciosTest(),
+    /activación expresa/,
+  );
+  const writes = r.writes.length;
+  assert.equal(r.ctx.activarActualizacionDiariaPreciosTest().installed, true);
+  assert.equal(r.ctx.activarActualizacionDiariaPreciosTest().enabled, true);
+  assert.equal(triggers.length, 1);
+  assert.equal(r.writes.length, writes);
+  const result = r.ctx.actualizacionDiariaPreciosTest();
+  assert.equal(result.complete, true);
+  assert.equal(result.batches.length, 1);
+  assert.match(result.batches[0].requestId, /^[\da-f-]{36}$/);
+  const after = r.writes.length;
+  assert.equal(r.ctx.actualizacionDiariaPreciosTest().skipped, true);
+  assert.equal(r.writes.length, after);
+  assert.equal(r.ctx.desactivarActualizacionDiariaPreciosTest().enabled, false);
+  assert.equal(triggers.length, 0);
+  assert.throws(
+    () => r.ctx.actualizacionDiariaPreciosTest(),
+    /activación expresa/,
+  );
+});
+
+test('trigger vinculado al libro de pruebas se detiene al cambiar entorno o libro, antes de consultar', () => {
+  const { r, properties } = dailyRuntime();
+  r.ctx.activarActualizacionDiariaPreciosTest();
+  properties.set('ENVIRONMENT', 'production');
+  properties.set('PRODUCTION_SPREADSHEET_ID', 'principal-distinto');
+  assert.throws(
+    () => r.ctx.activarActualizacionDiariaPreciosTest(),
+    /libro de pruebas/,
+  );
+  assert.throws(
+    () => r.ctx.actualizacionDiariaPreciosTest(),
+    /activación expresa/,
+  );
+  properties.set('ENVIRONMENT', 'test');
+  properties.set('TEST_SPREADSHEET_ID', 'otro-test');
+  assert.throws(
+    () => r.ctx.actualizacionDiariaPreciosTest(),
+    /activación expresa/,
+  );
+  assert.equal(r.fetches.length, 0);
+});
+
+test('rutina diaria reconsulta fallos con otro receipt y limita a tres intentos por lote y día', () => {
+  const { r } = dailyRuntime({ fetch: () => ({ status: 503, body: '' }) });
+  r.ctx.activarActualizacionDiariaPreciosTest();
+  const ids = [];
+  for (let i = 0; i < 3; i++) {
+    const res = r.ctx.actualizacionDiariaPreciosTest();
+    assert.equal(res.complete, false);
+    ids.push(res.batches[0].requestId);
+  }
+  assert.equal(new Set(ids).size, 3);
+  const fetches = r.fetches.length,
+    writes = r.writes.length;
+  assert.equal(
+    r.ctx.actualizacionDiariaPreciosTest().batches[0].error,
+    'DAILY_RETRY_LIMIT',
+  );
+  assert.equal(r.fetches.length, fetches);
+  assert.equal(r.writes.length, writes);
+});
+
+test('handler privado de trigger valida dueño efectivo, UID instalado y libro; funciones públicas conservan usuario activo', () => {
+  const { r, properties, triggers } = dailyRuntime();
+  r.ctx.activarActualizacionDiariaPreciosTest();
+  const event = { triggerUid: 'test-trigger-uid' };
+  r.options.visitor = '';
+  assert.throws(
+    () => r.ctx.actualizacionDiariaPreciosTest(),
+    /ACCESS_DENIED|Acceso|acceso/i,
+  );
+  assert.throws(
+    () => r.ctx.activarActualizacionDiariaPreciosTest(),
+    /ACCESS_DENIED|Acceso|acceso/i,
+  );
+  assert.throws(() => r.ctx.actualizacionDiariaPreciosTest_(), /trigger/);
+  assert.throws(
+    () => r.ctx.actualizacionDiariaPreciosTest_({ triggerUid: 'fake' }),
+    /trigger/,
+  );
+  r.ctx.Session.getEffectiveUser = () => ({
+    getEmail: () => 'other@example.test',
+  });
+  assert.throws(() => r.ctx.actualizacionDiariaPreciosTest_(event));
+  r.ctx.Session.getEffectiveUser = () => ({
+    getEmail: () => 'owner@example.test',
+  });
+  properties.set('ENVIRONMENT', 'production');
+  assert.throws(() => r.ctx.actualizacionDiariaPreciosTest_(event), /trigger/);
+  properties.set('ENVIRONMENT', 'test');
+  properties.set('TEST_SPREADSHEET_ID', 'other-test');
+  assert.throws(() => r.ctx.actualizacionDiariaPreciosTest_(event), /trigger/);
+  properties.set('TEST_SPREADSHEET_ID', 'fixture-book');
+  triggers.pop();
+  assert.throws(() => r.ctx.actualizacionDiariaPreciosTest_(event), /trigger/);
+  assert.equal(r.fetches.length, 0);
+  assert.equal(r.api({ action: 'read' }).error, 'ACCESS_DENIED');
+});
+
+test('trigger instalado usa dueño efectivo con usuario activo vacío y conserva el contrato financiero protegido', () => {
+  const { r } = dailyRuntime();
+  r.ctx.activarActualizacionDiariaPreciosTest();
+  r.options.visitor = '';
+  const result = r.ctx.actualizacionDiariaPreciosTest_({
+    triggerUid: 'test-trigger-uid',
+  });
+  assert.equal(result.complete, true);
+  assert.equal(r.api({ action: 'read' }).error, 'ACCESS_DENIED');
+});

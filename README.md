@@ -1,6 +1,6 @@
 # Finanzas
 
-Entrega 3.7.0. App responsive y PWA sobre el libro completo de Google Sheets, modelo 3. La API 3.3.0 admite pruebas y principal privado con configuración explícita y libros distintos. Google calcula los resultados; la app registra entradas mediante la API privada y muestra los estados por operación.
+Entrega 3.8.0. App responsive y PWA sobre el libro completo de Google Sheets, modelo 3. La API 3.3.0 admite pruebas y principal privado con configuración explícita y libros distintos. Google calcula los resultados; la app registra entradas mediante la API privada y muestra los estados por operación.
 
 ## Desarrollo y calidad
 
@@ -86,3 +86,15 @@ Cambiar la implementación durante una conexión cancela la lectura anterior; lo
 Resumen, Movimientos, Inversiones, Cuentas, Presupuestos, Salario, Objetivos, Actividad, Calculadoras y Ajustes tienen pantallas propias. En móvil las cuatro secciones principales están en la barra inferior; Más abre las otras seis. El panel de registros se mueve entre pantallas sin releer ni abrir otra sesión de Google. Posiciones, operaciones y precios se consultan en Inversiones; deudas y observaciones de saldo en Cuentas; categorías y fechas en Ajustes. Los filtros se conservan por registro durante la sesión. Movimientos muestra las columnas principales y permite desplegar todos los campos con Detalles.
 
 Los nueve gráficos de Sheets se distribuyen entre Resumen, Movimientos, Inversiones y Salario. Los pendientes y el historial confirmado se consultan por separado en Actividad; este cambio no altera los sobres, recibos ni reintentos. Ajustes conserva el diagnóstico, almacenamiento e instalación en secciones desplegables. La app mantiene el entorno configurado en Google: esta entrega no cambia libros ni autoriza el corte a producción. Es compatible con Google 3.6.0 ya instalado; no requiere reinstalar Apps Script. Los dos archivos de backend solo cambian su identificador de entrega.
+
+## Análisis interactivo · entrega 3.8.0
+
+Resumen concentra patrimonio neto, inversión y saldo del presupuesto total del mes. La composición distingue inversiones y cuentas; deuda queda como contexto. Caja muestra saldos diarios desde las bases de las cuentas y los movimientos al corte. Las leyendas permiten seleccionar series y el cursor o teclado inspeccionan fechas sin marcadores permanentes. Gastos usa distribuciones y acumulados; excluir una categoría cambia el denominador y se indica expresamente. Sin un límite global no se presenta un saldo libre calculado sumando límites solapados.
+
+Movimientos presenta gasto, ingreso y transferencia. Crear cuentas, categorías, productos y objetivos se hace en su sección. Concepto y atributos adicionales se despliegan como opciones; un concepto omitido se completa con el tipo de operación, visible antes de confirmar. Los registros se ordenan y filtran por columna, también en móvil; los filtros son locales y no alteran Sheets ni las revisiones de escritura. ISIN y fuente se muestran por separado, con enlaces de proveedor restringidos. El identificador interno EFECTIVO se presenta como Efectivo.
+
+Inversiones permite seleccionar cualquier producto de la lectura y periodos 1M, 3M, 6M, año actual, 1A y Todo. Aportaciones netas se dibujan como escalera azul; valor usa línea roja. El historial respeta precios reales y distingue días sin precio de precios arrastrados; no interpola ni aplica el último valor retrospectivamente. La variación de VL por producto empieza en su primera cotización observada. La rentabilidad diaria de cartera solo se encadena cuando hay precios efectivos y flujos al cierre suficientes; los huecos interrumpen la serie. El resultado sobre aportación neta de las tarjetas no sustituye TWR ni la rentabilidad nativa por producto.
+
+Salario incorpora ahorro mensual sobre nómina neta y gasto propio. Objetivos compara asignado y meta, sin cambiar asignaciones. Las calculadoras estiman plazo hasta una meta, aportación necesaria y colchón de liquidez con parámetros explícitos y supuestos constantes; no son previsiones. Presupuestos mantiene su comportamiento previo.
+
+La interfaz es compatible con Google 3.6.0 ya instalado. La mejora de fuentes y actualización diaria voluntaria requieren instalar los tres archivos 3.8.0 y publicar Nueva versión en Google. El permiso adicional script.scriptapp permite administrar únicamente los triggers del proyecto; el código solo crea o retira su propia rutina. Ver [cotizaciones y límites históricos](apps-script/PRICES.md). No se ha instalado ninguna rutina ni activado producción desde GitHub.

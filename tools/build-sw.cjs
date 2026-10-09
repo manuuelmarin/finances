@@ -14,6 +14,7 @@ const assets = [
   'finance.js',
   'analytics.js',
   'dashboard.js',
+  'charts.js',
   'pwa.js',
   'config.json',
   'manifest.webmanifest',

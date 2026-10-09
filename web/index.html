@@ -24,6 +24,7 @@
     <script src="domain.js" defer></script>
     <script src="queue.js" defer></script>
     <script src="analytics.js" defer></script>
+    <script src="charts.js" defer></script>
     <script src="dashboard.js" defer></script>
     <script src="finance.js" defer></script>
     <script src="pwa.js" defer></script>
@@ -243,20 +244,15 @@
           <p>Abre tu libro para consultar saldos, movimientos y gráficos.</p>
         </div>
         <section id="dashboard-grid" hidden aria-labelledby="dashboard-title">
-          <h2 id="dashboard-title" class="section-title">Evolución y gastos</h2>
-          <div id="dashboard-charts" class="charts-grid"></div>
-        </section>
-        <section class="recent-section" aria-labelledby="recent-title">
           <div class="section-heading">
-            <h2 id="recent-title">Últimos movimientos</h2>
-            <button class="text-button" type="button" data-view="book">
-              Ver todos
-              <svg class="icon" aria-hidden="true">
-                <use href="#icon-arrow" />
-              </svg>
-            </button>
+            <h2 id="dashboard-title" class="section-title">
+              Patrimonio y gasto
+            </h2>
+            <label class="field compact-field"
+              >Mes de caja<input id="cash-month" type="month"
+            /></label>
           </div>
-          <div id="finance-recent"></div>
+          <div id="dashboard-charts" class="charts-grid"></div>
         </section>
       </section>
       <section id="view-book" class="view" aria-labelledby="book-title" hidden>
@@ -332,10 +328,25 @@
             <p id="finance-register-note" class="calculator-note"></p>
           </section>
         </div>
-        <details class="section-details">
-          <summary>Análisis de gastos</summary>
+        <section class="chart-section" aria-labelledby="spending-title">
+          <div class="section-heading">
+            <h2 id="spending-title" class="section-title">
+              Análisis de gastos
+            </h2>
+          </div>
+          <div class="analysis-controls">
+            <label class="field compact-field"
+              >Mes<input id="spending-month" type="month" /></label
+            ><label class="field"
+              >Categorías<select id="spending-exclude">
+                <option value="">Todas las categorías</option>
+              </select></label
+            >
+          </div>
+          <div id="spending-summary" class="kpi-grid analysis-kpis"></div>
+          <p id="spending-note" class="calculator-note"></p>
           <div id="spending-charts" class="charts-grid"></div>
-        </details>
+        </section>
       </section>
       <section
         id="view-investments"
@@ -374,7 +385,26 @@
             </button>
           </div>
         </div>
+        <div id="investment-kpis" class="kpi-grid investment-kpis"></div>
+        <div class="analysis-controls">
+          <label class="field"
+            >Selección<select id="investment-product">
+              <option value="">Cartera completa</option>
+            </select></label
+          ><label class="field"
+            >Periodo<select id="investment-range">
+              <option value="1m">Último mes</option>
+              <option value="3m">3 meses</option>
+              <option value="6m">6 meses</option>
+              <option value="ytd">Año actual</option>
+              <option value="1y">Último año</option>
+              <option value="all" selected>Todo</option>
+            </select></label
+          >
+        </div>
+        <p id="investment-coverage" class="calculator-note"></p>
         <div data-register-slot="investments"></div>
+        <p id="prices-history-note" class="calculator-note"></p>
         <section class="chart-section">
           <h2 class="section-title">Cartera y evolución</h2>
           <div id="investment-charts" class="charts-grid"></div>
@@ -406,11 +436,21 @@
               class="button button-secondary"
               data-operation="saldo_observado"
             >
-              Observar saldo
+              Contrastar saldo bancario
             </button>
           </div>
         </div>
+        <div id="account-summary" class="kpi-grid analysis-kpis"></div>
         <div data-register-slot="accounts"></div>
+        <p class="calculator-note">
+          El saldo calculado procede de tus movimientos. Una observación
+          registra el saldo que muestra el banco en una fecha para comprobar si
+          coincide; no crea un ajuste de dinero.
+        </p>
+        <section class="chart-section">
+          <h2 class="section-title">Liquidez por cuenta</h2>
+          <div id="account-charts" class="charts-grid"></div>
+        </section>
       </section>
       <section
         id="view-salary"
@@ -434,6 +474,8 @@
         <section class="chart-section">
           <h2 class="section-title">Histórico de nóminas</h2>
           <div id="salary-charts" class="charts-grid"></div>
+          <h2 class="section-title">Ahorro mensual</h2>
+          <div id="salary-saving-charts" class="charts-grid"></div>
         </section>
       </section>
       <section
@@ -466,6 +508,7 @@
           </div>
         </div>
         <div id="saving-goals" class="budget-grid"></div>
+        <div id="goal-charts" class="charts-grid"></div>
         <div data-register-slot="goals"></div>
       </section>
       <section
@@ -789,6 +832,272 @@
               contemplarlos.
             </p>
           </section>
+          <section class="calculator" aria-labelledby="goal-time-title">
+            <div class="calculator-heading">
+              <span class="calculator-icon"
+                ><svg class="icon" aria-hidden="true">
+                  <use href="#icon-growth" /></svg></span
+              ><span class="calculator-number">META</span>
+            </div>
+            <h2 id="goal-time-title">Tiempo para alcanzar una meta</h2>
+            <p class="calculator-description">
+              Calcula cuánto tardarías con tu capital actual y tus aportaciones
+              mensuales.
+            </p>
+            <form id="goal-time-form" aria-describedby="goal-time-note">
+              <div class="form-grid">
+                <label class="field" for="goal-time-capital"
+                  >Capital inicial<span class="input-wrap"
+                    ><input
+                      id="goal-time-capital"
+                      type="number"
+                      inputmode="decimal"
+                      min="0"
+                      step="0.01"
+                      value="1000"
+                      required
+                    /><span>€</span></span
+                  ></label
+                >
+                <label class="field" for="goal-time-monthly"
+                  >Aportación mensual<span class="input-wrap"
+                    ><input
+                      id="goal-time-monthly"
+                      type="number"
+                      inputmode="decimal"
+                      min="0"
+                      step="0.01"
+                      value="100"
+                      required
+                    /><span>€</span></span
+                  ></label
+                >
+                <label class="field" for="goal-time-target"
+                  >Capital objetivo<span class="input-wrap"
+                    ><input
+                      id="goal-time-target"
+                      type="number"
+                      inputmode="decimal"
+                      min="0.01"
+                      step="0.01"
+                      value="10000"
+                      required
+                    /><span>€</span></span
+                  ></label
+                >
+                <label class="field" for="goal-time-annualReturn"
+                  >Hipótesis de rentabilidad anual<span class="input-wrap"
+                    ><input
+                      id="goal-time-annualReturn"
+                      type="number"
+                      inputmode="decimal"
+                      min="-99.99"
+                      step="0.01"
+                      value="0"
+                      required
+                    /><span>%</span></span
+                  ></label
+                >
+              </div>
+              <button class="button button-primary button-full" type="submit">
+                Calcular plazo<svg class="icon" aria-hidden="true">
+                  <use href="#icon-arrow" />
+                </svg>
+              </button>
+            </form>
+            <p
+              id="goal-time-message"
+              class="field-message"
+              aria-live="polite"
+              hidden
+            ></p>
+            <p
+              id="goal-time-result"
+              class="calculator-results"
+              aria-live="polite"
+              aria-atomic="true"
+              hidden
+            ></p>
+            <p id="goal-time-note" class="calculator-note">
+              Rentabilidad anual efectiva constante, convertida a tasa mensual.
+              Aportaciones al final del mes. Usa 0 % para un escenario sin
+              rentabilidad. El resultado es nominal y no incorpora inflación,
+              impuestos ni comisiones; no garantiza una rentabilidad futura.
+            </p>
+          </section>
+          <section class="calculator" aria-labelledby="goal-saving-title">
+            <div class="calculator-heading">
+              <span class="calculator-icon"
+                ><svg class="icon" aria-hidden="true">
+                  <use href="#icon-growth" /></svg></span
+              ><span class="calculator-number">APORTACIÓN</span>
+            </div>
+            <h2 id="goal-saving-title">Cuánto aportar para llegar a tiempo</h2>
+            <p class="calculator-description">
+              Parte de una meta y un plazo para estimar una aportación mensual.
+            </p>
+            <form id="goal-saving-form" aria-describedby="goal-saving-note">
+              <div class="form-grid">
+                <label class="field" for="goal-saving-capital"
+                  >Capital inicial<span class="input-wrap"
+                    ><input
+                      id="goal-saving-capital"
+                      type="number"
+                      inputmode="decimal"
+                      min="0"
+                      step="0.01"
+                      value="1000"
+                      required
+                    /><span>€</span></span
+                  ></label
+                >
+                <label class="field" for="goal-saving-target"
+                  >Capital objetivo<span class="input-wrap"
+                    ><input
+                      id="goal-saving-target"
+                      type="number"
+                      inputmode="decimal"
+                      min="0.01"
+                      step="0.01"
+                      value="10000"
+                      required
+                    /><span>€</span></span
+                  ></label
+                >
+                <label class="field" for="goal-saving-years"
+                  >Plazo<span class="input-wrap"
+                    ><input
+                      id="goal-saving-years"
+                      type="number"
+                      inputmode="decimal"
+                      min="1"
+                      step="1"
+                      value="5"
+                      required
+                    /><span>años</span></span
+                  ></label
+                >
+                <label class="field" for="goal-saving-annualReturn"
+                  >Hipótesis de rentabilidad anual<span class="input-wrap"
+                    ><input
+                      id="goal-saving-annualReturn"
+                      type="number"
+                      inputmode="decimal"
+                      min="-99.99"
+                      step="0.01"
+                      value="0"
+                      required
+                    /><span>%</span></span
+                  ></label
+                >
+              </div>
+              <button class="button button-primary button-full" type="submit">
+                Calcular aportación<svg class="icon" aria-hidden="true">
+                  <use href="#icon-arrow" />
+                </svg>
+              </button>
+            </form>
+            <p
+              id="goal-saving-message"
+              class="field-message"
+              aria-live="polite"
+              hidden
+            ></p>
+            <p
+              id="goal-saving-result"
+              class="calculator-results"
+              aria-live="polite"
+              aria-atomic="true"
+              hidden
+            ></p>
+            <p id="goal-saving-note" class="calculator-note">
+              Rentabilidad anual efectiva constante y aportaciones al final del
+              mes. Usa 0 % para planificar sin rentabilidad. La aportación se
+              redondea al céntimo superior. Importes nominales, sin inflación,
+              impuestos ni comisiones; la hipótesis no es una promesa.
+            </p>
+          </section>
+          <section class="calculator" aria-labelledby="liquidity-title">
+            <div class="calculator-heading">
+              <span class="calculator-icon"
+                ><svg class="icon" aria-hidden="true">
+                  <use href="#icon-growth" /></svg></span
+              ><span class="calculator-number">LIQUIDEZ</span>
+            </div>
+            <h2 id="liquidity-title">Colchón para gastos esenciales</h2>
+            <p class="calculator-description">
+              Comprueba cuántos meses cubre tu dinero disponible sin depender de
+              vender inversiones.
+            </p>
+            <form id="liquidity-form" aria-describedby="liquidity-note">
+              <div class="form-grid">
+                <label class="field" for="liquidity-essentialMonthly"
+                  >Gasto esencial mensual<span class="input-wrap"
+                    ><input
+                      id="liquidity-essentialMonthly"
+                      type="number"
+                      inputmode="decimal"
+                      min="0.01"
+                      step="0.01"
+                      value="1200"
+                      required
+                    /><span>€</span></span
+                  ></label
+                >
+                <label class="field" for="liquidity-liquidCapital"
+                  >Capital líquido disponible<span class="input-wrap"
+                    ><input
+                      id="liquidity-liquidCapital"
+                      type="number"
+                      inputmode="decimal"
+                      min="0"
+                      step="0.01"
+                      value="3000"
+                      required
+                    /><span>€</span></span
+                  ></label
+                >
+                <label class="field" for="liquidity-targetMonths"
+                  >Cobertura objetivo<span class="input-wrap"
+                    ><input
+                      id="liquidity-targetMonths"
+                      type="number"
+                      inputmode="decimal"
+                      min="0.1"
+                      step="0.1"
+                      value="6"
+                      required
+                    /><span>meses</span></span
+                  ></label
+                >
+              </div>
+              <button class="button button-primary button-full" type="submit">
+                Calcular cobertura<svg class="icon" aria-hidden="true">
+                  <use href="#icon-arrow" />
+                </svg>
+              </button>
+            </form>
+            <p
+              id="liquidity-message"
+              class="field-message"
+              aria-live="polite"
+              hidden
+            ></p>
+            <p
+              id="liquidity-result"
+              class="calculator-results"
+              aria-live="polite"
+              aria-atomic="true"
+              hidden
+            ></p>
+            <p id="liquidity-note" class="calculator-note">
+              Elige los meses según la estabilidad de tus ingresos y
+              obligaciones. El ejemplo de 6 meses es editable, no una
+              recomendación universal. Incluye dinero disponible para
+              imprevistos y excluye inversiones volátiles y dinero reservado
+              para otros pagos. Cálculo local, sin guardar en Google Sheets.
+            </p>
+          </section>
         </div>
       </section>
 
@@ -894,6 +1203,39 @@
           </div>
           <div data-register-slot="connection"></div>
         </details>
+        <section class="settings-overview" aria-label="Estado de la aplicación">
+          <dl>
+            <div>
+              <dt>Libro conectado</dt>
+              <dd id="settings-environment">Libro sin cargar</dd>
+            </div>
+            <div>
+              <dt>API de Google</dt>
+              <dd id="settings-api">Sin lectura</dd>
+            </div>
+            <div>
+              <dt>Última lectura</dt>
+              <dd id="settings-check">Sin lectura</dd>
+            </div>
+          </dl>
+        </section>
+        <details class="section-details" id="price-settings">
+          <summary>Precios y actualización diaria</summary>
+          <p>
+            Actualizar precios guarda nuevas cotizaciones verificadas y conserva
+            su historial por producto y fecha.
+          </p>
+          <p class="calculator-note">
+            Para acumular precios cada día sin abrir la app, instala la entrega
+            de Google 3.8.0 y ejecuta
+            <code>activarActualizacionDiariaPreciosTest</code> una vez desde el
+            editor. La rutina solo actúa en la copia de pruebas. Para detenerla,
+            ejecuta <code>desactivarActualizacionDiariaPreciosTest</code>.
+          </p>
+          <a class="inline-link" href="./install.html#daily-prices"
+            >Configurar actualización diaria</a
+          >
+        </details>
         <details id="local-settings" class="section-details">
           <summary>Almacenamiento local</summary>
           <p class="calculator-note">
@@ -921,7 +1263,7 @@
       </section>
       <footer class="workspace-footer">
         <p id="app-version" class="app-version">
-          App 3.7.0 · <span data-finance-environment>Sin conectar</span
+          App 3.8.0 · <span data-finance-environment>Sin conectar</span
           ><span id="pwa-status" hidden></span>
         </p>
       </footer>
