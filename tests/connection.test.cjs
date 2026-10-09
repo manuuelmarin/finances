@@ -501,7 +501,7 @@ test('rechaza una versión ausente o duplicada en la tabla de parámetros', () =
   }
 });
 
-test('los permisos permiten la API de datos y el despliegue continúa privado', () => {
+test('los permisos mínimos permiten datos, fuentes y lifecycle de triggers; el despliegue continúa privado', () => {
   const manifest = JSON.parse(
     fs.readFileSync(path.join(__dirname, '../apps-script/appsscript.json')),
   );
@@ -509,7 +509,21 @@ test('los permisos permiten la API de datos y el despliegue continúa privado', 
     'https://www.googleapis.com/auth/spreadsheets',
     'https://www.googleapis.com/auth/userinfo.email',
     'https://www.googleapis.com/auth/script.external_request',
+    'https://www.googleapis.com/auth/script.scriptapp',
   ]);
+  assert.equal(new Set(manifest.oauthScopes).size, manifest.oauthScopes.length);
+  // ScriptApp.newTrigger/getProjectTriggers/deleteTrigger requieren script.scriptapp.
+  // No se conceden Drive completo ni permisos de administración de proyectos.
+  assert.equal(
+    manifest.oauthScopes.includes('https://www.googleapis.com/auth/drive'),
+    false,
+  );
+  assert.equal(
+    manifest.oauthScopes.includes(
+      'https://www.googleapis.com/auth/script.projects',
+    ),
+    false,
+  );
   assert.equal(manifest.webapp.access, 'MYSELF');
   assert.equal(manifest.webapp.executeAs, 'USER_DEPLOYING');
   const config = JSON.parse(

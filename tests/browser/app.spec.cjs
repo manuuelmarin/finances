@@ -294,6 +294,7 @@ async function setup(
 }
 async function expense(page) {
   await page.locator('#finance-new').click();
+  await page.locator('.operation-additional summary').click();
   await page.locator('#operation-date').fill('2026-01-02');
   await page.locator('#operation-concept').fill('Compra ficticia');
   await page.locator('#operation-account').selectOption('Cuenta A');
@@ -454,15 +455,16 @@ test('la inversión sin precio no aparece como cero y el texto del libro no ejec
   await expect(page.locator('#finance-warning')).toContainText(
     'Valoración incompleta',
   );
-  await expect(page.locator('#finance-recent')).toContainText('<img src=x');
+  await navigate(page, 'book');
+  await expect(page.locator('#finance-register')).toContainText('<img src=x');
   expect(await page.evaluate(() => window.compromised)).toBeUndefined();
 });
 test('nómina desconocida y precio con precisión completa se revisan con nombres', async ({
   page,
 }) => {
   await setup(page);
-  await page.locator('#finance-new').click();
-  await page.locator('#operation-kind').selectOption('nomina');
+  await navigate(page, 'salary');
+  await page.locator('#view-salary [data-operation=nomina]').click();
   await page.locator('#operation-concept').fill('Paga ficticia');
   await page.locator('#operation-account').selectOption('Cuenta A');
   await page.locator('#operation-category').selectOption('Nómina');
@@ -470,6 +472,9 @@ test('nómina desconocida y precio con precisión completa se revisan con nombre
   await page.locator('#operation-form button[type=submit]').click();
   await expect(page.locator('#review-fields')).toContainText('Sin dato');
   await page.locator('#review-cancel').click();
+  await page.locator('#operation-cancel').click();
+  await navigate(page, 'investments');
+  await page.locator('#view-investments [data-operation=compra]').click();
   await page.locator('#operation-kind').selectOption('precio');
   await page.locator('#operation-product').selectOption('INTERNAL-PRODUCT');
   await page.locator('#operation-price').fill('14,490500');
@@ -654,6 +659,7 @@ test('el alta abre el formulario y muestra un bloqueo de ventanas en la misma vi
   await expect(page.locator('#operation-connection')).toContainText('Permite');
   await expect(page.locator('#operation-load')).toBeEnabled();
   await expect(page.locator('#operation-review')).toBeDisabled();
+  await page.locator('.operation-additional summary').click();
   await page.locator('#operation-concept').fill('Borrador ficticio');
   await page.locator('#operation-amount').fill('2,50');
   await page.evaluate(() => {
@@ -686,6 +692,7 @@ test('el cliente y postMessage con Google ficticio conservan el borrador y regis
   const popup = await opening;
   await popup.waitForFunction(() => typeof window.replyRead === 'function');
   await expect(page.locator('#operation-dialog')).toBeVisible();
+  await page.locator('.operation-additional summary').click();
   await page.locator('#operation-concept').fill('Alta por canal ficticio');
   await page.locator('#operation-amount').fill('4,50');
   await expect(page.locator('#operation-review')).toBeDisabled();
@@ -724,6 +731,7 @@ test('registro ofrece ingreso y transferencia sin volver al inicio y guardar un 
   await page.locator('#operation-cancel').click();
   await page.locator('#view-book [data-operation=gasto]').click();
   await page.locator('#operation-date').fill('2026-01-02');
+  await page.locator('.operation-additional summary').click();
   await page.locator('#operation-concept').fill('Alta visible ficticia');
   await page.locator('#operation-account').selectOption('Cuenta A');
   await page.locator('#operation-category').selectOption('Café');
@@ -734,18 +742,31 @@ test('registro ofrece ingreso y transferencia sin volver al inicio y guardar un 
     'Alta visible ficticia',
   );
 });
-test('panel muestra gráficos nativos accesibles y meses desconocidos sin convertirlos en cero', async ({
+test('panel concentra cifras y ofrece gráficos accesibles sin ocultar precios desconocidos', async ({
   page,
 }) => {
   await setup(page);
-  await expect(page.locator('.chart-card')).toHaveCount(9);
-  await expect(page.locator('#dashboard-charts .chart-card')).toHaveCount(3);
+  await expect(page.locator('#finance-kpis > article')).toHaveCount(3);
+  await expect(page.locator('#dashboard-charts .chart-card')).toHaveCount(2);
+  await expect(page.locator('#dashboard-charts .asset-breakdown')).toHaveCount(
+    1,
+  );
   await expect(page.locator('#investment-charts .chart-card')).toHaveCount(3);
-  await expect(page.locator('#spending-charts .chart-card')).toHaveCount(2);
+  await expect(page.locator('#spending-charts .chart-card')).toHaveCount(4);
   await expect(page.locator('#salary-charts .chart-card')).toHaveCount(1);
-  await expect(page.locator('.chart-card svg[role=img]')).toHaveCount(8);
-  await page.locator('.chart-data summary').first().click();
-  await expect(page.locator('.chart-table').first()).toContainText('Sin dato');
+  await expect(page.locator('#salary-saving-charts .chart-card')).toHaveCount(
+    1,
+  );
+  await expect(page.locator('#finance-kpis')).toContainText(
+    'define un límite total',
+  );
+  await page.locator('#dashboard-charts .chart-data summary').last().click();
+  await expect(
+    page.locator('#dashboard-charts .chart-table').last(),
+  ).toContainText('Cuenta A');
+  await expect(
+    page.locator('#dashboard-charts .chart-table').last(),
+  ).toContainText('2026-01-02');
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,

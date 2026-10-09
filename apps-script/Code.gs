@@ -113,7 +113,7 @@ const TABLE_SCHEMA_ = [
 ];
 
 const API_VERSION_ = '3.3.0';
-const BUILD_VERSION_ = '3.7.0';
+const BUILD_VERSION_ = '3.8.0';
 const API_TRANSPORT_ = 'finances.rpc.json.v1';
 // El motor de fórmulas no cambia en el paso 4; conserva su sello de capacidad.
 const CAPACITY_VERSION_ = '3.1.0';
@@ -4003,7 +4003,21 @@ function fetchFundQuote_(fund) {
       cache = CacheService.getScriptCache();
       stored = cache.get(key);
     } catch (ignored) {}
-    let quote = stored ? JSON.parse(stored) : null;
+    let quote = null;
+    // La caché nunca sustituye las comprobaciones de identidad y fecha.
+    try {
+      quote = stored ? JSON.parse(stored) : null;
+      if (
+        quote &&
+        (quote.isin !== isin ||
+          !Number.isFinite(quote.price) ||
+          quote.price <= 0)
+      )
+        quote = null;
+    } catch (ignored) {
+      quote = null;
+    }
+    const cached = !!quote;
     if (!quote) {
       const urls = [
         PRICE_BASE_ + isin,
@@ -4011,22 +4025,28 @@ function fetchFundQuote_(fund) {
       ];
       const attempts = [];
       for (let index = 0; index < urls.length; index++) {
-        const response = UrlFetchApp.fetch(urls[index], {
-          method: 'get',
-          followRedirects: false,
-          muteHttpExceptions: true,
-        });
-        if (response.getResponseCode() !== 200)
+        let response;
+        try {
+          response = UrlFetchApp.fetch(urls[index], {
+            method: 'get',
+            followRedirects: false,
+            muteHttpExceptions: true,
+          });
+        } catch (error) {
+          responseInfo = { url: urls[index], error: 'NETWORK_ERROR' };
+          attempts.push(Object.assign({}, responseInfo));
+          responseInfo.attempts = attempts;
+          if (index < urls.length - 1) continue;
           priceFailure_(
-            'SOURCE_UNAVAILABLE',
-            'La fuente no está disponible (HTTP ' +
-              response.getResponseCode() +
-              ').',
+            'NETWORK_ERROR',
+            'No se pudo acceder a las fichas oficiales. Se conserva el último precio válido.',
           );
-        const html = response.getContentText('UTF-8');
-        const title = html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i);
+        }
+        const status = response.getResponseCode(),
+          html = response.getContentText('UTF-8'),
+          title = html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i);
         responseInfo = {
-          httpStatus: response.getResponseCode(),
+          httpStatus: status,
           length: html.length,
           title: title ? priceText_(title[1]).slice(0, 180) : null,
           containsRequestedIsin: html.indexOf(isin) >= 0,
@@ -4039,6 +4059,17 @@ function fetchFundQuote_(fund) {
         };
         attempts.push(Object.assign({}, responseInfo));
         responseInfo.attempts = attempts;
+        if (status !== 200) {
+          // Las dos URLs son oficiales y conservan el ISIN solicitado. No se
+          // siguen redirecciones arbitrarias ni se ocultan incoherencias de clase.
+          if (index < urls.length - 1) continue;
+          priceFailure_(
+            status === 429 ? 'SOURCE_RATE_LIMITED' : 'SOURCE_HTTP_ERROR',
+            'La fuente respondió HTTP ' +
+              status +
+              '. Se conserva el último precio válido.',
+          );
+        }
         if (html.length > 1500000)
           priceFailure_(
             'SOURCE_FORMAT',
@@ -4079,7 +4110,13 @@ function fetchFundQuote_(fund) {
         ok: true,
         referenceName: fund.referenceName,
         checkedAt,
-        cached: !!stored,
+        cached,
+        responseInfo,
+        historyAvailability: {
+          status: 'LATEST_ONLY',
+          message:
+            'Esta consulta verifica la última valoración. Los cortes mensuales del gráfico del proveedor no acreditan una serie diaria de fechas efectivas de NAV; no se importan como históricos.',
+        },
       },
       quote,
     );
@@ -4104,6 +4141,31 @@ function fetchFundQuote_(fund) {
     };
   }
 }
+function fetchFundQuotesBatch_(funds) {
+  const started = Date.now();
+  return funds.map((fund) => {
+    if (Date.now() - started > 120000)
+      return {
+        ok: false,
+        isin: fund.isin,
+        referenceName: fund.referenceName,
+        error: 'TIME_BUDGET',
+        message:
+          'Se alcanzó el límite de tiempo del lote. El siguiente intento volverá a consultar este fondo.',
+        checkedAt: new Date().toISOString(),
+      };
+    if (!fund.isin)
+      return {
+        ok: false,
+        isin: null,
+        referenceName: fund.referenceName,
+        error: 'ISIN_REQUIRED',
+        message: 'Vincula el ISIN y nombre de referencia de este producto.',
+        checkedAt: new Date().toISOString(),
+      };
+    return fetchFundQuote_(fund);
+  });
+}
 function quotePrices_(request, config) {
   if (
     Object.keys(request).some((k) => ['action', 'funds'].indexOf(k) < 0) ||
@@ -4122,7 +4184,7 @@ function quotePrices_(request, config) {
     )
       fail_('INVALID_REQUEST');
   });
-  const results = request.funds.map(fetchFundQuote_);
+  const results = fetchFundQuotesBatch_(request.funds);
   return {
     ok: true,
     apiVersion: API_VERSION_,
@@ -4297,18 +4359,7 @@ function refreshPrices_(config, request) {
   });
   if (prepared.replay) return prepared.replay;
   // La red se consulta fuera del bloqueo. La revisión se verifica otra vez antes del lote.
-  const quotes = prepared.selected.map((f) =>
-    f.isin
-      ? fetchFundQuote_(f)
-      : {
-          ok: false,
-          error: 'ISIN_REQUIRED',
-          message: 'Vincula el ISIN y nombre de referencia de este producto.',
-          isin: null,
-          referenceName: f.referenceName,
-          checkedAt: new Date().toISOString(),
-        },
-  );
+  const quotes = fetchFundQuotesBatch_(prepared.selected);
   return locked_(() => {
     let before = readState_(config);
     checkRequestBook_(request, before);
@@ -4369,6 +4420,168 @@ function refreshPrices_(config, request) {
     return response;
   });
 }
+// Instalación voluntaria desde el editor: solo dueño y libro de pruebas.
+// Publicar este código no instala un trigger. Cada ejecución usa los receipts
+// y controles de revisión de refreshPrices; no modifica caja ni participaciones.
+/* global ScriptApp */
+function activarActualizacionDiariaPreciosTest() {
+  const config = authorizedConfig_();
+  check_(
+    config.environment === 'test',
+    'La rutina diaria solo está habilitada para el libro de pruebas.',
+  );
+  const properties = PropertiesService.getScriptProperties();
+  const existing = ScriptApp.getProjectTriggers().filter(
+    (t) => t.getHandlerFunction() === 'actualizacionDiariaPreciosTest_',
+  );
+  const trigger =
+    existing[0] ||
+    ScriptApp.newTrigger('actualizacionDiariaPreciosTest_')
+      .timeBased()
+      .everyDays(1)
+      .atHour(20)
+      .inTimezone('Europe/Madrid')
+      .create();
+  properties.setProperty('DAILY_PRICE_TEST_TRIGGER', trigger.getUniqueId());
+  properties.setProperty('DAILY_PRICE_TEST_BOOK', config.id);
+  properties.deleteProperty('DAILY_PRICE_TEST_COMPLETE');
+  return { ok: true, environment: 'test', enabled: true, installed: true };
+}
+function desactivarActualizacionDiariaPreciosTest() {
+  authorizedConfig_();
+  ScriptApp.getProjectTriggers()
+    .filter((t) => t.getHandlerFunction() === 'actualizacionDiariaPreciosTest_')
+    .forEach((t) => ScriptApp.deleteTrigger(t));
+  PropertiesService.getScriptProperties().deleteProperty(
+    'DAILY_PRICE_TEST_BOOK',
+  );
+  PropertiesService.getScriptProperties().deleteProperty(
+    'DAILY_PRICE_TEST_TRIGGER',
+  );
+  return { ok: true, enabled: false };
+}
+// El sufijo _ impide llamadas desde google.script.run. La identidad efectiva
+// solo se acepta aquí, nunca en los endpoints ni en funciones públicas.
+function actualizacionDiariaPreciosTest_(event) {
+  return ejecutarActualizacionDiariaPreciosTest_(
+    dailyPriceTriggerConfig_(event),
+  );
+}
+function dailyPriceTriggerConfig_(event) {
+  const properties = PropertiesService.getScriptProperties(),
+    owner = (properties.getProperty('OWNER_EMAIL') || '').trim().toLowerCase(),
+    effective = (Session.getEffectiveUser().getEmail() || '')
+      .trim()
+      .toLowerCase(),
+    id = properties.getProperty('TEST_SPREADSHEET_ID'),
+    triggerId = properties.getProperty('DAILY_PRICE_TEST_TRIGGER');
+  if (!owner || effective !== owner) fail_('ACCESS_DENIED');
+  if (
+    properties.getProperty('ENVIRONMENT') !== 'test' ||
+    !id ||
+    properties.getProperty('DAILY_PRICE_TEST_BOOK') !== id ||
+    !triggerId ||
+    !event ||
+    String(event.triggerUid) !== String(triggerId) ||
+    !ScriptApp.getProjectTriggers().some(
+      (t) =>
+        t.getHandlerFunction() === 'actualizacionDiariaPreciosTest_' &&
+        String(t.getUniqueId()) === String(triggerId),
+    )
+  )
+    fail_(
+      'ACCESS_DENIED',
+      'El trigger no corresponde al libro de pruebas activado.',
+    );
+  return { id, owner, environment: 'test' };
+}
+function actualizacionDiariaPreciosTest() {
+  return ejecutarActualizacionDiariaPreciosTest_(authorizedConfig_());
+}
+function ejecutarActualizacionDiariaPreciosTest_(config) {
+  const properties = PropertiesService.getScriptProperties();
+  check_(
+    config.environment === 'test' &&
+      properties.getProperty('DAILY_PRICE_TEST_BOOK') === config.id,
+    'La rutina diaria requiere activación expresa para este libro de pruebas.',
+  );
+  // Una fecha se completa solo después de receipts válidos para todos los lotes.
+  const today = Utilities.formatDate(new Date(), 'Europe/Madrid', 'yyyy-MM-dd');
+  if (
+    properties.getProperty('DAILY_PRICE_TEST_COMPLETE') ===
+    config.id + '|' + today
+  )
+    return { ok: true, skipped: true, reason: 'ALREADY_COMPLETE' };
+  let state = readState_(config);
+  const ids = state.tables.tProductos.map((p) => p.ID),
+    batches = [],
+    start = Date.now();
+  for (let i = 0; i < ids.length; i += PRICE_LIMIT_) {
+    if (Date.now() - start > 180000) break;
+    const products = ids.slice(i, i + PRICE_LIMIT_),
+      // UUID estable por día, libro y productos: un retry recupera el receipt.
+      retryKey =
+        'DAILY_PRICE_TEST_RETRY_' +
+        hash_({ book: config.id, products }).slice(0, 16),
+      retry = JSON.parse(properties.getProperty(retryKey) || '{}'),
+      attempt = retry.today === today ? Number(retry.attempt || 0) : 0;
+    if (attempt >= 3) {
+      batches.push({
+        ok: false,
+        complete: false,
+        error: 'DAILY_RETRY_LIMIT',
+        products,
+      });
+      continue;
+    }
+    const digest = hash_({ book: config.id, today, products, attempt }),
+      requestId =
+        digest.slice(0, 8) +
+        '-' +
+        digest.slice(8, 12) +
+        '-4' +
+        digest.slice(13, 16) +
+        '-a' +
+        digest.slice(17, 20) +
+        '-' +
+        digest.slice(20, 32),
+      response = refreshPrices_(config, {
+        action: 'refreshPrices',
+        requestId,
+        expectedRevision: state.revision,
+        bookKey: state.bookKey,
+        products,
+      });
+    // Un receipt parcial requiere otro intento; una respuesta perdida conserva
+    // el mismo ID hasta que refreshPrices recupere el receipt del lote.
+    if (!response.complete)
+      properties.setProperty(
+        retryKey,
+        JSON.stringify({ today, attempt: attempt + 1 }),
+      );
+    batches.push(response);
+    state = readState_(config);
+  }
+  const complete =
+    batches.length === Math.ceil(ids.length / PRICE_LIMIT_) &&
+    batches.every((b) => b.complete);
+  if (complete)
+    properties.setProperty(
+      'DAILY_PRICE_TEST_COMPLETE',
+      config.id + '|' + today,
+    );
+  const result = {
+    ok: true,
+    environment: 'test',
+    complete,
+    batches,
+    remaining: Math.max(0, ids.length - batches.length * PRICE_LIMIT_),
+    checkedAt: new Date().toISOString(),
+  };
+  console.log(JSON.stringify(result));
+  return result;
+}
+
 // Pruebas de instalación: comprobar no escribe cotizaciones; actualizar sí guarda VL verificados.
 function comprobarPaso4() {
   let result;
@@ -4392,7 +4605,7 @@ function probarFuentesPaso4() {
       bindings = s.tables.tProductos
         .map((p) => fundBinding_(s, p))
         .filter(Boolean);
-    const results = bindings.map(fetchFundQuote_);
+    const results = fetchFundQuotesBatch_(bindings);
     result = {
       ok: true,
       apiVersion: API_VERSION_,

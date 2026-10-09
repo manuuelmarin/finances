@@ -28,6 +28,7 @@ module.exports = [
         UrlFetchApp: 'readonly',
         FinanceDomain: 'readonly',
         FinanceAnalytics: 'readonly',
+        FinanceCharts: 'readonly',
         FinanceDashboard: 'readonly',
         FinanceSync: 'readonly',
         FinanceApiClient: 'readonly',

@@ -163,12 +163,24 @@ async function open(page) {
   const popup = page.waitForEvent('popup');
   await page.locator('#finance-connect').click();
   const google = await popup;
-  await expect(page.locator('#finance-kpis .kpi-card')).toHaveCount(8);
+  await expect(page.locator('#finance-kpis > article')).toHaveCount(3);
   await expect(page.locator('#finance-kpis')).toContainText(/1[.]?015,00/);
+  await expect(page.locator('#finance-kpis')).toContainText('Patrimonio neto');
+  await expect(page.locator('#finance-kpis')).toContainText(
+    'Saldo libre del mes',
+  );
+  await expect(
+    page.locator('#dashboard-charts .asset-breakdown'),
+  ).toContainText('Efectivo');
+  await expect(
+    page.locator('#dashboard-charts .asset-breakdown'),
+  ).toContainText(/1[.]?000,00/);
+  await expect(page.locator('#finance-kpis')).toContainText('Inversiones');
+  await expect(page.locator('#finance-kpis')).toContainText(/15,00/);
   return google;
 }
 
-test('Bridge real con dos iframes carga ocho cifras, cuentas, gráficos y registra un gasto una sola vez', async ({
+test('Bridge real con dos iframes carga tres KPI, cuentas, gráficos y registra un gasto una sola vez', async ({
   page,
   context,
 }) => {
@@ -181,6 +193,7 @@ test('Bridge real con dos iframes carga ocho cifras, cuentas, gráficos y regist
   await navigate(page, 'book');
   await page.locator('#view-book [data-operation=gasto]').click();
   await page.locator('#operation-date').fill('2026-01-02');
+  await page.locator('.operation-additional summary').click();
   await page
     .locator('#operation-concept')
     .fill('Gasto ficticio con puente completo');
@@ -215,7 +228,7 @@ test('Bridge real con dos iframes carga ocho cifras, cuentas, gráficos y regist
   ).toBeGreaterThanOrEqual(3);
 });
 
-test('respuesta inválida en lectura conserva las ocho cifras anteriores y muestra revisión', async ({
+test('respuesta inválida en lectura conserva los tres KPI anteriores y muestra revisión', async ({
   page,
   context,
 }) => {
@@ -261,7 +274,7 @@ test('conectar, comprobar y registrar reutilizan una sola ventana con Google 3.6
   const google = await first;
   await expect(page.locator('#status')).toHaveText('Conexión verificada');
   await expect(page.locator('#sheet-count')).toHaveText('10');
-  await expect(page.locator('#finance-kpis .kpi-card')).toHaveCount(8);
+  await expect(page.locator('#finance-kpis > article')).toHaveCount(3);
   await diagnostic(page);
   await page.locator('#backend-check').click();
   await expect(page.locator('#backend-result')).toContainText(
@@ -282,6 +295,7 @@ test('conectar, comprobar y registrar reutilizan una sola ventana con Google 3.6
   );
   await page.locator('#finance-new').click();
   await page.locator('#operation-date').fill('2026-01-02');
+  await page.locator('.operation-additional summary').click();
   await page
     .locator('#operation-concept')
     .fill('Gasto ficticio en el mismo canal');
@@ -352,7 +366,12 @@ test('una lectura local retrasada no repone datos del libro anterior tras cambia
     );
     window.dispatchEvent(new Event('finances:configuration'));
   });
-  await expect(page.locator('#finance-kpis')).toContainText('Sin dato');
+  await expect(page.locator('#finance-kpis')).toBeHidden();
+  await expect(page.locator('#finance-kpis > article')).toHaveCount(0);
+  await expect(page.locator('#dashboard-empty')).toBeVisible();
+  await expect(page.locator('#dashboard-empty')).toContainText(
+    'Libro sin cargar',
+  );
   await expect(page.locator('#finance-kpis')).not.toContainText(/1[.]?015,00/);
   await page.evaluate(() => window.releaseRender());
   await page.waitForFunction(() => window.checkResult !== null);
@@ -462,6 +481,7 @@ test('respuesta de escritura malformada conserva UUID incierto y recupera recibo
   await open(page);
   await page.locator('#finance-new').click();
   await page.locator('#operation-date').fill('2026-01-02');
+  await page.locator('.operation-additional summary').click();
   await page.locator('#operation-concept').fill('Ficticio respuesta perdida');
   await page.locator('#operation-account').selectOption('Cuenta A');
   await page.locator('#operation-category').selectOption('Café');
@@ -489,6 +509,7 @@ test('cambiar la conexión desde otra pestaña invalida la revisión y no regist
   await open(page);
   await page.locator('#finance-new').click();
   await page.locator('#operation-date').fill('2026-01-02');
+  await page.locator('.operation-additional summary').click();
   await page
     .locator('#operation-concept')
     .fill('Borrador ficticio del primer libro');
