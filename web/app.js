@@ -1,23 +1,44 @@
 'use strict';
 
-const views = ['home', 'book', 'budgets', 'tools', 'connection'];
+const titles = {
+  home: 'Resumen',
+  book: 'Movimientos',
+  investments: 'Inversiones',
+  accounts: 'Cuentas',
+  budgets: 'Presupuestos',
+  salary: 'Salario',
+  goals: 'Objetivos',
+  activity: 'Actividad',
+  tools: 'Calculadoras',
+  connection: 'Ajustes',
+};
+const views = Object.keys(titles);
+const navigationDialog = document.getElementById('navigation-dialog');
+document.getElementById('mobile-menu').addEventListener('click', () => {
+  navigationDialog.showModal();
+});
+document.getElementById('navigation-close').addEventListener('click', () => {
+  navigationDialog.close();
+});
 function navigate(view, focus = false) {
   if (!views.includes(view)) view = 'home';
+  if (navigationDialog.open) navigationDialog.close();
   for (const name of views)
     document.getElementById('view-' + name).hidden = name !== view;
   for (const item of document.querySelectorAll('nav [data-view]')) {
     if (item.dataset.view === view) item.setAttribute('aria-current', 'page');
     else item.removeAttribute('aria-current');
   }
-  document.title =
-    'Finanzas · ' +
-    {
-      home: 'Inicio',
-      book: 'Tu libro',
-      budgets: 'Presupuestos',
-      tools: 'Herramientas',
-      connection: 'Conexión',
-    }[view];
+  document
+    .getElementById('mobile-menu')
+    .toggleAttribute(
+      'data-active',
+      !['home', 'book', 'investments', 'budgets'].includes(view),
+    );
+  document.title = 'Finanzas · ' + titles[view];
+  window.dispatchEvent(
+    new CustomEvent('finances:navigate', { detail: { view } }),
+  );
   if (focus) {
     const heading = document
       .getElementById('view-' + view)
@@ -35,6 +56,7 @@ for (const link of document.querySelectorAll('[data-view]'))
     const view = link.dataset.view;
     if (!views.includes(view)) return;
     event.preventDefault();
+    if (navigationDialog.open) navigationDialog.close();
     if (location.hash === '#' + view) navigate(view, true);
     else location.hash = view;
   });

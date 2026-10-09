@@ -7,7 +7,7 @@
     $('finance-state').textContent =
       'Abre Finanzas en su propia ventana para acceder a tu libro.';
     for (const button of document.querySelectorAll(
-      '.finance-toolbar button, [data-operation], [data-open-book]',
+      '.workspace-controls button, #finance-new, [data-operation], [data-open-book]',
     ))
       button.disabled = true;
     return;
@@ -198,11 +198,7 @@
         : 'Lectura confirmada · ') +
         new Date(result.checkedAt).toLocaleString('es-ES', {
           timeZone: 'Europe/Madrid',
-        }) +
-        ' · ' +
-        (result.environment === 'production'
-          ? 'libro principal'
-          : 'copia de pruebas'),
+        }),
       readingClient.session?.rpcReady === false ? 'readonly' : 'loaded',
     );
     await render();
@@ -405,29 +401,73 @@
     }
     const wrap = el('div', undefined, 'table-scroll');
     const t = el('table', undefined, 'finance-table');
-    const caption = el('caption', `${rows.length} registros · datos de Sheets`);
+    const visibleColumns =
+      name === 'tMovimientos' && actions
+        ? columns.filter(([key]) =>
+            ['Fecha', 'Tipo', 'Concepto', 'Origen', 'Importe'].includes(key),
+          )
+        : columns;
+    const compact = visibleColumns.length < columns.length;
+    const caption = el(
+      'caption',
+      `${Math.min(rows.length, limit)}${rows.length > limit ? ' de ' + rows.length : ''} registros`,
+    );
     t.append(caption);
     const head = el('thead'),
       hr = el('tr');
-    for (const [key, label] of columns) {
+    for (const [key, label] of visibleColumns) {
       const th = el('th', label || key);
       th.scope = 'col';
+      if (rows.some((row) => typeof row[key] === 'number'))
+        th.className = 'numeric';
       hr.append(th);
     }
     if (actions) hr.append(el('th', 'Acciones'));
     head.append(hr);
     t.append(head);
     const body = el('tbody');
-    for (const row of rows.slice(0, limit)) {
+    for (const [index, row] of rows.slice(0, limit).entries()) {
       const tr = el('tr');
-      for (const [key, label] of columns) {
+      for (const [key, label] of visibleColumns) {
         const td = el('td', cell(key, row[key]));
         td.dataset.label = label || key;
+        if (typeof row[key] === 'number') td.className = 'numeric';
+        if (compact && key === 'Concepto' && row.Subcategoría)
+          td.append(
+            el(
+              'span',
+              D.displayValue('Subcategoría', row.Subcategoría, snapshot),
+              'cell-secondary',
+            ),
+          );
         tr.append(td);
       }
+      let detailRow;
       if (actions) {
         const td = el('td', undefined, 'row-actions');
         td.dataset.label = 'Acciones';
+        if (compact) {
+          detailRow = el('tr', undefined, 'record-detail');
+          detailRow.hidden = true;
+          detailRow.id = `record-detail-${name}-${index}`;
+          const detailCell = el('td');
+          detailCell.colSpan = visibleColumns.length + 1;
+          const fields = el('dl', undefined, 'record-fields');
+          for (const [key, label] of columns) {
+            const pair = el('div');
+            pair.append(el('dt', label || key), el('dd', cell(key, row[key])));
+            fields.append(pair);
+          }
+          detailCell.append(fields);
+          detailRow.append(detailCell);
+          const toggle = button('Detalles', () => {
+            detailRow.hidden = !detailRow.hidden;
+            toggle.setAttribute('aria-expanded', String(!detailRow.hidden));
+          });
+          toggle.setAttribute('aria-expanded', 'false');
+          toggle.setAttribute('aria-controls', detailRow.id);
+          td.append(toggle);
+        }
         td.append(
           button('Corregir', () => editRow(name, row)),
           button('Anular', () => cancelRow(name, row)),
@@ -435,6 +475,7 @@
         tr.append(td);
       }
       body.append(tr);
+      if (detailRow) body.append(detailRow);
     }
     t.append(body);
     wrap.append(t);
@@ -518,11 +559,101 @@
       ['difference', 'Diferencia al corte'],
     ],
   };
+  const registerViews = {
+    book: [['tMovimientos', 'Movimientos']],
+    investments: [
+      ['tProductos', 'Posiciones'],
+      ['tOperaciones', 'Operaciones'],
+      ['tPrecios', 'Precios'],
+    ],
+    accounts: [
+      ['tCuentas', 'Cuentas'],
+      ['tDeudas', 'Deudas'],
+      ['observations', 'Saldos observados'],
+    ],
+    salary: [['tNominas', 'Nóminas']],
+    goals: [
+      ['tObjetivos', 'Objetivos'],
+      ['tAsignaciones', 'Asignaciones'],
+    ],
+    connection: [['tCategorias', 'Categorías']],
+  };
+  const registerSelection = new Map(),
+    registerFilters = new Map();
+  let registerView = 'book';
+  function selectRegister(name, focus = false) {
+    registerFilters.set($('finance-section').value, {
+      search: $('finance-search').value,
+      from: $('finance-from').value,
+      to: $('finance-to').value,
+    });
+    $('finance-section').value = name;
+    registerSelection.set(registerView, name);
+    const filters = registerFilters.get(name) || {};
+    $('finance-search').value = filters.search || '';
+    $('finance-from').value = filters.from || '';
+    $('finance-to').value = filters.to || '';
+    for (const tab of $('register-tabs').querySelectorAll('button')) {
+      const selected = tab.dataset.registerTable === name;
+      tab.setAttribute('aria-selected', String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+      if (selected) {
+        $('finance-register').setAttribute('aria-labelledby', tab.id);
+        if (focus) tab.focus();
+      }
+    }
+    limit = 50;
+    renderRegister();
+  }
+  function registerContext(view) {
+    if (!registerViews[view]) return;
+    registerView = view;
+    document
+      .querySelector(`[data-register-slot="${view}"]`)
+      .append($('register-panel'));
+    const tabs = $('register-tabs');
+    tabs.replaceChildren();
+    tabs.hidden = registerViews[view].length === 1;
+    for (const [name, label] of registerViews[view]) {
+      const tab = button(label, () => selectRegister(name));
+      tab.id = 'register-tab-' + name;
+      tab.dataset.registerTable = name;
+      tab.setAttribute('role', 'tab');
+      tab.setAttribute('aria-controls', 'finance-register');
+      tab.addEventListener('keydown', (event) => {
+        const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+        if (!keys.includes(event.key)) return;
+        event.preventDefault();
+        const choices = registerViews[view];
+        const index = choices.findIndex(([key]) => key === name);
+        const next =
+          event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? choices.length - 1
+              : (index +
+                  (event.key === 'ArrowRight' ? 1 : choices.length - 1)) %
+                choices.length;
+        selectRegister(choices[next][0], true);
+      });
+      tabs.append(tab);
+    }
+    selectRegister(registerSelection.get(view) || registerViews[view][0][0]);
+  }
   function renderRegister() {
     const name = $('finance-section').value;
     const query = D.normalize($('finance-search').value),
       from = $('finance-from').value,
       to = $('finance-to').value;
+    const dated = columns[name].some(([key]) =>
+      ['Fecha', 'Fecha cobro', 'date'].includes(key),
+    );
+    for (const field of document.querySelectorAll('[data-date-filter]'))
+      field.hidden = !dated;
+    $('finance-search').placeholder =
+      name === 'tMovimientos'
+        ? 'Concepto, cuenta o categoría'
+        : 'Buscar en este registro';
     let rows =
       name === 'observations'
         ? snapshot?.observations || []
@@ -564,8 +695,8 @@
     const parent = $('finance-register');
     table(parent, rows, columns[name], name, name !== 'observations');
     if (name === 'tProductos' || name === 'tPrecios') {
-      const panel = el('div', undefined, 'price-panel');
-      panel.append(el('h2', 'Estado de las fuentes'));
+      const panel = el('details', undefined, 'price-panel');
+      panel.append(el('summary', 'Fuentes de precios'));
       for (const price of snapshot?.prices || []) {
         const p = el('p');
         p.append(
@@ -597,8 +728,8 @@
     }
     $('finance-register-note').textContent =
       name === 'tCuentas' || name === 'observations'
-        ? 'El saldo observado conserva su fecha y alcance. Solo un cierre de día se compara con un corte equivalente; no se crean ajustes automáticos.'
-        : 'Los filtros del listado no cambian las fechas del informe. Los pendientes aún no forman parte de estos registros.';
+        ? 'Solo se comparan saldos con el mismo corte. Las observaciones no crean ajustes automáticos.'
+        : 'Registros confirmados en Sheets. Los filtros solo afectan a este listado.';
   }
   async function render() {
     const epoch = configurationEpoch,
@@ -621,6 +752,7 @@
           .join(' · ')}.`
       : '';
     const kpis = $('finance-kpis');
+    kpis.hidden = !snapshot;
     kpis.replaceChildren();
     const metrics =
       snapshot?.summary?.metrics ||
@@ -699,6 +831,8 @@
   function renderQueue(items) {
     const parent = $('finance-queue');
     parent.replaceChildren();
+    const history = $('finance-history');
+    history.replaceChildren();
     const labels = {
       pending: 'Pendiente de enviar',
       uncertain: 'Enviada · sin confirmar',
@@ -707,14 +841,31 @@
       discarded: 'Descartada sin enviar',
     };
     const active = items
-      .filter((q) => q.status !== 'discarded')
+      .filter((q) => !['discarded', 'confirmed'].includes(q.status))
       .slice()
       .reverse();
+    const confirmed = items
+      .filter((q) => q.status === 'confirmed')
+      .slice()
+      .reverse();
+    $('pending-total').textContent = String(active.length);
+    $('history-total').textContent = String(confirmed.length);
+    for (const badge of document.querySelectorAll('[data-pending-count]')) {
+      badge.textContent = String(active.length);
+      badge.hidden = !active.length;
+    }
     if (!active.length) {
       parent.append(el('p', 'No hay operaciones pendientes.', 'empty-state'));
-      return;
     }
-    for (const item of active.slice(0, 50)) {
+    if (!confirmed.length)
+      history.append(
+        el(
+          'p',
+          'Sin solicitudes confirmadas en este navegador.',
+          'empty-state',
+        ),
+      );
+    for (const item of [...active.slice(0, 50), ...confirmed.slice(0, 50)]) {
       const card = el('article', undefined, 'queue-item');
       card.dataset.state = item.status;
       card.append(
@@ -768,7 +919,7 @@
             'Se consultará la misma solicitud antes de reintentar. No la vuelvas a crear.',
           ),
         );
-      parent.append(card);
+      (item.status === 'confirmed' ? history : parent).append(card);
     }
   }
   function fieldInput(f, value) {
@@ -807,9 +958,9 @@
   }
   function processFields(values = {}) {
     editing = null;
-    $('operation-title').textContent = 'Nueva operación';
     const process = $('operation-kind').value,
       spec = D.processes[process];
+    $('operation-title').textContent = spec.label;
     const parent = $('operation-fields');
     parent.replaceChildren();
     const today = new Intl.DateTimeFormat('en-CA', {
@@ -848,11 +999,11 @@
         renombrar:
           'Conserva las relaciones y el historial del nombre anterior.',
       }[process] ||
-      'Se registra en ' +
+      'Libro: ' +
         (snapshot?.environment === 'production'
           ? 'el libro principal'
           : 'la copia de pruebas') +
-        '. Revisa la fecha, los importes y las selecciones antes de confirmar.';
+        '. Revisa los datos antes de confirmar.';
     $('operation-error').hidden = true;
   }
   async function newOperation(process) {
@@ -1028,7 +1179,7 @@
     $('review-title').textContent = label;
     $('review-note').textContent =
       note ||
-      'Se guardará como pendiente en este navegador. Si Google está abierto, se intentará enviar. El estado confirmado aparece al recibir su respuesta.';
+      'La solicitud queda guardada en este navegador. Se enviará si Google está abierto; aparecerá confirmada cuando responda.';
     $('review-error').hidden = true;
     $('review-dialog').showModal();
   }
@@ -1245,6 +1396,12 @@
       limit = 50;
       renderRegister();
     });
+  window.addEventListener('finances:navigate', (event) =>
+    registerContext(event.detail.view),
+  );
+  registerContext(
+    registerViews[location.hash.slice(1)] ? location.hash.slice(1) : 'book',
+  );
   window.addEventListener('finances:configuration', () => {
     void configure().catch((error) => status(errorText(error)));
   });

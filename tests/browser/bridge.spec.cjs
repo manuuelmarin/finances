@@ -1,6 +1,7 @@
 // Canal real de la app/Bridge/Code.gs con Google y Sheets ficticios y aislados.
 // No sustituye la aceptación en la implementación privada de Google.
 const { test, expect } = require('@playwright/test');
+const { navigate, diagnostic } = require('./helpers/navigation.cjs');
 const fs = require('node:fs');
 const path = require('node:path');
 const { runtime } = require('../helpers/runtime.cjs');
@@ -177,7 +178,7 @@ test('Bridge real con dos iframes carga ocho cifras, cuentas, gráficos y regist
     'Datos cargados',
   );
   expect(calls.map((c) => c.action)).toEqual(['ping']); // La primera lectura no necesita otro RPC.
-  await page.locator('nav [data-view=book]:visible').first().click();
+  await navigate(page, 'book');
   await page.locator('#view-book [data-operation=gasto]').click();
   await page.locator('#operation-date').fill('2026-01-02');
   await page
@@ -189,7 +190,7 @@ test('Bridge real con dos iframes carga ocho cifras, cuentas, gráficos y regist
   await page.locator('#operation-review').click();
   expect(calls.filter((c) => c.action === 'transact')).toHaveLength(0);
   await page.locator('#review-confirm').click();
-  await expect(page.locator('#finance-queue')).toContainText(
+  await expect(page.locator('#finance-history')).toContainText(
     'Confirmada por Google',
   );
   await expect(page.locator('#finance-register')).toContainText(
@@ -204,7 +205,7 @@ test('Bridge real con dos iframes carga ocho cifras, cuentas, gráficos y regist
     );
   await bridge.locator('#return-to-app').click();
   expect(google.url()).toContain('script.google.com');
-  await page.locator('nav [data-view=home]:visible').first().click();
+  await navigate(page, 'home');
   await page.locator('#finance-refresh').click();
   await expect(page.locator('#finance-state')).toContainText(
     'Lectura confirmada',
@@ -254,29 +255,27 @@ test('conectar, comprobar y registrar reutilizan una sola ventana con Google 3.6
   let popups = 0;
   page.on('popup', () => popups++);
   await page.goto(origin + '/finances/');
-  await page.locator('nav [data-view=connection]:visible').first().click();
+  await navigate(page, 'connection');
   const first = page.waitForEvent('popup');
   await page.locator('#connect').click();
   const google = await first;
-  await expect(page.locator('#status')).toHaveText(
-    'Estructura y canal privado comprobados',
-  );
+  await expect(page.locator('#status')).toHaveText('Conexión verificada');
   await expect(page.locator('#sheet-count')).toHaveText('10');
   await expect(page.locator('#finance-kpis .kpi-card')).toHaveCount(8);
+  await diagnostic(page);
   await page.locator('#backend-check').click();
   await expect(page.locator('#backend-result')).toContainText(
     'Backend verificado',
   );
+  await diagnostic(page);
   await page.locator('#acceptance-check').click();
   await expect(page.locator('#acceptance-result')).toContainText(
     'versión 3.6.0',
   );
   expect(google.isClosed()).toBe(false);
   await page.locator('#connect').click();
-  await expect(page.locator('#status')).toHaveText(
-    'Estructura y canal privado comprobados',
-  );
-  await page.locator('nav [data-view=home]:visible').first().click();
+  await expect(page.locator('#status')).toHaveText('Conexión verificada');
+  await navigate(page, 'home');
   await page.locator('#finance-connect').click();
   await expect(page.locator('#finance-state')).toContainText(
     'Lectura confirmada',
@@ -291,7 +290,7 @@ test('conectar, comprobar y registrar reutilizan una sola ventana con Google 3.6
   await page.locator('#operation-amount').fill('1,23');
   await page.locator('#operation-review').click();
   await page.locator('#review-confirm').click();
-  await expect(page.locator('#finance-queue')).toContainText(
+  await expect(page.locator('#finance-history')).toContainText(
     'Confirmada por Google',
   );
   expect(popups).toBe(1);
@@ -375,7 +374,8 @@ test('cerrar Google durante comprobar sistema muestra un aviso claro y abre una 
   let popups = 0;
   page.on('popup', () => popups++);
   const google = await open(page);
-  await page.locator('nav [data-view=connection]:visible').first().click();
+  await navigate(page, 'connection');
+  await diagnostic(page);
   await page.locator('#acceptance-check').click();
   await expect
     .poll(() => calls.some((c) => c.action === 'acceptance'))
@@ -388,6 +388,7 @@ test('cerrar Google durante comprobar sistema muestra un aviso claro y abre una 
     'GOOGLE_WINDOW_CLOSED',
   );
   const replacement = page.waitForEvent('popup');
+  await diagnostic(page);
   await page.locator('#backend-check').click();
   const reopened = await replacement;
   await expect(page.locator('#backend-result')).toContainText(
@@ -406,11 +407,13 @@ test('comprobación en curso bloquea duplicados y descarta el libro cambiado des
   let popups = 0;
   page.on('popup', () => popups++);
   const google = await open(page);
-  await page.locator('nav [data-view=connection]:visible').first().click();
+  await navigate(page, 'connection');
+  await diagnostic(page);
   await page.locator('#acceptance-check').click();
   await expect
     .poll(() => calls.some((c) => c.action === 'acceptance'))
     .toBe(true);
+  await diagnostic(page);
   await page.locator('#backend-check').click();
   await expect(page.locator('#backend-result')).toContainText(
     'Hay una lectura o un envío en curso',
@@ -468,8 +471,9 @@ test('respuesta de escritura malformada conserva UUID incierto y recupera recibo
   await expect(page.locator('#finance-queue')).toContainText(
     'Enviada · sin confirmar',
   );
+  await navigate(page, 'activity');
   await page.locator('#finance-sync').click();
-  await expect(page.locator('#finance-queue')).toContainText(
+  await expect(page.locator('#finance-history')).toContainText(
     'Confirmada por Google',
   );
   expect(calls.filter((c) => c.action === 'transact')).toHaveLength(1);

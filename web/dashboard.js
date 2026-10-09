@@ -31,7 +31,9 @@ const FinanceDashboard = (() => {
   ];
   function series(parent, title, rows, fields, line = false) {
     const card = el('article', undefined, 'chart-card');
-    card.append(el('h3', title));
+    const heading = el('div', undefined, 'chart-heading');
+    heading.append(el('h3', title), el('span', 'EUR', 'chart-unit'));
+    card.append(heading);
     const legend = el('div', undefined, 'chart-legend');
     fields.forEach(([key, label], i) =>
       legend.append(el('span', label, palettes[i])),
@@ -51,8 +53,12 @@ const FinanceDashboard = (() => {
         ),
       );
     } else {
+      const width = window.innerWidth <= 600 ? 360 : 560;
+      const left = 56,
+        right = width - 16,
+        plotWidth = right - left;
       const chart = svg('svg', {
-        viewBox: '0 0 560 250',
+        viewBox: `0 0 ${width} 250`,
         role: 'img',
         'aria-label': title,
         class: 'finance-chart',
@@ -61,13 +67,14 @@ const FinanceDashboard = (() => {
         max = Math.max(0, ...known),
         span = max - min || 1;
       const y = (v) => 207 - ((v - min) / span) * 175;
-      const x = (i) => 62 + ((i + 0.5) * 480) / Math.max(rows.length, 1);
+      const x = (i) =>
+        left + ((i + 0.5) * plotWidth) / Math.max(rows.length, 1);
       for (let i = 0; i <= 3; i++) {
         const value = min + (span * i) / 3;
         chart.append(
           svg('line', {
-            x1: 62,
-            x2: 542,
+            x1: left,
+            x2: right,
             y1: y(value),
             y2: y(value),
             class: 'chart-gridline',
@@ -75,14 +82,15 @@ const FinanceDashboard = (() => {
           svg(
             'text',
             {
-              x: 56,
+              x: left - 6,
               y: y(value) + 4,
               'text-anchor': 'end',
               class: 'chart-axis',
             },
-            new Intl.NumberFormat('es-ES', { maximumFractionDigits: 0 }).format(
-              value,
-            ),
+            new Intl.NumberFormat('es-ES', {
+              notation: 'compact',
+              maximumFractionDigits: 1,
+            }).format(value),
           ),
         );
       }
@@ -119,7 +127,7 @@ const FinanceDashboard = (() => {
           } else {
             const width = Math.max(
               2,
-              Math.min(32, 380 / rows.length / fields.length),
+              Math.min(32, (plotWidth * 0.8) / rows.length / fields.length),
             );
             const bar = svg('rect', {
               x: x(i) + (color - fields.length / 2) * width,
@@ -136,17 +144,20 @@ const FinanceDashboard = (() => {
           }
         });
       });
+      const ticks = width <= 360 ? 3 : 6;
+      const tickCount = Math.min(ticks, rows.length);
+      const tickIndices = new Set(
+        Array.from({ length: tickCount }, (_, i) =>
+          Math.round((i * (rows.length - 1)) / Math.max(1, tickCount - 1)),
+        ),
+      );
       rows.forEach((row, i) => {
-        if (
-          rows.length <= 7 ||
-          i % Math.ceil(rows.length / 6) === 0 ||
-          i === rows.length - 1
-        )
+        if (tickIndices.has(i))
           chart.append(
             svg(
               'text',
               { x: x(i), y: 234, 'text-anchor': 'middle', class: 'chart-axis' },
-              row.label.slice(0, 12),
+              row.label.slice(0, width <= 360 ? 10 : 12),
             ),
           );
       });
@@ -256,7 +267,11 @@ const FinanceDashboard = (() => {
     current = snapshot;
     api = handlers;
     const container = $('dashboard-charts');
-    container.replaceChildren();
+    const spending = $('spending-charts'),
+      investments = $('investment-charts'),
+      salary = $('salary-charts');
+    for (const target of [container, spending, investments, salary])
+      target.replaceChildren();
     $('dashboard-empty').hidden = Boolean(snapshot);
     $('dashboard-grid').hidden = !snapshot;
     if (snapshot) {
@@ -290,12 +305,12 @@ const FinanceDashboard = (() => {
         series(container, 'Gasto por categoría', c.categories, [
           ['value', 'Gasto propio'],
         ]);
-        distribution(container, 'Distribución del gasto', c.categories);
-        series(container, 'Gasto por ciudad', c.cities, [
+        distribution(spending, 'Distribución del gasto', c.categories);
+        series(spending, 'Gasto por ciudad', c.cities, [
           ['value', 'Gasto propio'],
         ]);
         series(
-          container,
+          investments,
           'Valor de mercado y capital invertido',
           c.investments,
           [
@@ -304,13 +319,13 @@ const FinanceDashboard = (() => {
           ],
           true,
         );
-        distribution(container, 'Peso de las posiciones', c.positions);
+        distribution(investments, 'Peso de las posiciones', c.positions);
         distribution(
-          container,
+          investments,
           'Clases de activo',
           FinanceAnalytics.groups(c.positions),
         );
-        series(container, 'Nóminas registradas', c.salary, [['value', 'Neto']]);
+        series(salary, 'Nóminas registradas', c.salary, [['value', 'Neto']]);
       }
       if (!month) month = snapshot.settings.asof.slice(0, 7);
       $('budget-month').value = month;
@@ -431,7 +446,7 @@ const FinanceDashboard = (() => {
       goals.append(
         el(
           'p',
-          'Todavía no hay objetivos de ahorro. Puedes crear uno y asignarle activos desde Nueva operación.',
+          'Sin objetivos. Crea una meta y asígnale activos existentes.',
           'empty-state',
         ),
       );
@@ -482,6 +497,13 @@ const FinanceDashboard = (() => {
       $('budget-error').textContent = error.message;
       $('budget-error').hidden = false;
     }
+  });
+  let resize;
+  window.addEventListener('resize', () => {
+    clearTimeout(resize);
+    resize = setTimeout(() => {
+      if (current) render(current, api);
+    }, 150);
   });
   return { render };
 })();

@@ -8,13 +8,13 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="dark" />
-    <meta name="theme-color" content="#101b21" />
+    <meta name="theme-color" content="#10161e" />
     <meta name="referrer" content="no-referrer" />
     <meta
       name="description"
-      content="Tu espacio personal para conectar y entender tu libro de finanzas en Google Sheets."
+      content="Gestión de movimientos, inversiones, cuentas y presupuestos con Google Sheets."
     />
-    <title>Finanzas · Tu espacio personal</title>
+    <title>Finanzas · Resumen</title>
     <link rel="stylesheet" href="styles.css" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
@@ -89,401 +89,385 @@
 
     <aside class="sidebar" aria-label="Navegación principal">
       <button
-        class="brand brand-desktop"
+        class="brand"
         type="button"
         data-view="home"
-        aria-label="Finanzas, ir a inicio"
-      >
-        <span class="brand-mark" aria-hidden="true"
-          ><span></span><span></span><span></span
-        ></span>
-        <span class="brand-type">finanzas<span>ESPACIO PERSONAL</span></span>
-      </button>
-      <div class="sidebar-rule"></div>
-      <p class="nav-caption">TU ESPACIO</p>
-      <nav class="desktop-nav">
-        <button
-          class="nav-item"
-          type="button"
-          data-view="home"
-          aria-current="page"
-        >
-          <svg class="icon"><use href="#icon-home" /></svg><span>Inicio</span
-          ><span class="nav-active-dot" aria-hidden="true"></span>
-        </button>
-        <button class="nav-item" type="button" data-view="book">
-          <svg class="icon"><use href="#icon-book" /></svg><span>Mi libro</span>
-        </button>
-        <button class="nav-item" type="button" data-view="budgets">
-          <svg class="icon"><use href="#icon-target" /></svg
-          ><span>Presupuestos</span>
-        </button>
-        <button class="nav-item" type="button" data-view="tools">
-          <svg class="icon"><use href="#icon-tools" /></svg
-          ><span>Herramientas</span>
-        </button>
-        <button class="nav-item" type="button" data-view="connection">
-          <svg class="icon"><use href="#icon-connect" /></svg
-          ><span>Conexión</span>
-        </button>
-      </nav>
-      <div class="sidebar-bottom">
-        <div class="sidebar-edition">
-          <span class="edition-line"></span><span>Claridad para decidir.</span>
-        </div>
-        <div class="sidebar-foot">
-          <svg class="icon"><use href="#icon-lock" /></svg
-          ><span
-            >Google Sheets<br /><strong>Tu libro sigue contigo</strong></span
-          >
-        </div>
-      </div>
-    </aside>
-
-    <header class="mobile-header">
-      <button
-        class="brand brand-mobile"
-        type="button"
-        data-view="home"
-        aria-label="Finanzas, ir a inicio"
+        aria-label="Finanzas, ir al resumen"
       >
         <span class="brand-mark" aria-hidden="true"
           ><span></span><span></span><span></span></span
-        ><span class="brand-type">finanzas</span>
+        ><span class="brand-type">Finanzas</span>
       </button>
-      <button class="mobile-connection" type="button" data-view="connection">
+      <nav class="desktop-nav">
+        <button
+          type="button"
+          class="nav-item"
+          data-view="home"
+          aria-current="page"
+        >
+          <svg class="icon" aria-hidden="true"><use href="#icon-home" /></svg
+          ><span>Resumen</span>
+        </button>
+        <button type="button" class="nav-item" data-view="book">
+          <svg class="icon" aria-hidden="true"><use href="#icon-book" /></svg
+          ><span>Movimientos</span>
+        </button>
+        <button type="button" class="nav-item" data-view="investments">
+          <svg class="icon" aria-hidden="true"><use href="#icon-growth" /></svg
+          ><span>Inversiones</span>
+        </button>
+        <button type="button" class="nav-item" data-view="accounts">
+          <svg class="icon" aria-hidden="true"><use href="#icon-wallet" /></svg
+          ><span>Cuentas</span>
+        </button>
+        <button type="button" class="nav-item" data-view="budgets">
+          <svg class="icon" aria-hidden="true"><use href="#icon-target" /></svg
+          ><span>Presupuestos</span>
+        </button>
+        <button type="button" class="nav-item" data-view="salary">
+          <svg class="icon" aria-hidden="true"><use href="#icon-wallet" /></svg
+          ><span>Salario</span>
+        </button>
+        <button type="button" class="nav-item" data-view="goals">
+          <svg class="icon" aria-hidden="true"><use href="#icon-target" /></svg
+          ><span>Objetivos</span>
+        </button>
+        <button type="button" class="nav-item" data-view="activity">
+          <svg class="icon" aria-hidden="true"><use href="#icon-layers" /></svg
+          ><span>Actividad</span
+          ><span data-pending-count class="count-badge" hidden></span>
+        </button>
+        <button type="button" class="nav-item" data-view="tools">
+          <svg class="icon" aria-hidden="true"><use href="#icon-tools" /></svg
+          ><span>Calculadoras</span>
+        </button>
+        <button type="button" class="nav-item" data-view="connection">
+          <svg class="icon" aria-hidden="true"><use href="#icon-sliders" /></svg
+          ><span>Ajustes</span>
+        </button>
+      </nav>
+      <div class="sidebar-bottom">
+        <span class="sidebar-source"
+          ><svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg
+          >Google Sheets · privado</span
+        >
+      </div>
+    </aside>
+    <header class="mobile-header">
+      <button
+        class="brand"
+        type="button"
+        data-view="home"
+        aria-label="Finanzas, ir al resumen"
+      >
+        <span class="brand-mark" aria-hidden="true"
+          ><span></span><span></span><span></span></span
+        ><span class="brand-type">Finanzas</span></button
+      ><button class="mobile-connection" type="button" data-view="connection">
         <span
           class="status-dot"
           aria-hidden="true"
           data-connection-indicator
           data-state="pending"
         ></span
-        ><span data-connection-label>Conexión inicial</span
-        ><svg class="icon"><use href="#icon-arrow" /></svg>
+        ><span data-connection-label>Sin conectar</span>
       </button>
     </header>
-
     <main id="main-content" tabindex="-1">
       <header class="workspace-header">
-        <span class="workspace-label">FINANZAS PERSONALES</span>
-        <button class="workspace-status" type="button" data-view="connection">
-          <span
-            class="status-dot"
-            aria-hidden="true"
-            data-connection-indicator
-            data-state="pending"
-          ></span
-          ><span data-connection-label>Conexión inicial</span
-          ><span class="workspace-status-step">COPIA DE PRUEBAS</span>
-        </button>
-      </header>
-
-      <section id="view-home" class="view" aria-labelledby="home-title">
-        <div class="page-heading home-heading">
-          <div>
-            <p class="eyebrow">UNA VISIÓN DE CONJUNTO</p>
-            <h1 id="home-title">Tu resumen financiero.</h1>
-          </div>
-          <p class="heading-note">Datos de tu libro. Decisiones a tu ritmo.</p>
+        <div class="workspace-context">
+          <span class="workspace-label">Libro</span
+          ><span class="environment-tag" data-finance-environment
+            >Sin conectar</span
+          >
         </div>
-
-        <section class="financial-overview" aria-label="Estado del libro">
-          <div class="finance-toolbar">
-            <button
-              id="finance-connect"
-              class="button button-primary"
-              type="button"
-            >
-              Abrir mi libro</button
-            ><button
-              id="finance-refresh"
-              class="button button-secondary"
-              type="button"
-              disabled
-            >
-              Volver a leer</button
-            ><button
-              id="finance-new"
-              class="button button-primary"
-              type="button"
-            >
-              Nuevo movimiento</button
-            ><button
-              id="install-app"
-              class="button button-secondary"
-              type="button"
-              hidden
-            >
-              Instalar app
-            </button>
-          </div>
-          <p id="finance-state" role="status" aria-live="polite">
-            Configura el enlace de Google para abrir tu libro privado.
-          </p>
-          <p id="finance-cut" class="calculator-note"></p>
-          <div id="finance-kpis" class="kpi-grid"></div>
-          <p
-            id="finance-warning"
-            class="field-message"
-            role="status"
+        <div class="workspace-controls">
+          <button class="workspace-status" type="button" data-view="connection">
+            <span
+              class="status-dot"
+              aria-hidden="true"
+              data-connection-indicator
+              data-state="pending"
+            ></span
+            ><span data-connection-label>Sin conectar</span></button
+          ><button
+            id="finance-connect"
+            class="button button-secondary"
+            type="button"
+          >
+            Abrir mi libro</button
+          ><button
+            id="finance-refresh"
+            class="icon-button"
+            type="button"
+            aria-label="Volver a leer"
+            disabled
+          >
+            <svg class="icon" aria-hidden="true">
+              <use href="#icon-connect" />
+            </svg></button
+          ><button
+            id="install-app"
+            class="button button-secondary"
+            type="button"
             hidden
-          ></p>
-        </section>
-        <div id="dashboard-empty" class="dashboard-welcome">
-          <span class="section-kicker">TU PANEL PRIVADO</span>
-          <h2>Todo tu libro, a una lectura.</h2>
-          <p>
-            Abre tu libro o pulsa Nuevo movimiento para cargar cuentas,
-            registros y gráficos. Una sola conexión de Google para todo tu
-            libro.
-          </p>
-          <div class="welcome-features">
-            <span>Resumen y gráficos</span><span>Movimientos e inversiones</span
-            ><span>Presupuestos mensuales</span>
-          </div>
-        </div>
-        <section id="dashboard-grid" hidden aria-labelledby="dashboard-title">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">EVOLUCIÓN Y DISTRIBUCIÓN</p>
-              <h2 id="dashboard-title">Tus cifras, a la vista.</h2>
-            </div>
-            <button type="button" class="text-button" data-view="budgets">
-              Planificar gastos →
-            </button>
-          </div>
-          <p id="chart-cut" class="calculator-note"></p>
-          <div id="dashboard-charts" class="charts-grid"></div>
-        </section>
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">EL REGISTRO DE TUS FINANZAS</p>
-            <h2>Tu día a día, en un lugar.</h2>
-          </div>
-          <button class="text-button" type="button" data-view="book">
-            Ver el registro<svg class="icon"><use href="#icon-arrow" /></svg>
+          >
+            Instalar app
           </button>
         </div>
-        <div id="finance-recent"></div>
-        <section class="queue-card" aria-labelledby="queue-title">
-          <h2 id="queue-title">Operaciones pendientes</h2>
-          <p class="calculator-note">
-            Se guardan en este navegador. El libro solo cambia al confirmar
-            Google. Abre la app y Google para enviarlas.
-          </p>
-          <div class="finance-toolbar">
-            <button
-              id="finance-sync"
-              class="button button-secondary"
-              type="button"
-              disabled
-            >
-              Enviar pendientes</button
-            ><button id="finance-clear" class="text-button" type="button">
-              Borrar copia local confirmada
-            </button>
-          </div>
-          <div id="finance-queue"></div>
-        </section>
-      </section>
-
-      <section id="view-book" class="view" aria-labelledby="book-title" hidden>
+      </header>
+      <div class="app-status">
+        <p id="finance-state" role="status" aria-live="polite">
+          Configura Google para cargar el libro.
+        </p>
+      </div>
+      <section id="view-home" class="view" aria-labelledby="home-title">
         <div class="page-heading">
           <div>
-            <p class="eyebrow">TU MISMO LIBRO</p>
-            <h1 id="book-title">Movimientos y registros.</h1>
+            <h1 id="home-title">Resumen</h1>
+            <details class="cut-details">
+              <summary>Fechas y filtros del informe</summary>
+              <p id="finance-cut"></p>
+              <p id="chart-cut"></p>
+            </details>
           </div>
-          <p class="heading-note">
-            Datos leídos de Google Sheets.<br />Revisa antes de registrar.
-          </p>
-        </div>
-        <div class="quick-actions">
-          <button
-            class="button button-primary"
-            type="button"
-            data-operation="gasto"
-          >
-            + Gasto</button
-          ><button
-            class="button button-secondary"
-            type="button"
-            data-operation="ingreso"
-          >
-            + Ingreso</button
-          ><button
-            class="button button-secondary"
-            type="button"
-            data-operation="traspaso"
-          >
-            Transferencia</button
-          ><button
-            class="button button-secondary"
-            type="button"
-            data-operation="compra"
-          >
-            Compra de inversión</button
-          ><button class="text-button" type="button" data-open-book>
-            Abrir registros de Google
+          <button id="finance-new" class="button button-primary" type="button">
+            Nuevo movimiento
           </button>
         </div>
-        <p
-          class="calculator-note"
-          data-finance-state
-          role="status"
-          aria-live="polite"
-        >
-          Abre Google para cargar los registros y las cuentas de tu libro.
-        </p>
-        <div class="finance-toolbar">
-          <label class="field"
-            >Sección<select id="finance-section">
+        <p id="finance-warning" class="field-message" role="status" hidden></p>
+        <div id="finance-kpis" class="kpi-grid" hidden></div>
+        <div id="dashboard-empty" class="empty-panel">
+          <svg class="icon" aria-hidden="true"><use href="#icon-book" /></svg>
+          <h2>Libro sin cargar</h2>
+          <p>Abre tu libro para consultar saldos, movimientos y gráficos.</p>
+        </div>
+        <section id="dashboard-grid" hidden aria-labelledby="dashboard-title">
+          <h2 id="dashboard-title" class="section-title">Evolución y gastos</h2>
+          <div id="dashboard-charts" class="charts-grid"></div>
+        </section>
+        <section class="recent-section" aria-labelledby="recent-title">
+          <div class="section-heading">
+            <h2 id="recent-title">Últimos movimientos</h2>
+            <button class="text-button" type="button" data-view="book">
+              Ver todos
+              <svg class="icon" aria-hidden="true">
+                <use href="#icon-arrow" />
+              </svg>
+            </button>
+          </div>
+          <div id="finance-recent"></div>
+        </section>
+      </section>
+      <section id="view-book" class="view" aria-labelledby="book-title" hidden>
+        <div class="page-heading">
+          <div><h1 id="book-title">Movimientos</h1></div>
+          <div class="quick-actions">
+            <button
+              type="button"
+              class="button button-primary"
+              data-operation="gasto"
+            >
+              + Gasto</button
+            ><button
+              type="button"
+              class="button button-secondary"
+              data-operation="ingreso"
+            >
+              + Ingreso</button
+            ><button
+              type="button"
+              class="button button-secondary"
+              data-operation="traspaso"
+            >
+              Transferencia
+            </button>
+          </div>
+        </div>
+        <div data-register-slot="book">
+          <section
+            id="register-panel"
+            class="register-panel"
+            aria-label="Registros"
+          >
+            <nav
+              id="register-tabs"
+              class="record-tabs"
+              aria-label="Tipo de registro"
+              role="tablist"
+            ></nav>
+            <select
+              id="finance-section"
+              hidden
+              aria-hidden="true"
+              tabindex="-1"
+            >
               <option value="tMovimientos">Movimientos</option>
-              <option value="tProductos">Inversiones · posiciones</option>
-              <option value="tOperaciones">Inversiones · operaciones</option>
-              <option value="tPrecios">Inversiones · precios</option>
+              <option value="tProductos">Posiciones</option>
+              <option value="tOperaciones">Operaciones</option>
+              <option value="tPrecios">Precios</option>
               <option value="tCuentas">Cuentas</option>
               <option value="tDeudas">Deudas</option>
               <option value="tNominas">Nóminas</option>
               <option value="tObjetivos">Objetivos</option>
               <option value="tAsignaciones">Asignaciones</option>
               <option value="tCategorias">Categorías</option>
-              <option value="observations">Observaciones bancarias</option>
-            </select></label
-          ><button
-            id="finance-prices"
-            class="button button-secondary"
-            type="button"
-            disabled
-          >
-            Actualizar precios
-          </button>
+              <option value="observations">Saldos observados</option>
+            </select>
+            <div class="finance-filters">
+              <label class="field"
+                >Buscar<input
+                  id="finance-search"
+                  type="search"
+                  placeholder="Concepto, cuenta o categoría"
+              /></label>
+              <label class="field" data-date-filter
+                >Desde<input id="finance-from" type="date"
+              /></label>
+              <label class="field" data-date-filter
+                >Hasta<input id="finance-to" type="date"
+              /></label>
+            </div>
+            <div id="finance-register" role="tabpanel"></div>
+            <p id="finance-register-note" class="calculator-note"></p>
+          </section>
         </div>
-        <div class="finance-filters">
-          <label class="field"
-            >Buscar<input
-              id="finance-search"
-              type="search"
-              placeholder="Concepto, cuenta, producto…" /></label
-          ><label class="field"
-            >Desde<input id="finance-from" type="date" /></label
-          ><label class="field"
-            >Hasta<input id="finance-to" type="date"
-          /></label>
-        </div>
-        <p id="finance-register-note" class="calculator-note">
-          Los filtros del listado no cambian las fechas del informe.
-        </p>
-        <div id="finance-register"></div>
-        <details class="book-inventory">
-          <summary>Las diez pestañas del libro se conservan en Sheets</summary>
-          <div class="page-heading">
-            <div>
-              <p class="eyebrow">ESTRUCTURA DEL MODELO</p>
-              <h1 id="inventory-title">Tu libro,<br /><em>completo.</em></h1>
-            </div>
-            <p class="heading-note">
-              La misma base que ya conoces.<br />Sin recortar sus pestañas.
-            </p>
-          </div>
-          <div class="book-overview">
-            <div class="book-overview-label">
-              <svg class="icon"><use href="#icon-book" /></svg>
-              <div>
-                <strong>Finanzas personales</strong
-                ><span>Inventario previsto de Google Sheets</span>
-              </div>
-            </div>
-            <div class="book-overview-counts">
-              <span><strong>10</strong> pestañas</span
-              ><span><strong>12</strong> tablas</span
-              ><span class="soft-tag">MODELO 3</span>
-            </div>
-          </div>
-          <div class="sheet-inventory" aria-label="Pestañas del libro">
-            <div class="inventory-heading">
-              <span>Pestaña</span><span>Contenido</span><span>Función</span>
-            </div>
-            <div class="sheet-row">
-              <span class="sheet-number">01</span>
-              <h2>Resumen financiero</h2>
-              <p>Patrimonio, resultados y visión de conjunto.</p>
-              <span class="sheet-tag">Resumen</span>
-            </div>
-            <div class="sheet-row">
-              <span class="sheet-number">02</span>
-              <h2>Movimientos</h2>
-              <p>Ingresos, gastos, recurrencia y localización.</p>
-              <span class="sheet-tag">Registro</span>
-            </div>
-            <div class="sheet-row">
-              <span class="sheet-number">03</span>
-              <h2>Inversiones</h2>
-              <p>Productos, operaciones y precios históricos.</p>
-              <span class="sheet-tag">Registro</span>
-            </div>
-            <div class="sheet-row">
-              <span class="sheet-number">04</span>
-              <h2>Cuentas</h2>
-              <p>Cuentas, saldos iniciales, deudas y vínculos.</p>
-              <span class="sheet-tag">Registro</span>
-            </div>
-            <div class="sheet-row">
-              <span class="sheet-number">05</span>
-              <h2>Salario</h2>
-              <p>Nóminas, bruto, neto y distribución de pagas.</p>
-              <span class="sheet-tag">Registro</span>
-            </div>
-            <div class="sheet-row">
-              <span class="sheet-number">06</span>
-              <h2>Objetivos</h2>
-              <p>Metas y asignaciones de ahorro.</p>
-              <span class="sheet-tag">Planificación</span>
-            </div>
-            <div class="sheet-row">
-              <span class="sheet-number">07</span>
-              <h2>Inflación</h2>
-              <p>Interés compuesto y poder adquisitivo.</p>
-              <span class="sheet-tag">Cálculo</span>
-            </div>
-            <div class="sheet-row">
-              <span class="sheet-number">08</span>
-              <h2>Hipoteca</h2>
-              <p>Simulación de compra y financiación.</p>
-              <span class="sheet-tag">Cálculo</span>
-            </div>
-            <div class="sheet-row">
-              <span class="sheet-number">09</span>
-              <h2>Configuración</h2>
-              <p>Parámetros del modelo y categorías.</p>
-              <span class="sheet-tag">Base</span>
-            </div>
-            <div class="sheet-row">
-              <span class="sheet-number">10</span>
-              <h2>Cálculos</h2>
-              <p>La lógica que alimenta los resultados del libro.</p>
-              <span class="sheet-tag">Base</span>
-            </div>
-          </div>
-          <div class="book-next">
-            <div>
-              <span class="section-kicker">ANTES DE LEER TUS CIFRAS</span>
-              <h2>Comprobemos esta estructura.</h2>
-              <p>
-                La conexión inicial verifica las pestañas y las tablas del libro
-                conectado.
-              </p>
-            </div>
-            <button
-              class="button button-secondary"
-              type="button"
-              data-view="connection"
-            >
-              Ir a conexión<svg class="icon"><use href="#icon-arrow" /></svg>
-            </button>
-          </div>
+        <details class="section-details">
+          <summary>Análisis de gastos</summary>
+          <div id="spending-charts" class="charts-grid"></div>
         </details>
       </section>
-
+      <section
+        id="view-investments"
+        class="view"
+        aria-labelledby="investments-title"
+        hidden
+      >
+        <div class="page-heading">
+          <div><h1 id="investments-title">Inversiones</h1></div>
+          <div class="quick-actions">
+            <button
+              type="button"
+              class="button button-primary"
+              data-operation="compra"
+            >
+              Comprar</button
+            ><button
+              type="button"
+              class="button button-secondary"
+              data-operation="venta"
+            >
+              Vender</button
+            ><button
+              type="button"
+              class="button button-secondary"
+              data-operation="producto"
+            >
+              Nuevo producto</button
+            ><button
+              id="finance-prices"
+              class="button button-secondary"
+              type="button"
+              disabled
+            >
+              Actualizar precios
+            </button>
+          </div>
+        </div>
+        <div data-register-slot="investments"></div>
+        <section class="chart-section">
+          <h2 class="section-title">Cartera y evolución</h2>
+          <div id="investment-charts" class="charts-grid"></div>
+        </section>
+      </section>
+      <section
+        id="view-accounts"
+        class="view"
+        aria-labelledby="accounts-title"
+        hidden
+      >
+        <div class="page-heading">
+          <div><h1 id="accounts-title">Cuentas</h1></div>
+          <div class="quick-actions">
+            <button
+              type="button"
+              class="button button-primary"
+              data-operation="cuenta"
+            >
+              Nueva cuenta</button
+            ><button
+              type="button"
+              class="button button-secondary"
+              data-operation="deuda_inicial"
+            >
+              Nueva deuda</button
+            ><button
+              type="button"
+              class="button button-secondary"
+              data-operation="saldo_observado"
+            >
+              Observar saldo
+            </button>
+          </div>
+        </div>
+        <div data-register-slot="accounts"></div>
+      </section>
+      <section
+        id="view-salary"
+        class="view"
+        aria-labelledby="salary-title"
+        hidden
+      >
+        <div class="page-heading">
+          <div><h1 id="salary-title">Salario</h1></div>
+          <div class="quick-actions">
+            <button
+              type="button"
+              class="button button-primary"
+              data-operation="nomina"
+            >
+              Registrar nómina
+            </button>
+          </div>
+        </div>
+        <div data-register-slot="salary"></div>
+        <section class="chart-section">
+          <h2 class="section-title">Histórico de nóminas</h2>
+          <div id="salary-charts" class="charts-grid"></div>
+        </section>
+      </section>
+      <section
+        id="view-goals"
+        class="view"
+        aria-labelledby="goals-title"
+        hidden
+      >
+        <div class="page-heading">
+          <div>
+            <h1 id="goals-title">Objetivos</h1>
+            <p class="page-description">
+              Metas de ahorro y asignaciones de activos existentes.
+            </p>
+          </div>
+          <div class="quick-actions">
+            <button
+              type="button"
+              class="button button-primary"
+              data-operation="objetivo"
+            >
+              Crear objetivo</button
+            ><button
+              type="button"
+              class="button button-secondary"
+              data-operation="asignacion"
+            >
+              Asignar activos
+            </button>
+          </div>
+        </div>
+        <div id="saving-goals" class="budget-grid"></div>
+        <div data-register-slot="goals"></div>
+      </section>
       <section
         id="view-budgets"
         class="view"
@@ -492,8 +476,10 @@
       >
         <div class="page-heading">
           <div>
-            <p class="eyebrow">PLANIFICACIÓN MENSUAL</p>
-            <h1 id="budgets-title">Gasta con un objetivo.</h1>
+            <h1 id="budgets-title">Presupuestos</h1>
+            <p class="page-description">
+              Límites de gasto por mes y categoría.
+            </p>
           </div>
           <button
             id="budget-new"
@@ -504,39 +490,52 @@
             + Establecer límite
           </button>
         </div>
-        <div class="quick-actions">
-          <button class="button button-secondary" type="button" data-open-book>
-            Conectar Google</button
-          ><button class="text-button" type="button" data-operation="gasto">
-            + Nuevo gasto
-          </button>
-          <p data-finance-state class="calculator-note"></p>
-        </div>
         <div class="budget-overview">
           <label class="field"
             >Mes<input type="month" id="budget-month"
           /></label>
           <div>
-            <span class="section-kicker">GASTO PROPIO REGISTRADO</span
+            <span class="section-kicker">Gasto propio</span
             ><strong id="budget-spent">Sin dato</strong>
           </div>
         </div>
         <p id="budget-note" class="calculator-note"></p>
         <div id="budget-cards" class="budget-grid"></div>
-        <div class="section-heading">
+      </section>
+      <section
+        id="view-activity"
+        class="view"
+        aria-labelledby="activity-title"
+        hidden
+      >
+        <div class="page-heading">
           <div>
-            <p class="eyebrow">AHORRO A TU RITMO</p>
-            <h2>Objetivos de ahorro</h2>
+            <h1 id="activity-title">Actividad</h1>
+            <p class="page-description">Estado de las solicitudes a Google.</p>
           </div>
-          <button class="text-button" type="button" data-operation="objetivo">
-            + Crear objetivo
+          <button
+            id="finance-sync"
+            class="button button-primary"
+            type="button"
+            disabled
+          >
+            Enviar pendientes
           </button>
         </div>
-        <p class="calculator-note">
-          Asignar activos a una meta no duplica tu patrimonio ni mueve dinero.
-          Puedes gestionar las asignaciones desde Registros.
-        </p>
-        <div id="saving-goals" class="budget-grid"></div>
+        <section class="queue-card" aria-labelledby="queue-title">
+          <div class="section-heading">
+            <h2 id="queue-title">Pendientes</h2>
+            <span id="pending-total" class="count-badge">0</span>
+          </div>
+          <div id="finance-queue"></div>
+        </section>
+        <details id="confirmed-history" class="section-details">
+          <summary>
+            Historial confirmado
+            <span id="history-total" class="count-badge">0</span>
+          </summary>
+          <div id="finance-history"></div>
+        </details>
       </section>
       <section
         id="view-tools"
@@ -546,21 +545,18 @@
       >
         <div class="page-heading">
           <div>
-            <p class="eyebrow">EXPLORA UN ESCENARIO</p>
-            <h1 id="tools-title">Más tiempo,<br /><em>más claridad.</em></h1>
+            <h1 id="tools-title">Calculadoras</h1>
           </div>
-          <p class="heading-note">
-            Calculadoras independientes.<br />Prueba sin modificar tu libro.
-          </p>
+          <p class="heading-note">Simulaciones independientes del libro.</p>
         </div>
         <div class="tools-grid">
           <section class="calculator" aria-labelledby="inflation-title">
             <div class="calculator-heading">
               <span class="calculator-icon"
                 ><svg class="icon"><use href="#icon-growth" /></svg></span
-              ><span class="calculator-number">01 / INVERSIÓN</span>
+              ><span class="calculator-number">INVERSIÓN</span>
             </div>
-            <h2 id="inflation-title">Interés compuesto<br />e inflación.</h2>
+            <h2 id="inflation-title">Interés compuesto</h2>
             <p class="calculator-description">
               Proyecta tu capital y las aportaciones mensuales, y compáralos con
               su poder adquisitivo.
@@ -678,9 +674,9 @@
             <div class="calculator-heading">
               <span class="calculator-icon"
                 ><svg class="icon"><use href="#icon-home" /></svg></span
-              ><span class="calculator-number">02 / VIVIENDA</span>
+              ><span class="calculator-number">HIPOTECA</span>
             </div>
-            <h2 id="mortgage-title">Una casa.<br />Un plan para pagarla.</h2>
+            <h2 id="mortgage-title">Hipoteca a tipo fijo</h2>
             <p class="calculator-description">
               Estima la cuota de una hipoteca a tipo fijo y el dinero que
               necesitas al comenzar.
@@ -767,7 +763,7 @@
               aria-atomic="true"
               hidden
             >
-              <p class="result-kicker">TU ESCENARIO</p>
+              <p class="result-kicker">RESULTADO</p>
               <div class="result-main">
                 <span>Cuota mensual estimada</span
                 ><strong id="mortgage-payment"></strong>
@@ -802,214 +798,223 @@
         aria-labelledby="connection-title"
         hidden
       >
-        <div class="page-heading">
-          <div>
-            <p class="eyebrow">EL ENLACE CON TU LIBRO</p>
-            <h1 id="connection-title">
-              Una conexión.<br /><em>Tu misma base.</em>
-            </h1>
-          </div>
-          <p class="heading-note">
-            Configura Google y abre tu libro.<br />Acceso privado con tu cuenta
-            de Google.
-          </p>
-        </div>
-        <div class="connection-layout">
-          <section
-            id="connection-card"
-            class="connection-card"
-            data-state="pending"
-            aria-labelledby="status"
-          >
-            <div class="connection-card-top">
-              <span class="section-kicker">GOOGLE SHEETS</span
-              ><span class="connection-state-tag"
-                ><span class="connection-dot" aria-hidden="true"></span
-                ><span data-finance-environment>Sin libro abierto</span></span
-              >
-            </div>
-            <div class="connection-symbol" aria-hidden="true">
-              <svg class="icon"><use href="#icon-connect" /></svg><span></span>
-            </div>
-            <div class="connection-copy" aria-live="polite" aria-atomic="true">
-              <h2 id="status">Preparando la comprobación…</h2>
-              <p id="detail">Cargando la configuración de conexión.</p>
-            </div>
-            <div id="results" class="connection-results" hidden>
-              <dl>
-                <div>
-                  <dt>Pestañas leídas</dt>
-                  <dd id="sheet-count"></dd>
-                </div>
-                <div>
-                  <dt>Versión del modelo</dt>
-                  <dd id="model-version"></dd>
-                </div>
-              </dl>
-              <p id="checked-at"></p>
-            </div>
-            <div class="connection-actions">
-              <button
-                id="connect"
-                class="button button-primary button-full"
-                type="button"
-                disabled
-              >
-                Comprobar conexión</button
-              ><button
-                id="setup-toggle"
-                class="button button-secondary button-full"
-                type="button"
-              >
-                <svg class="icon"><use href="#icon-sliders" /></svg>Configurar
-                conexión
-              </button>
-            </div>
-            <p class="connection-footnote">
-              <svg class="icon"><use href="#icon-lock" /></svg>La primera
-              conexión carga el libro. Se reutiliza una sola ventana de Google y
-              no se guardan cambios.
-            </p>
-            <div class="connection-actions">
-              <button
-                id="backend-check"
-                class="button button-secondary button-full"
-                type="button"
-              >
-                Comprobar backend
-              </button>
-              <button
-                type="button"
-                id="acceptance-check"
-                class="button button-secondary"
-              >
-                Comprobar sistema
-              </button>
-              <p id="acceptance-result" role="status" aria-live="polite"></p>
-            </div>
-            <p
-              id="backend-result"
-              class="connection-footnote"
-              role="status"
-              aria-live="polite"
+        <div class="page-heading"><h1 id="connection-title">Ajustes</h1></div>
+        <section
+          id="connection-card"
+          class="connection-card"
+          data-state="pending"
+          aria-labelledby="status"
+        >
+          <div class="connection-card-top">
+            <span class="section-kicker">Google Sheets</span
+            ><span class="connection-state-tag" data-finance-environment
+              >Sin conectar</span
             >
-              Esta comprobación verifica la API de datos y solo realiza una
-              lectura.
-            </p>
-            <div class="connection-actions">
-              <button
-                type="button"
-                class="button button-primary"
-                data-open-book
-              >
-                Abrir libro para registrar</button
-              ><button
-                type="button"
-                class="button button-secondary"
-                data-operation="gasto"
-              >
-                + Nuevo gasto
-              </button>
-              <p data-finance-state class="calculator-note">
-                La lectura completa carga tus cuentas y habilita el registro.
-              </p>
-            </div>
-          </section>
-          <aside class="connection-guide" aria-label="Cómo conectar">
-            <span class="section-kicker">TRES MOMENTOS, UN SOLO ENLACE</span>
-            <h2>Así funciona.</h2>
-            <ol class="connection-steps">
-              <li>
-                <span class="step-number">01</span>
-                <div>
-                  <h3>Prepara Google</h3>
-                  <p>
-                    Copia el código en tu proyecto de Apps Script y configura el
-                    libro conectado.
-                  </p>
-                  <a class="inline-link" href="./install.html"
-                    >Copiar código de Google<svg class="icon">
-                      <use href="#icon-arrow" /></svg
-                  ></a>
-                </div>
-              </li>
-              <li>
-                <span class="step-number">02</span>
-                <div>
-                  <h3>Guarda el enlace</h3>
-                  <p>
-                    Añade la URL de tu despliegue en «Configurar conexión». Se
-                    guarda en este navegador.
-                  </p>
-                </div>
-              </li>
-              <li>
-                <span class="step-number">03</span>
-                <div>
-                  <h3>Comprueba la lectura</h3>
-                  <p>
-                    La app abrirá una ventana de Google una vez. Usa la cuenta
-                    propietaria y mantenla abierta para leer y registrar desde
-                    Finanzas.
-                  </p>
-                </div>
-              </li>
-            </ol>
-            <div class="connection-privacy">
-              <svg class="icon"><use href="#icon-book" /></svg>
-              <p>
-                Tu libro permanece en Google Sheets. La conexión carga tus datos
-                y las comprobaciones usan el mismo canal privado. Comprobar
-                sistema revisa el resumen y las fuentes de precios sin guardar
-                cambios. La lectura conserva una copia local en este navegador.
-              </p>
-            </div>
-          </aside>
-        </div>
+          </div>
+          <div class="connection-copy" aria-live="polite" aria-atomic="true">
+            <h2 id="status">Configuración</h2>
+            <p id="detail">Cargando conexión.</p>
+          </div>
+          <div id="results" class="connection-results" hidden>
+            <dl>
+              <div>
+                <dt>Pestañas</dt>
+                <dd id="sheet-count"></dd>
+              </div>
+              <div>
+                <dt>Modelo</dt>
+                <dd id="model-version"></dd>
+              </div>
+            </dl>
+            <p id="checked-at"></p>
+          </div>
+          <div class="connection-actions">
+            <button
+              id="connect"
+              class="button button-primary"
+              type="button"
+              disabled
+            >
+              Comprobar conexión</button
+            ><button
+              id="setup-toggle"
+              class="button button-secondary"
+              type="button"
+            >
+              Configurar conexión
+            </button>
+          </div>
+          <p class="calculator-note">
+            Mantén abierta la ventana de Google mientras uses el libro.
+          </p>
+        </section>
+        <details id="connection-diagnostics" class="section-details">
+          <summary>Diagnóstico del sistema</summary>
+          <p class="calculator-note">Comprobaciones de solo lectura.</p>
+          <div class="connection-actions">
+            <button
+              id="backend-check"
+              class="button button-secondary"
+              type="button"
+            >
+              Comprobar backend</button
+            ><button
+              id="acceptance-check"
+              class="button button-secondary"
+              type="button"
+            >
+              Comprobar sistema
+            </button>
+          </div>
+          <p id="backend-result" role="status" aria-live="polite"></p>
+          <p id="acceptance-result" role="status" aria-live="polite"></p>
+        </details>
+        <details class="section-details" id="category-settings">
+          <summary>Categorías y fechas</summary>
+          <div class="quick-actions">
+            <button
+              type="button"
+              class="button button-secondary"
+              data-operation="categoria"
+            >
+              Nueva categoría</button
+            ><button
+              type="button"
+              class="button button-secondary"
+              data-operation="fechas"
+            >
+              Fechas del informe</button
+            ><button
+              type="button"
+              class="button button-secondary"
+              data-operation="renombrar"
+            >
+              Renombrar referencia
+            </button>
+          </div>
+          <div data-register-slot="connection"></div>
+        </details>
+        <details id="local-settings" class="section-details">
+          <summary>Almacenamiento local</summary>
+          <p class="calculator-note">
+            La copia y las solicitudes se guardan en este navegador. El borrado
+            se bloquea si hay operaciones pendientes.
+          </p>
+          <button
+            id="finance-clear"
+            class="button button-secondary"
+            type="button"
+          >
+            Borrar copia local confirmada
+          </button>
+        </details>
+        <details class="section-details">
+          <summary>Instalación y acceso</summary>
+          <p>
+            Apps Script privado, ejecutado por tu cuenta y con acceso Solo yo.
+          </p>
+          <a class="inline-link" href="./install.html"
+            >Archivos de instalación
+            <svg class="icon" aria-hidden="true"><use href="#icon-up" /></svg
+          ></a>
+        </details>
       </section>
-
       <footer class="workspace-footer">
-        <span
-          >finanzas<span class="footer-separator">/</span>Una visión más
-          clara.</span
-        ><span>Tu libro. Tu ritmo.</span>
+        <p id="app-version" class="app-version">
+          App 3.7.0 · <span data-finance-environment>Sin conectar</span
+          ><span id="pwa-status" hidden></span>
+        </p>
       </footer>
       <noscript
         ><div class="noscript-note">
-          Activa JavaScript para navegar, conectar Google Sheets y utilizar las
-          calculadoras.
+          Activa JavaScript para utilizar la aplicación.
         </div></noscript
       >
     </main>
-
     <nav class="mobile-nav" aria-label="Navegación principal móvil">
-      <button type="button" data-view="home" aria-current="page">
-        <svg class="icon"><use href="#icon-home" /></svg
-        ><span>Inicio</span></button
-      ><button type="button" data-view="book">
-        <svg class="icon"><use href="#icon-book" /></svg
-        ><span>Mi libro</span></button
-      ><button type="button" data-view="budgets">
-        <svg class="icon"><use href="#icon-target" /></svg
-        ><span>Presupuestos</span>
+      <button
+        type="button"
+        class="mobile-nav-item"
+        data-view="home"
+        aria-current="page"
+      >
+        <svg class="icon" aria-hidden="true"><use href="#icon-home" /></svg
+        ><span>Resumen</span>
       </button>
-      <button type="button" data-view="tools">
-        <svg class="icon"><use href="#icon-tools" /></svg
-        ><span>Herramientas</span></button
-      ><button type="button" data-view="connection">
-        <svg class="icon"><use href="#icon-connect" /></svg
-        ><span>Conexión</span>
+      <button type="button" class="mobile-nav-item" data-view="book">
+        <svg class="icon" aria-hidden="true"><use href="#icon-book" /></svg
+        ><span>Movimientos</span>
+      </button>
+      <button type="button" class="mobile-nav-item" data-view="investments">
+        <svg class="icon" aria-hidden="true"><use href="#icon-growth" /></svg
+        ><span>Inversiones</span>
+      </button>
+      <button type="button" class="mobile-nav-item" data-view="budgets">
+        <svg class="icon" aria-hidden="true"><use href="#icon-target" /></svg
+        ><span>Presupuestos</span></button
+      ><button
+        id="mobile-menu"
+        class="mobile-nav-item"
+        type="button"
+        aria-haspopup="dialog"
+        aria-controls="navigation-dialog"
+      >
+        <svg class="icon" aria-hidden="true"><use href="#icon-layers" /></svg
+        ><span>Más</span
+        ><span data-pending-count class="count-badge" hidden></span>
       </button>
     </nav>
-
+    <dialog
+      id="navigation-dialog"
+      class="navigation-dialog"
+      aria-labelledby="navigation-title"
+    >
+      <div class="section-heading">
+        <h2 id="navigation-title">Secciones</h2>
+        <button
+          id="navigation-close"
+          class="icon-button"
+          type="button"
+          aria-label="Cerrar menú"
+        >
+          ×
+        </button>
+      </div>
+      <nav class="more-nav">
+        <button type="button" class="nav-item" data-view="accounts">
+          <svg class="icon" aria-hidden="true"><use href="#icon-wallet" /></svg
+          ><span>Cuentas</span>
+        </button>
+        <button type="button" class="nav-item" data-view="salary">
+          <svg class="icon" aria-hidden="true"><use href="#icon-wallet" /></svg
+          ><span>Salario</span>
+        </button>
+        <button type="button" class="nav-item" data-view="goals">
+          <svg class="icon" aria-hidden="true"><use href="#icon-target" /></svg
+          ><span>Objetivos</span>
+        </button>
+        <button type="button" class="nav-item" data-view="activity">
+          <svg class="icon" aria-hidden="true"><use href="#icon-layers" /></svg
+          ><span>Actividad</span
+          ><span data-pending-count class="count-badge" hidden></span>
+        </button>
+        <button type="button" class="nav-item" data-view="tools">
+          <svg class="icon" aria-hidden="true"><use href="#icon-tools" /></svg
+          ><span>Calculadoras</span>
+        </button>
+        <button type="button" class="nav-item" data-view="connection">
+          <svg class="icon" aria-hidden="true"><use href="#icon-sliders" /></svg
+          ><span>Ajustes</span>
+        </button>
+      </nav>
+    </dialog>
     <dialog
       id="setup-dialog"
       class="setup-dialog"
       aria-labelledby="setup-title"
       aria-describedby="setup-description"
     >
-      <span class="section-kicker">EL ENLACE CON GOOGLE</span>
-      <h2 id="setup-title">Conecta tu libro.</h2>
+      <h2 id="setup-title">Enlace de Google</h2>
       <p id="setup-description">
         Pega la URL de la aplicación web que has desplegado desde Apps Script.
         Debe terminar en <span class="code-word">/exec</span>.
@@ -1114,10 +1119,10 @@
       </div>
       <form id="operation-form">
         <label id="operation-kind-field" class="field"
-          >Qué quieres registrar<select id="operation-kind"></select
+          >Tipo de operación<select id="operation-kind"></select
         ></label>
         <p id="operation-note" class="calculator-note"></p>
-        <div id="operation-fields" class="operation-fields"></div>
+        <div id="operation-fields" class="operation-fields form-grid"></div>
         <p id="operation-error" class="field-message" role="alert" hidden></p>
         <div class="setup-buttons">
           <button
@@ -1147,7 +1152,7 @@
       <p id="review-error" class="field-message" role="alert" hidden></p>
       <div class="setup-buttons">
         <button id="review-confirm" class="button button-primary" type="button">
-          Confirmar y guardar pendiente</button
+          Confirmar operación</button
         ><button
           id="review-cancel"
           class="button button-secondary"
@@ -1157,9 +1162,5 @@
         </button>
       </div>
     </dialog>
-    <p id="app-version" class="app-version">
-      App 3.6.1 · <span data-finance-environment>Sin libro abierto</span>
-      <span id="pwa-status" hidden></span>
-    </p>
   </body>
 </html>
