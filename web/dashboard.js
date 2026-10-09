@@ -138,6 +138,14 @@ const FinanceDashboard = (() => {
       if (!known(r.value)) continue;
       const line = el('div', undefined, 'asset-row');
       const value = el('strong', amount(r.value));
+      value.append(
+        el(
+          'small',
+          positive > 0 && r.value >= 0
+            ? percentage.format((r.value / positive) * 100) + ' %'
+            : 'Peso no comparable',
+        ),
+      );
       line.append(el('span', r.label), value);
       const bar = el('progress', undefined, r.class);
       bar.max = Math.max(1, positive);
@@ -244,9 +252,17 @@ const FinanceDashboard = (() => {
       description:
         'Cambios en los días con registros; devoluciones conservan su signo.',
     });
-    FinanceCharts.donut(target, {
+    FinanceCharts.plot(target, {
       title: 'Gasto por ciudad',
       rows: a.cities,
+      fields: [
+        {
+          key: 'value',
+          label: 'Gasto propio',
+          shape: 'bar',
+          tone: 'chart-blue',
+        },
+      ],
       description: 'Las ubicaciones sin indicar permanecen sin clasificar.',
     });
     FinanceCharts.donut(target, {

@@ -1912,6 +1912,13 @@ dialog .inline-link {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+.asset-row strong small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.73rem;
+  font-weight: 400;
+  margin-top: 3px;
+}
 .asset-row progress {
   grid-column: 1 / -1;
   width: 100%;
