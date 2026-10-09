@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const { navigate, diagnostic } = require('./helpers/navigation.cjs');
 const fs = require('node:fs'),
   path = require('node:path');
 const deployment = 'https://script.google.com/macros/s/fixture-deployment/exec';
@@ -28,7 +29,7 @@ test('CSP bloquea código inyectado y conexiones a terceros manteniendo la app f
   expect(results.blocked).toBe(true);
   expect(results.violations).toContain('script-src-elem');
   expect(results.violations).toContain('connect-src');
-  await nav(page, 'connection').click();
+  await navigate(page, 'connection');
   await page.locator('#setup-toggle').click();
   await expect(page.locator('#setup-dialog')).toBeVisible();
 });
@@ -341,9 +342,6 @@ async function setupChannel(page, { delayed = false } = {}) {
   );
   await page.reload();
 }
-function nav(page, name) {
-  return page.locator('nav button[data-view="' + name + '"]:visible');
-}
 test('lectura nativa, filtros y móvil conservan nombres, desconocidos y el error de precios', async ({
   page,
 }) => {
@@ -352,7 +350,7 @@ test('lectura nativa, filtros y móvil conservan nombres, desconocidos y el erro
   await expect(page.locator('#finance-warning')).toContainText(
     'La última consulta de precios falló',
   );
-  await nav(page, 'book').click();
+  await navigate(page, 'book');
   await page.locator('#finance-search').fill('no existe');
   await expect(page.locator('#finance-register')).toContainText(
     'No hay registros',
@@ -364,11 +362,12 @@ test('lectura nativa, filtros y móvil conservan nombres, desconocidos y el erro
   await expect(page.locator('#finance-register')).not.toContainText(
     'INTERNAL-MOVEMENT',
   );
-  await page.locator('#finance-section').selectOption('observations');
+  await navigate(page, 'accounts');
+  await page.getByRole('tab', { name: 'Saldos observados' }).click();
   await page.locator('#finance-search').fill('');
   await expect(page.locator('#finance-register')).toContainText('Sin dato');
   await expect(page.locator('#finance-register-note')).toContainText(
-    'corte equivalente',
+    'mismo corte',
   );
   expect(
     await page.evaluate(
@@ -390,7 +389,7 @@ test('revisión previa, cancelar sin enviar y confirmación guarda una sola soli
   ).toBe(0);
   await page.locator('#operation-form button[type=submit]').click();
   await page.locator('#review-confirm').click();
-  await expect(page.locator('#finance-queue')).toContainText(
+  await expect(page.locator('#finance-history')).toContainText(
     'Confirmada por Google',
   );
   const calls = await page.evaluate(
@@ -413,8 +412,9 @@ test('respuesta perdida y reapertura conservan sobre y consultan antes de reinte
   await page.reload();
   await expect(page.locator('#finance-queue')).toContainText('sin confirmar');
   await page.locator('#finance-connect').click();
+  await navigate(page, 'activity');
   await page.locator('#finance-sync').click();
-  await expect(page.locator('#finance-queue')).toContainText(
+  await expect(page.locator('#finance-history')).toContainText(
     'Confirmada por Google',
   );
   const after = await page.evaluate(
@@ -491,13 +491,13 @@ test('cambio de implementación conserva y separa pendientes; no se envían al o
   await expect(page.locator('#finance-queue')).toContainText(
     'Pendiente de enviar',
   );
-  await nav(page, 'connection').click();
+  await navigate(page, 'connection');
   await page.locator('#setup-toggle').click();
   await page
     .locator('#deployment-url')
     .fill('https://script.google.com/macros/s/other-fixture/exec');
   await page.locator('#setup-save').click();
-  await nav(page, 'home').click();
+  await navigate(page, 'home');
   await expect(page.locator('#finance-new')).toBeEnabled();
   await expect(page.locator('#finance-queue')).not.toContainText(
     'Compra ficticia',
@@ -512,11 +512,11 @@ test('un envío de precios confirmado con fallos nunca se presenta como cotizaci
   page,
 }) => {
   await setup(page);
-  await nav(page, 'book').click();
+  await navigate(page, 'investments');
   await page.locator('#finance-prices').click();
   await page.locator('#review-confirm').click();
-  await nav(page, 'home').click();
-  await expect(page.locator('#finance-queue')).toContainText(
+  await navigate(page, 'home');
+  await expect(page.locator('#finance-history')).toContainText(
     'Solicitud confirmada con precios pendientes',
   );
 });
@@ -546,7 +546,7 @@ test.describe('PWA instalable', () => {
     await context.setOffline(true);
     await page.reload();
     await expect(page.locator('#home-title')).toBeVisible();
-    await nav(page, 'tools').click();
+    await navigate(page, 'tools');
     await expect(page.locator('#inflation-form')).toBeVisible();
   });
 });
@@ -555,9 +555,10 @@ test('producción se identifica en ordenador/móvil y la comprobación del siste
   page,
 }) => {
   await setup(page, { production: true });
-  await expect(page.locator('#finance-state')).toContainText('libro principal');
+  await expect(page.locator('.environment-tag')).toHaveText('Libro principal');
   await expect(page.locator('#app-version')).toContainText('Libro principal');
-  await nav(page, 'connection').click();
+  await navigate(page, 'connection');
+  await diagnostic(page);
   await page.locator('#acceptance-check').click();
   await expect(page.locator('#acceptance-result')).toContainText(
     'Libro principal · versión 3.4.0',
@@ -603,7 +604,8 @@ test('comprobación con fuentes fallidas exige revisión sin presentar el sistem
       ],
     });
   });
-  await nav(page, 'connection').click();
+  await navigate(page, 'connection');
+  await diagnostic(page);
   await page.locator('#acceptance-check').click();
   await expect(page.locator('#acceptance-result')).toContainText(
     'Revisar: fuentes de precios',
@@ -646,7 +648,7 @@ test('el alta abre el formulario y muestra un bloqueo de ventanas en la misma vi
     window.fixtureOpen = window.open;
     window.open = () => null;
   });
-  await nav(page, 'book').click();
+  await navigate(page, 'book');
   await page.locator('#view-book [data-operation=gasto]').click();
   await expect(page.locator('#operation-dialog')).toBeVisible();
   await expect(page.locator('#operation-connection')).toContainText('Permite');
@@ -665,7 +667,7 @@ test('el alta abre el formulario y muestra un bloqueo de ventanas en la misma vi
   );
   await expect(page.locator('#operation-amount')).toHaveValue('2,50');
   await page.locator('#operation-cancel').click();
-  await expect(page.locator('#view-book [data-finance-state]')).toContainText(
+  await expect(page.locator('#finance-state')).toContainText(
     'Lectura confirmada',
   );
   expect(
@@ -678,7 +680,7 @@ test('el cliente y postMessage con Google ficticio conservan el borrador y regis
   page,
 }) => {
   await setupChannel(page, { delayed: true });
-  await nav(page, 'book').click();
+  await navigate(page, 'book');
   const opening = page.waitForEvent('popup');
   await page.locator('#view-book [data-operation=gasto]').click();
   const popup = await opening;
@@ -716,7 +718,7 @@ test('registro ofrece ingreso y transferencia sin volver al inicio y guardar un 
   page,
 }) => {
   await setup(page);
-  await nav(page, 'book').click();
+  await navigate(page, 'book');
   await page.locator('#view-book [data-operation=ingreso]').click();
   await expect(page.locator('#operation-kind')).toHaveValue('ingreso');
   await page.locator('#operation-cancel').click();
@@ -736,8 +738,12 @@ test('panel muestra gráficos nativos accesibles y meses desconocidos sin conver
   page,
 }) => {
   await setup(page);
-  await expect(page.locator('#dashboard-charts .chart-card')).toHaveCount(9);
-  await expect(page.locator('#dashboard-charts svg[role=img]')).toHaveCount(8);
+  await expect(page.locator('.chart-card')).toHaveCount(9);
+  await expect(page.locator('#dashboard-charts .chart-card')).toHaveCount(3);
+  await expect(page.locator('#investment-charts .chart-card')).toHaveCount(3);
+  await expect(page.locator('#spending-charts .chart-card')).toHaveCount(2);
+  await expect(page.locator('#salary-charts .chart-card')).toHaveCount(1);
+  await expect(page.locator('.chart-card svg[role=img]')).toHaveCount(8);
   await page.locator('.chart-data summary').first().click();
   await expect(page.locator('.chart-table').first()).toContainText('Sin dato');
   expect(
@@ -746,11 +752,191 @@ test('panel muestra gráficos nativos accesibles y meses desconocidos sin conver
     ),
   ).toBe(true);
 });
+test('las pantallas separan los registros y conservan filtros sin volver a leer Google', async ({
+  page,
+}) => {
+  await setup(page);
+  await page.evaluate(() => {
+    window.navigationCalls = [];
+    for (const method of ['read', 'connect', 'submit']) {
+      const original = FinanceApiClient.prototype[method];
+      FinanceApiClient.prototype[method] = function (...args) {
+        window.navigationCalls.push(method);
+        return original.apply(this, args);
+      };
+    }
+  });
+  await navigate(page, 'book');
+  await page.locator('#finance-search').fill('Café');
+  await page.locator('#finance-from').fill('2026-01-01');
+  await navigate(page, 'investments');
+  await expect(page.locator('#finance-section')).toHaveValue('tProductos');
+  await expect(page.locator('#finance-search')).toHaveValue('');
+  await expect(page.locator('#finance-from')).toBeHidden();
+  await page.locator('#finance-search').fill('Fondo');
+  await page.getByRole('tab', { name: 'Precios', exact: true }).click();
+  await expect(page.locator('#finance-section')).toHaveValue('tPrecios');
+  await expect(page.locator('#finance-search')).toHaveValue('');
+  await expect(page.locator('#finance-register')).toContainText('6,17');
+  await navigate(page, 'accounts');
+  await expect(page.locator('#finance-section')).toHaveValue('tCuentas');
+  await expect(page.locator('#finance-register')).toContainText(
+    'Último saldo observado',
+  );
+  await navigate(page, 'salary');
+  await expect(page.locator('#finance-section')).toHaveValue('tNominas');
+  await navigate(page, 'goals');
+  await expect(page.locator('#finance-section')).toHaveValue('tObjetivos');
+  await navigate(page, 'connection');
+  await page.locator('#category-settings summary').click();
+  await expect(page.locator('#finance-register')).toContainText('Nómina');
+  await navigate(page, 'book');
+  await expect(page.locator('#finance-search')).toHaveValue('Café');
+  await expect(page.locator('#finance-from')).toHaveValue('2026-01-01');
+  await expect(page.locator('#finance-register')).toContainText(
+    'Café de prueba',
+  );
+  await navigate(page, 'investments');
+  await expect(
+    page.getByRole('tab', { name: 'Precios', exact: true }),
+  ).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('tab', { name: 'Posiciones', exact: true }).click();
+  await expect(page.locator('#finance-search')).toHaveValue('Fondo');
+  expect(await page.evaluate(() => window.navigationCalls)).toEqual([]);
+});
+test('los detalles conservan todos los campos y las pestañas funcionan con teclado', async ({
+  page,
+}) => {
+  await setup(page);
+  await navigate(page, 'book');
+  const details = page
+    .getByRole('button', { name: 'Detalles', exact: true })
+    .first();
+  await expect(details).toHaveAttribute('aria-expanded', 'false');
+  await details.click();
+  await expect(details).toHaveAttribute('aria-expanded', 'true');
+  const fields = page.locator('.record-detail:visible');
+  await expect(fields).toContainText('Recuperable');
+  await expect(fields).toContainText('Recurrente');
+  await expect(fields).toContainText('Sin dato');
+  await expect(fields).not.toContainText('INTERNAL-MOVEMENT');
+  await details.click();
+  await expect(fields).toHaveCount(0);
+  await navigate(page, 'accounts');
+  const tab = page.getByRole('tab', { name: 'Cuentas', exact: true });
+  await tab.focus();
+  await tab.press('End');
+  await expect(
+    page.getByRole('tab', { name: 'Saldos observados' }),
+  ).toBeFocused();
+  await expect(page.locator('#finance-register')).toContainText(
+    'Referencia ficticia',
+  );
+  await page
+    .getByRole('tab', { name: 'Saldos observados' })
+    .press('ArrowRight');
+  await expect(tab).toBeFocused();
+  await expect(tab).toHaveAttribute('aria-selected', 'true');
+});
+test('Actividad distingue pendientes del recibo confirmado sin volver a enviar', async ({
+  page,
+}) => {
+  await setup(page, { lost: true });
+  await expense(page);
+  await page.locator('#review-confirm').click();
+  await navigate(page, 'activity');
+  await expect(page.locator('#pending-total')).toHaveText('1');
+  await expect(page.locator('#history-total')).toHaveText('0');
+  await expect(page.locator('[data-pending-count]:visible').first()).toHaveText(
+    '1',
+  );
+  await expect(page.locator('#finance-queue')).toContainText('sin confirmar');
+  await page.locator('#finance-sync').click();
+  await expect(page.locator('#pending-total')).toHaveText('0');
+  await expect(page.locator('#history-total')).toHaveText('1');
+  await expect(page.locator('#finance-queue')).toContainText(
+    'No hay operaciones pendientes',
+  );
+  await expect(page.locator('#finance-queue')).not.toContainText(
+    'Confirmada por Google',
+  );
+  await page.locator('#confirmed-history summary').click();
+  await expect(page.locator('#finance-history')).toContainText(
+    'Confirmada por Google',
+  );
+  const calls = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('fixture.server')).calls,
+  );
+  expect(calls).toHaveLength(1);
+});
+test('diagnóstico permanece desplegable y el menú móvil devuelve el foco al cerrar', async ({
+  page,
+  isMobile,
+}) => {
+  await setup(page);
+  await navigate(page, 'connection');
+  await expect(page.locator('#backend-check')).toBeHidden();
+  await expect(page.locator('#acceptance-check')).toBeHidden();
+  await expect(page.locator('#setup-toggle')).toBeVisible();
+  if (isMobile) {
+    await page.locator('#mobile-menu').click();
+    await expect(page.locator('#navigation-dialog')).toBeVisible();
+    await expect(page.locator('#navigation-dialog [data-view]')).toHaveCount(6);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#navigation-dialog')).not.toBeVisible();
+    await expect(page.locator('#mobile-menu')).toBeFocused();
+  }
+  await diagnostic(page);
+  await page.locator('#acceptance-check').click();
+  await expect(page.locator('#acceptance-result')).toContainText(
+    'Comprobaciones técnicas correctas',
+  );
+});
+test('actualizar la interfaz conserva la solicitud incierta y espera a cerrar formularios', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    window.updateSignals = [];
+    navigator.serviceWorker.register = async () => ({
+      waiting: { postMessage: (message) => window.updateSignals.push(message) },
+      addEventListener() {},
+    });
+  });
+  await setup(page, { lost: true });
+  await expect(page.locator('#update-app')).toBeVisible();
+  await expense(page);
+  await page.locator('#review-confirm').click();
+  await expect(page.locator('#finance-queue')).toContainText('sin confirmar');
+  const request = await page.evaluate(async (deployment) => {
+    const data = await new FinanceSync.BrowserStore().get(
+      await FinanceSync.namespace(deployment),
+    );
+    return data.queue[0].envelope;
+  }, deployment);
+  await page.locator('#finance-new').click();
+  await page.locator('#update-app').evaluate((button) => button.click());
+  await expect(page.locator('#finance-state')).toContainText(
+    'Cierra los formularios',
+  );
+  expect(await page.evaluate(() => window.updateSignals)).toEqual([]);
+  await page.locator('#operation-cancel').click();
+  await page.locator('#update-app').click();
+  expect(await page.evaluate(() => window.updateSignals)).toEqual([
+    { type: 'ACTIVATE_UPDATE' },
+  ]);
+  const stored = await page.evaluate(async (deployment) => {
+    const data = await new FinanceSync.BrowserStore().get(
+      await FinanceSync.namespace(deployment),
+    );
+    return { status: data.queue[0].status, envelope: data.queue[0].envelope };
+  }, deployment);
+  expect(stored).toEqual({ status: 'uncertain', envelope: request });
+});
 test('presupuesto se revisa, persiste al reabrir y se retira sin crear un movimiento', async ({
   page,
 }) => {
   await setup(page);
-  await nav(page, 'budgets').click();
+  await navigate(page, 'budgets');
   await page.locator('#budget-new').click();
   await page.locator('#budget-amount').fill('20');
   await page.locator('#budget-category').selectOption('Café');
@@ -764,9 +950,9 @@ test('presupuesto se revisa, persiste al reabrir y se retira sin crear un movimi
     ),
   ).toBe(true);
   await page.reload();
-  await nav(page, 'budgets').click();
+  await navigate(page, 'budgets');
   await expect(page.locator('#budget-cards')).toContainText('20,00');
-  await page.locator('#view-budgets [data-open-book]').click();
+  await page.locator('#finance-connect').click();
   await expect(page.locator('#finance-state')).toContainText(
     'Lectura confirmada',
   );
@@ -781,7 +967,8 @@ test('presupuesto se revisa, persiste al reabrir y se retira sin crear un movimi
     'presupuesto',
     'quitar_presupuesto',
   ]);
-  await nav(page, 'home').click();
+  await navigate(page, 'connection');
+  await page.locator('#local-settings summary').click();
   await page.locator('#finance-clear').click();
   await page.locator('#review-confirm').click();
   await expect(page.locator('#budget-spent')).toHaveText('Sin dato');
@@ -806,8 +993,11 @@ test('fallo del puente no permite descartar ni recrear y consulta el recibo al r
   );
   await page.reload();
   await page.locator('#finance-connect').click();
+  await navigate(page, 'activity');
   await page.locator('#finance-sync').click();
-  await expect(queue).toContainText('Confirmada por Google');
+  await expect(page.locator('#finance-history')).toContainText(
+    'Confirmada por Google',
+  );
   expect(
     await page.evaluate(
       () => JSON.parse(localStorage.getItem('fixture.server')).calls,
@@ -829,7 +1019,7 @@ test('cambiar de implementación durante la conexión cancela la lectura antigua
     };
   });
   await page.locator('#finance-connect').click();
-  await nav(page, 'connection').click();
+  await navigate(page, 'connection');
   await page.locator('#setup-toggle').click();
   const next = 'https://script.google.com/macros/s/other-fixture/exec';
   await page.locator('#deployment-url').fill(next);

@@ -20,8 +20,10 @@
     .register('./sw.js', { updateViaCache: 'none' })
     .then((registration) => {
       const showUpdate = () => {
-        if (!registration.waiting) return;
+        if (!registration.waiting || document.getElementById('update-app'))
+          return;
         const button = document.createElement('button');
+        button.id = 'update-app';
         button.type = 'button';
         button.className = 'button button-secondary';
         button.textContent = 'Actualizar app';
@@ -33,7 +35,7 @@
           }
           registration.waiting?.postMessage({ type: 'ACTIVATE_UPDATE' });
         });
-        document.querySelector('.finance-toolbar').append(button);
+        document.querySelector('.workspace-controls').append(button);
       };
       showUpdate();
       registration.addEventListener('updatefound', () =>

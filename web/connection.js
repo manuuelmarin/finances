@@ -157,14 +157,14 @@ if (typeof document !== 'undefined') {
       if (deploymentUrl)
         show(
           'pending',
-          'Lista para comprobar',
-          'Abre Google con el botón y vuelve aquí para ver si se ha recibido la lectura.',
+          'Conexión preparada',
+          'Enlace guardado. Comprueba la conexión o abre el libro.',
         );
       else
         show(
           'pending',
-          'Conecta tu libro',
-          'Instala el código en Google y guarda aquí la URL de tu implementación para hacer la primera lectura.',
+          'Sin conexión configurada',
+          'Añade el enlace privado de Apps Script.',
         );
     }
 
@@ -202,7 +202,7 @@ if (typeof document !== 'undefined') {
       dialog.close();
       window.dispatchEvent(new Event('finances:configuration'));
       detail.textContent = stored
-        ? 'URL guardada en este navegador. Pulsa Comprobar conexión para verificar la lectura de Google.'
+        ? 'Enlace guardado en este navegador.'
         : 'URL preparada para esta sesión. El navegador no permite guardarla; vuelve a pegarla al abrir la app de nuevo.';
     });
     document.getElementById('setup-clear').addEventListener('click', () => {
@@ -229,8 +229,8 @@ if (typeof document !== 'undefined') {
       button.textContent = 'Comprobando…';
       show(
         'pending',
-        'Comprobando tu libro',
-        'Se reutiliza la conexión de Google si ya está abierta. La primera conexión carga también tus datos.',
+        'Comprobando conexión',
+        'Esperando la respuesta de Google.',
       );
       try {
         const data = await globalThis.FinanceBook.check('connection');
@@ -239,7 +239,7 @@ if (typeof document !== 'undefined') {
         if (pending === checking)
           show(
             'error',
-            'La conexión necesita revisión',
+            'Conexión sin confirmar',
             globalThis.FinanceBook.errorText(error),
           );
       } finally {
@@ -266,14 +266,10 @@ if (typeof document !== 'undefined') {
         new Date(data.checkedAt).toLocaleString('es-ES');
       show(
         'success',
+        data.rpcReady ? 'Conexión verificada' : 'Conexión de solo lectura',
         data.rpcReady
-          ? 'Estructura y canal privado comprobados'
-          : 'Estructura de Sheets recibida',
-        'Google ha leído ' +
-          (data.environment === 'production'
-            ? 'el libro principal'
-            : 'la copia de pruebas') +
-          ' y ha devuelto estos resultados.',
+          ? 'Lectura y canal privado disponibles.'
+          : 'Actualiza Apps Script para habilitar las operaciones.',
       );
     }
 

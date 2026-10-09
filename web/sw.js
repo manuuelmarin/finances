@@ -1,5 +1,5 @@
 'use strict';
-const CACHE = "finances-7a783e4a2e9caefc";
+const CACHE = "finances-fee8cfc16875585e";
 const ASSETS = ["index.html","styles.css","connection.js","api.js","calculators.js","app.js","domain.js","queue.js","finance.js","analytics.js","dashboard.js","pwa.js","config.json","manifest.webmanifest","icon.svg","icon-maskable.svg","icon-192.png","icon-512.png","icon-maskable-192.png","icon-maskable-512.png","install.html","install.js"];
 const urls = () => ASSETS.map(file => new URL(file, self.registration.scope).href);
 self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(urls()))); });
