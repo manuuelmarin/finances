@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Comunicar una posible vulnerabilidad
+    url: https://github.com/manuuelmarin/finances/blob/main/SECURITY.md
+    about: Consulta el procedimiento de comunicación privada antes de publicar detalles.

@@ -1,0 +1,25 @@
+name: Proponer mantenimiento
+description: Documentación, formato, pruebas o limpieza del repositorio.
+title: '[Mantenimiento]: '
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema concreto
+      description: Explica qué resulta confuso o difícil de mantener y señala los archivos relevantes.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Cambio propuesto
+      description: Describe el resultado y cómo comprobarlo; identifica cualquier efecto sobre el comportamiento de la app.
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacidad
+      options:
+        - label: La propuesta no contiene datos financieros, identificadores de libros ni enlaces privados.
+          required: true
