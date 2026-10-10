@@ -650,6 +650,13 @@ test('caché corrupta o identidad distinta exige otra consulta verificable', () 
   for (const cached of [
     '{broken',
     JSON.stringify({ isin: SECOND, price: 42 }),
+    JSON.stringify({
+      isin: ISIN,
+      price: 42,
+      name: TITLE,
+      date: '2099-02-31',
+      quoteCurrency: 'EUR',
+    }),
   ]) {
     const r = runtime({ fetch: () => ({ body: page() }) });
     r.cache.set('nav-v3-' + ISIN, cached);
@@ -680,7 +687,13 @@ test('la serie de cortes mensuales del proveedor no se importa como fechas diari
 });
 
 function dailyRuntime(options = {}) {
-  const r = configured(options),
+  const freshDate = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Madrid',
+  }).format(new Date());
+  const r = configured({
+      fetch: () => ({ body: page({ date: freshDate }) }),
+      ...options,
+    }),
     properties = new Map(
       Object.entries({
         TEST_SPREADSHEET_ID: 'fixture-book',
@@ -702,16 +715,8 @@ function dailyRuntime(options = {}) {
     newTrigger: (handler) => {
       const builder = {
         timeBased: () => builder,
-        everyDays: (days) => {
-          assert.equal(days, 1);
-          return builder;
-        },
-        atHour: (hour) => {
-          assert.equal(hour, 20);
-          return builder;
-        },
-        inTimezone: (zone) => {
-          assert.equal(zone, 'Europe/Madrid');
+        everyHours: (hours) => {
+          assert.equal(hours, 1);
           return builder;
         },
         create: () => {
@@ -726,6 +731,11 @@ function dailyRuntime(options = {}) {
       return builder;
     },
   };
+  const formatDate = r.ctx.Utilities.formatDate;
+  r.ctx.Utilities.formatDate = (date, zone, format) =>
+    format === 'HH'
+      ? String(options.hour ?? 20)
+      : formatDate(date, zone, format);
   r.ctx.Session.getEffectiveUser = () => ({
     getEmail: () => options.effectiveUser || 'owner@example.test',
   });
@@ -788,6 +798,7 @@ test('rutina diaria reconsulta fallos con otro receipt y limita a tres intentos 
     const res = r.ctx.actualizacionDiariaPreciosTest();
     assert.equal(res.complete, false);
     ids.push(res.batches[0].requestId);
+    if (i === 2) assert.equal(res.status, 'retry_limit');
   }
   assert.equal(new Set(ids).size, 3);
   const fetches = r.fetches.length,
@@ -846,4 +857,146 @@ test('trigger instalado usa dueño efectivo con usuario activo vacío y conserva
   });
   assert.equal(result.complete, true);
   assert.equal(r.api({ action: 'read' }).error, 'ACCESS_DENIED');
+});
+
+test('trigger horario permite reintentos automáticos en ventana Madrid y omite las demás horas sin red', () => {
+  const { r } = dailyRuntime({ hour: 19 });
+  r.ctx.activarActualizacionDiariaPreciosTest();
+  const result = r.ctx.actualizacionDiariaPreciosTest_({
+    triggerUid: 'test-trigger-uid',
+  });
+  assert.equal(result.reason, 'OUTSIDE_SCHEDULE');
+  assert.equal(r.fetches.length, 0);
+});
+
+test('NAV atrasado o anterior no completa el día aunque refresh tenga receipt válido', () => {
+  const { r } = dailyRuntime({
+    fetch: () => ({ body: page({ date: '01/01/2026' }) }),
+  });
+  r.ctx.activarActualizacionDiariaPreciosTest();
+  r.setInput('tPrecios', 0, 'Fecha', serial('2026-10-05'));
+  const first = r.ctx.actualizacionDiariaPreciosTest();
+  assert.equal(first.complete, false);
+  assert.equal(first.batches[0].results[0].status, 'older');
+  const next = r.ctx.actualizacionDiariaPreciosTest();
+  assert.notEqual(first.batches[0].requestId, next.batches[0].requestId);
+  assert.equal(r.api({ action: 'diagnostics' }).dailyPrices.status, 'partial');
+  assert.equal(
+    r.api({ action: 'read' }).prices[0].lastValid.freshness,
+    'delayed',
+  );
+});
+
+test('reactivación conserva día e intento, elimina duplicados y desactivación borra estado', () => {
+  const { r, properties, triggers } = dailyRuntime();
+  r.ctx.activarActualizacionDiariaPreciosTest();
+  r.ctx.actualizacionDiariaPreciosTest();
+  const ledger = properties.get('DAILY_PRICE_TEST_STATE');
+  triggers.push({
+    getHandlerFunction: () => 'actualizacionDiariaPreciosTest_',
+    getUniqueId: () => 'duplicate',
+  });
+  r.ctx.activarActualizacionDiariaPreciosTest();
+  assert.equal(triggers.length, 1);
+  assert.equal(properties.get('DAILY_PRICE_TEST_STATE'), ledger);
+  assert.equal(
+    r.ctx.actualizacionDiariaPreciosTest().reason,
+    'ALREADY_COMPLETE',
+  );
+  const status = r.api({ action: 'read' }).dailyPrices;
+  assert.equal(status.enabled, true);
+  assert.equal(status.lastRun.status, 'complete');
+  assert.deepEqual(Array.from(status.schedule.hours), [20, 21, 22]);
+  r.ctx.desactivarActualizacionDiariaPreciosTest();
+  assert.equal(properties.has('DAILY_PRICE_TEST_STATE'), false);
+  assert.equal(r.api({ action: 'read' }).dailyPrices.status, 'disabled');
+});
+
+test('un fondo añadido tras completar el día entra en una selección nueva y no se duplica el NAV previo', () => {
+  const { r } = dailyRuntime();
+  r.ctx.activarActualizacionDiariaPreciosTest();
+  r.ctx.actualizacionDiariaPreciosTest();
+  const before = r.state().tables.tPrecios.length;
+  r.transact([
+    {
+      process: 'producto',
+      name: 'Fondo pendiente',
+      account: 'Cuenta B',
+      class: 'Renta variable',
+      date: '2026-01-01',
+    },
+  ]);
+  const result = r.ctx.actualizacionDiariaPreciosTest();
+  assert.equal(result.skipped, undefined);
+  assert.equal(result.complete, false);
+  assert.equal(result.batches[0].results[0].status, 'unchanged');
+  assert.equal(result.batches[0].results[1].error, 'ISIN_REQUIRED');
+  assert.equal(r.state().tables.tPrecios.length, before);
+});
+
+test('lease impide ejecuciones concurrentes y un fallo incierto recupera UUID sin consumir intento', () => {
+  const { r, properties } = dailyRuntime();
+  r.ctx.activarActualizacionDiariaPreciosTest();
+  properties.set(
+    'DAILY_PRICE_TEST_LEASE',
+    JSON.stringify({ started: Date.now(), token: 'another' }),
+  );
+  assert.equal(r.ctx.actualizacionDiariaPreciosTest().reason, 'RUNNING');
+  assert.equal(r.fetches.length, 0);
+  properties.delete('DAILY_PRICE_TEST_LEASE');
+  r.options.failBeforeWrite = true;
+  const first = r.ctx.actualizacionDiariaPreciosTest();
+  assert.equal(first.batches[0].error, 'WRITE_UNCERTAIN');
+  assert.equal(properties.has('DAILY_PRICE_TEST_LEASE'), false);
+  r.options.failBeforeWrite = false;
+  const second = r.ctx.actualizacionDiariaPreciosTest();
+  assert.equal(second.complete, true);
+  assert.equal(r.state().technical.quotes.length, 1);
+});
+
+test('diagnóstico detecta trigger perdido sin escribir ni exponer IDs del libro', () => {
+  const { r, triggers } = dailyRuntime();
+  r.ctx.activarActualizacionDiariaPreciosTest();
+  triggers.pop();
+  const writes = r.writes.length;
+  const status = r.api({ action: 'diagnostics' }).dailyPrices;
+  assert.equal(status.status, 'trigger_missing');
+  assert.equal(status.enabled, false);
+  assert.equal(JSON.stringify(status).includes('fixture-book'), false);
+  assert.equal(r.writes.length, writes);
+});
+
+test('desactivar la rutina durante la consulta impide incluso la escritura del lote ya iniciado', () => {
+  const { r } = dailyRuntime();
+  r.ctx.activarActualizacionDiariaPreciosTest();
+  const writes = r.writes.length;
+  r.options.fetch = () => {
+    r.ctx.desactivarActualizacionDiariaPreciosTest();
+    return {
+      body: page({
+        date: new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Europe/Madrid',
+        }).format(new Date()),
+      }),
+    };
+  };
+  const result = r.ctx.actualizacionDiariaPreciosTest();
+  assert.equal(result.complete, false);
+  assert.equal(r.writes.length, writes);
+  assert.equal(r.state().technical.quotes.length, 0);
+});
+
+test('NAV atrasado e igual no marca completo y reconsulta con otro receipt', () => {
+  const { r } = dailyRuntime({
+    fetch: () => ({ body: page({ date: '01/09/2026' }) }),
+  });
+  r.setInput('tPrecios', 0, 'Fecha', serial('2026-09-01'));
+  r.setInput('tPrecios', 0, 'VL EUR', 345.19706);
+  r.ctx.activarActualizacionDiariaPreciosTest();
+  const first = r.ctx.actualizacionDiariaPreciosTest();
+  assert.equal(first.batches[0].results[0].status, 'unchanged');
+  assert.equal(first.complete, false);
+  const second = r.ctx.actualizacionDiariaPreciosTest();
+  assert.notEqual(first.batches[0].requestId, second.batches[0].requestId);
+  assert.equal(r.state().tables.tPrecios.length, 1);
 });

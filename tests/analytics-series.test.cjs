@@ -257,13 +257,16 @@ test('cash distributions use native net amount including commission and withhold
     0,
   );
 });
-test('daily TWR does not restart an apparent since-inception return after missing valuations', () => {
+test('TWR starts an explicitly dated measured segment after an unknown prefix', () => {
   const s = fixture();
   s.tables.tPrecios = s.tables.tPrecios.filter((p) => p.Fecha !== '2026-01-01');
+  const timeline = A.investmentTimeline(s);
   assert.deepEqual(
-    A.investmentTimeline(s).rows.map((r) => r.returnPct),
-    [null, null, null],
+    timeline.rows.map((r) => r.returnPct),
+    [null, 0, 100 * (1.1 - 1)],
   );
+  assert.equal(timeline.coverage.returnStartDate, '2026-01-02');
+  assert.equal(timeline.coverage.sinceInception, false);
 });
 test('product VL anchor starts on first real observed quotation, not on a carried first day', () => {
   const s = fixture();
@@ -281,4 +284,88 @@ test('native missing-price diagnostic keeps valuation metrics unknown even when 
   assert.equal(metrics.gain, null);
   assert.equal(metrics.returnPct, null);
   assert.equal(metrics.capital, 200);
+});
+test('real valuation endpoints link across price gaps only without intervening external flows', () => {
+  const s = fixture();
+  s.tables.tOperaciones = [s.tables.tOperaciones[0]];
+  s.tables.tPrecios = s.tables.tPrecios.filter((p) => p.Fecha !== '2026-01-02');
+  const timeline = A.investmentTimeline(s);
+  assert.deepEqual(
+    timeline.rows.map((r) => r.returnPct),
+    [0, null, 100 * (1.1 - 1)],
+  );
+  assert.equal(timeline.coverage.supportedIntervals, 1);
+  assert.equal(timeline.rows[1].carried, true);
+  assert.equal(timeline.rows[2].priceDates.P, '2026-01-03');
+  // A distribution during that gap also requires an intervening valuation.
+  s.tables.tOperaciones.push({
+    Producto: 'P',
+    Fecha: '2026-01-02',
+    Tipo: 'Cobro',
+    Importe: 2,
+  });
+  assert.deepEqual(
+    A.investmentTimeline(s).rows.map((r) => r.returnPct),
+    [0, null, null],
+  );
+});
+test('end-of-interval contributions are neutralized using actual endpoint valuation', () => {
+  const s = fixture();
+  s.tables.tOperaciones[1].Fecha = '2026-01-03';
+  s.tables.tOperaciones[1].Precio = 11;
+  s.tables.tOperaciones[1].Importe = 110;
+  s.tables.tPrecios = s.tables.tPrecios.filter((p) => p.Fecha !== '2026-01-02');
+  const rows = A.investmentTimeline(s).rows;
+  assert.equal(rows[1].returnPct, null);
+  assert.ok(Math.abs(rows[2].returnPct - 10) < 1e-8);
+  assert.equal(rows[2].value, 220);
+});
+test('product NAV variation uses real quotation dates and leaves carried prices unplotted', () => {
+  const s = fixture();
+  s.tables.tPrecios = s.tables.tPrecios.filter((p) => p.Fecha !== '2026-01-02');
+  const rows = A.investmentTimeline(s, { productId: 'P' }).rows;
+  assert.equal(rows[0].returnPct, 0);
+  assert.equal(rows[1].returnPct, null);
+  assert.ok(Math.abs(rows[2].returnPct - 10) < 1e-8);
+});
+test('May investment with first quotes in September measures only the September onward segment', () => {
+  const s = fixture();
+  s.settings = {
+    start: '2026-05-01',
+    asof: '2026-10-01',
+    valuation: '2026-10-01',
+  };
+  s.tables.tProductos[0]['Fecha base'] = '2026-05-01';
+  s.tables.tOperaciones = [
+    {
+      Producto: 'P',
+      Fecha: '2026-05-01',
+      Tipo: 'Compra',
+      Participaciones: 10,
+      Importe: 100,
+    },
+  ];
+  s.tables.tPrecios = [
+    { Producto: 'P', Fecha: '2026-09-01', 'VL EUR': 12 },
+    { Producto: 'P', Fecha: '2026-10-01', 'VL EUR': 13.2 },
+  ];
+  let timeline = A.investmentTimeline(s);
+  assert.equal(timeline.coverage.returnStartDate, '2026-09-01');
+  assert.equal(timeline.coverage.sinceInception, false);
+  assert.equal(
+    timeline.rows.find((r) => r.date === '2026-05-01').returnPct,
+    null,
+  );
+  assert.equal(timeline.rows.find((r) => r.date === '2026-09-01').returnPct, 0);
+  assert.ok(Math.abs(timeline.rows.at(-1).returnPct - 10) < 1e-8);
+  s.tables.tOperaciones.push({
+    Producto: 'P',
+    Fecha: '2026-09-15',
+    Tipo: 'Compra',
+    Participaciones: 1,
+    Importe: 12,
+  });
+  timeline = A.investmentTimeline(s);
+  assert.equal(timeline.rows.at(-1).returnPct, null);
+  assert.equal(timeline.coverage.returnStartDate, '2026-09-01');
 });

@@ -113,7 +113,7 @@ const TABLE_SCHEMA_ = [
 ];
 
 const API_VERSION_ = '3.3.0';
-const BUILD_VERSION_ = '3.8.0';
+const BUILD_VERSION_ = '3.8.1';
 const API_TRANSPORT_ = 'finances.rpc.json.v1';
 // El motor de fórmulas no cambia en el paso 4; conserva su sello de capacidad.
 const CAPACITY_VERSION_ = '3.1.0';
@@ -2385,6 +2385,7 @@ function diagnostics_(s) {
       (k) => s.tech[k],
     ),
     priceProviders: ['VDOS / Quefondos'],
+    dailyPrices: dailyPriceStatus_(s),
     capacityReady,
     calculationReady,
     calculationErrors: s.calculationErrors || [],
@@ -4011,9 +4012,20 @@ function fetchFundQuote_(fund) {
         quote &&
         (quote.isin !== isin ||
           !Number.isFinite(quote.price) ||
-          quote.price <= 0)
+          quote.price <= 0 ||
+          quote.quoteCurrency !== 'EUR' ||
+          !/^[A-Z]{3}$/.test(quote.classCurrency || '') ||
+          quote.provider !== PRICE_PROVIDER_ ||
+          typeof quote.name !== 'string' ||
+          !/^\d{4}-\d{2}-\d{2}$/.test(quote.date || '') ||
+          ![
+            PRICE_BASE_ + isin,
+            'https://www.quefondos.com/m/es/fondos/ficha/index.html?isin=' +
+              isin,
+          ].includes(quote.url))
       )
         quote = null;
+      if (quote) serialDate_(quote.date);
     } catch (ignored) {
       quote = null;
     }
@@ -4197,6 +4209,9 @@ function quotePrices_(request, config) {
   };
 }
 function priceSnapshot_(s) {
+  const today = serialDate_(
+    Utilities.formatDate(new Date(), 'Europe/Madrid', 'yyyy-MM-dd'),
+  );
   return s.tables.tProductos.map((product) => {
     const binding = fundBinding_(s, product),
       latest = s.tables.tPrecios
@@ -4216,6 +4231,13 @@ function priceSnapshot_(s) {
             date: isoDate_(latest.Fecha),
             price: latest['VL EUR'],
             source: latest.Fuente,
+            ageDays: today - latest.Fecha,
+            freshness:
+              today < latest.Fecha
+                ? 'invalid'
+                : today - latest.Fecha > 4
+                  ? 'delayed'
+                  : 'current',
           }
         : null,
       lastAttempt: attempt
@@ -4319,6 +4341,7 @@ function refreshPrices_(config, request) {
       products: request.products || null,
     });
   const prepared = locked_(() => {
+    if (config.dailyPriceTest) assertDailyPriceBinding_(config);
     const state = readState_(config);
     checkRequestBook_(request, state);
     const replay = replayPrices_(state, requestId, fingerprint);
@@ -4361,6 +4384,7 @@ function refreshPrices_(config, request) {
   // La red se consulta fuera del bloqueo. La revisión se verifica otra vez antes del lote.
   const quotes = fetchFundQuotesBatch_(prepared.selected);
   return locked_(() => {
+    if (config.dailyPriceTest) assertDailyPriceBinding_(config);
     let before = readState_(config);
     checkRequestBook_(request, before);
     const replay = replayPrices_(before, requestId, fingerprint);
@@ -4420,52 +4444,135 @@ function refreshPrices_(config, request) {
     return response;
   });
 }
-// Instalación voluntaria desde el editor: solo dueño y libro de pruebas.
-// Publicar este código no instala un trigger. Cada ejecución usa los receipts
-// y controles de revisión de refreshPrices; no modifica caja ni participaciones.
+// Instalación expresa por el dueño, limitada al libro de pruebas.
 /* global ScriptApp */
+function dailyPriceStored_(properties, key) {
+  try {
+    const value = JSON.parse(properties.getProperty(key) || 'null');
+    return object_(value) ? value : null;
+  } catch (ignored) {
+    return null;
+  }
+}
+function dailyPriceStatus_(s) {
+  const properties = PropertiesService.getScriptProperties(),
+    book = properties.getProperty('DAILY_PRICE_TEST_BOOK'),
+    bound = s.environment === 'test' && book && hash_(book) === s.bookKey,
+    triggerId = properties.getProperty('DAILY_PRICE_TEST_TRIGGER');
+  let installed = false,
+    inspection = 'available';
+  try {
+    installed =
+      !!triggerId &&
+      ScriptApp.getProjectTriggers().some(
+        (t) =>
+          t.getHandlerFunction() === 'actualizacionDiariaPreciosTest_' &&
+          String(t.getUniqueId()) === String(triggerId),
+      );
+  } catch (ignored) {
+    inspection = 'unavailable';
+  }
+  const enabled = !!bound && installed,
+    lastRun = bound
+      ? dailyPriceStored_(properties, 'DAILY_PRICE_TEST_STATUS')
+      : null;
+  return {
+    enabled,
+    status: !bound
+      ? 'disabled'
+      : inspection === 'unavailable'
+        ? 'inspection_unavailable'
+        : !installed
+          ? 'trigger_missing'
+          : lastRun
+            ? lastRun.status
+            : 'scheduled',
+    schedule: {
+      timezone: 'Europe/Madrid',
+      hours: [20, 21, 22],
+      maxAttemptsPerBatch: 3,
+    },
+    lastRun,
+  };
+}
 function activarActualizacionDiariaPreciosTest() {
   const config = authorizedConfig_();
   check_(
     config.environment === 'test',
     'La rutina diaria solo está habilitada para el libro de pruebas.',
   );
-  const properties = PropertiesService.getScriptProperties();
-  const existing = ScriptApp.getProjectTriggers().filter(
-    (t) => t.getHandlerFunction() === 'actualizacionDiariaPreciosTest_',
-  );
-  const trigger =
-    existing[0] ||
-    ScriptApp.newTrigger('actualizacionDiariaPreciosTest_')
-      .timeBased()
-      .everyDays(1)
-      .atHour(20)
-      .inTimezone('Europe/Madrid')
-      .create();
-  properties.setProperty('DAILY_PRICE_TEST_TRIGGER', trigger.getUniqueId());
-  properties.setProperty('DAILY_PRICE_TEST_BOOK', config.id);
-  properties.deleteProperty('DAILY_PRICE_TEST_COMPLETE');
-  return { ok: true, environment: 'test', enabled: true, installed: true };
+  return locked_(() => {
+    const properties = PropertiesService.getScriptProperties(),
+      existing = ScriptApp.getProjectTriggers().filter(
+        (t) => t.getHandlerFunction() === 'actualizacionDiariaPreciosTest_',
+      ),
+      currentId = properties.getProperty('DAILY_PRICE_TEST_TRIGGER'),
+      current = existing.find(
+        (t) => String(t.getUniqueId()) === String(currentId),
+      ),
+      reusable =
+        current &&
+        properties.getProperty('DAILY_PRICE_TEST_SCHEDULE') ===
+          'hourly-20-22-v1' &&
+        properties.getProperty('DAILY_PRICE_TEST_BOOK') === config.id;
+    const trigger = reusable
+      ? current
+      : ScriptApp.newTrigger('actualizacionDiariaPreciosTest_')
+          .timeBased()
+          .everyHours(1)
+          .create();
+    existing
+      .filter((t) => t !== trigger)
+      .forEach((t) => ScriptApp.deleteTrigger(t));
+    properties.setProperty('DAILY_PRICE_TEST_TRIGGER', trigger.getUniqueId());
+    properties.setProperty('DAILY_PRICE_TEST_BOOK', config.id);
+    properties.setProperty('DAILY_PRICE_TEST_SCHEDULE', 'hourly-20-22-v1');
+    if (!reusable) {
+      [
+        'DAILY_PRICE_TEST_COMPLETE',
+        'DAILY_PRICE_TEST_STATE',
+        'DAILY_PRICE_TEST_STATUS',
+        'DAILY_PRICE_TEST_LEASE',
+      ].forEach((key) => properties.deleteProperty(key));
+    }
+    return {
+      ok: true,
+      environment: 'test',
+      enabled: true,
+      installed: true,
+      schedule: { timezone: 'Europe/Madrid', hours: [20, 21, 22] },
+    };
+  });
 }
 function desactivarActualizacionDiariaPreciosTest() {
   authorizedConfig_();
-  ScriptApp.getProjectTriggers()
-    .filter((t) => t.getHandlerFunction() === 'actualizacionDiariaPreciosTest_')
-    .forEach((t) => ScriptApp.deleteTrigger(t));
-  PropertiesService.getScriptProperties().deleteProperty(
-    'DAILY_PRICE_TEST_BOOK',
-  );
-  PropertiesService.getScriptProperties().deleteProperty(
-    'DAILY_PRICE_TEST_TRIGGER',
-  );
-  return { ok: true, enabled: false };
+  return locked_(() => {
+    const properties = PropertiesService.getScriptProperties();
+    // Desvincular primero hace que cualquier ejecución pendiente se detenga.
+    properties.deleteProperty('DAILY_PRICE_TEST_BOOK');
+    ScriptApp.getProjectTriggers()
+      .filter(
+        (t) => t.getHandlerFunction() === 'actualizacionDiariaPreciosTest_',
+      )
+      .forEach((t) => ScriptApp.deleteTrigger(t));
+    [
+      'DAILY_PRICE_TEST_TRIGGER',
+      'DAILY_PRICE_TEST_SCHEDULE',
+      'DAILY_PRICE_TEST_COMPLETE',
+      'DAILY_PRICE_TEST_STATE',
+      'DAILY_PRICE_TEST_STATUS',
+      'DAILY_PRICE_TEST_LEASE',
+    ].forEach((key) => properties.deleteProperty(key));
+    return { ok: true, enabled: false };
+  });
 }
-// El sufijo _ impide llamadas desde google.script.run. La identidad efectiva
-// solo se acepta aquí, nunca en los endpoints ni en funciones públicas.
+// El sufijo _ impide llamadas desde google.script.run.
 function actualizacionDiariaPreciosTest_(event) {
-  return ejecutarActualizacionDiariaPreciosTest_(
-    dailyPriceTriggerConfig_(event),
-  );
+  const config = dailyPriceTriggerConfig_(event),
+    hour = Number(Utilities.formatDate(new Date(), 'Europe/Madrid', 'HH'));
+  if (hour < 20 || hour > 22)
+    return { ok: true, skipped: true, reason: 'OUTSIDE_SCHEDULE' };
+  return ejecutarActualizacionDiariaPreciosTest_(config);
 }
 function dailyPriceTriggerConfig_(event) {
   const properties = PropertiesService.getScriptProperties(),
@@ -4498,88 +4605,192 @@ function dailyPriceTriggerConfig_(event) {
 function actualizacionDiariaPreciosTest() {
   return ejecutarActualizacionDiariaPreciosTest_(authorizedConfig_());
 }
-function ejecutarActualizacionDiariaPreciosTest_(config) {
+function assertDailyPriceBinding_(config) {
   const properties = PropertiesService.getScriptProperties();
   check_(
     config.environment === 'test' &&
+      properties.getProperty('ENVIRONMENT') === 'test' &&
+      properties.getProperty('TEST_SPREADSHEET_ID') === config.id &&
       properties.getProperty('DAILY_PRICE_TEST_BOOK') === config.id,
     'La rutina diaria requiere activación expresa para este libro de pruebas.',
   );
-  // Una fecha se completa solo después de receipts válidos para todos los lotes.
-  const today = Utilities.formatDate(new Date(), 'Europe/Madrid', 'yyyy-MM-dd');
-  if (
-    properties.getProperty('DAILY_PRICE_TEST_COMPLETE') ===
-    config.id + '|' + today
-  )
-    return { ok: true, skipped: true, reason: 'ALREADY_COMPLETE' };
-  let state = readState_(config);
-  const ids = state.tables.tProductos.map((p) => p.ID),
-    batches = [],
-    start = Date.now();
-  for (let i = 0; i < ids.length; i += PRICE_LIMIT_) {
-    if (Date.now() - start > 180000) break;
-    const products = ids.slice(i, i + PRICE_LIMIT_),
-      // UUID estable por día, libro y productos: un retry recupera el receipt.
-      retryKey =
-        'DAILY_PRICE_TEST_RETRY_' +
-        hash_({ book: config.id, products }).slice(0, 16),
-      retry = JSON.parse(properties.getProperty(retryKey) || '{}'),
-      attempt = retry.today === today ? Number(retry.attempt || 0) : 0;
-    if (attempt >= 3) {
-      batches.push({
-        ok: false,
-        complete: false,
-        error: 'DAILY_RETRY_LIMIT',
-        products,
-      });
-      continue;
-    }
-    const digest = hash_({ book: config.id, today, products, attempt }),
-      requestId =
-        digest.slice(0, 8) +
-        '-' +
-        digest.slice(8, 12) +
-        '-4' +
-        digest.slice(13, 16) +
-        '-a' +
-        digest.slice(17, 20) +
-        '-' +
-        digest.slice(20, 32),
-      response = refreshPrices_(config, {
-        action: 'refreshPrices',
-        requestId,
-        expectedRevision: state.revision,
-        bookKey: state.bookKey,
-        products,
-      });
-    // Un receipt parcial requiere otro intento; una respuesta perdida conserva
-    // el mismo ID hasta que refreshPrices recupere el receipt del lote.
-    if (!response.complete)
-      properties.setProperty(
-        retryKey,
-        JSON.stringify({ today, attempt: attempt + 1 }),
-      );
-    batches.push(response);
-    state = readState_(config);
-  }
-  const complete =
-    batches.length === Math.ceil(ids.length / PRICE_LIMIT_) &&
-    batches.every((b) => b.complete);
-  if (complete)
+}
+function ejecutarActualizacionDiariaPreciosTest_(config) {
+  const properties = PropertiesService.getScriptProperties(),
+    assertBound = () => assertDailyPriceBinding_(config);
+  assertBound();
+  const today = Utilities.formatDate(new Date(), 'Europe/Madrid', 'yyyy-MM-dd'),
+    start = Date.now(),
+    token = Utilities.getUuid();
+  const acquired = locked_(() => {
+    const lease = dailyPriceStored_(properties, 'DAILY_PRICE_TEST_LEASE');
+    if (lease && start - lease.started < 360000) return false;
     properties.setProperty(
-      'DAILY_PRICE_TEST_COMPLETE',
-      config.id + '|' + today,
+      'DAILY_PRICE_TEST_LEASE',
+      JSON.stringify({ token, started: start }),
     );
-  const result = {
-    ok: true,
-    environment: 'test',
-    complete,
-    batches,
-    remaining: Math.max(0, ids.length - batches.length * PRICE_LIMIT_),
-    checkedAt: new Date().toISOString(),
-  };
-  console.log(JSON.stringify(result));
-  return result;
+    return true;
+  });
+  if (!acquired) return { ok: true, skipped: true, reason: 'RUNNING' };
+  try {
+    let state = readState_(config);
+    const ids = state.tables.tProductos.map((p) => p.ID),
+      selection = hash_(
+        ids.map((id) => {
+          const p = state.tables.tProductos.find((p) => p.ID === id);
+          return fundBinding_(state, p) || { product: id, isin: null };
+        }),
+      ),
+      saved = dailyPriceStored_(properties, 'DAILY_PRICE_TEST_STATE'),
+      ledger =
+        saved &&
+        saved.today === today &&
+        saved.bookKey === state.bookKey &&
+        saved.selection === selection &&
+        object_(saved.batches)
+          ? saved
+          : { today, bookKey: state.bookKey, selection, batches: {} },
+      batches = [];
+    if (ledger.complete)
+      return { ok: true, skipped: true, reason: 'ALREADY_COMPLETE' };
+    for (let i = 0; i < ids.length; i += PRICE_LIMIT_) {
+      if (Date.now() - start > 180000) break;
+      assertBound();
+      const products = ids.slice(i, i + PRICE_LIMIT_),
+        key = String(i / PRICE_LIMIT_),
+        batch = ledger.batches[key] || { attempt: 0 };
+      if (batch.complete) {
+        batches.push({ complete: true, skipped: true, products });
+        continue;
+      }
+      if (batch.attempt >= 3) {
+        batches.push({
+          ok: false,
+          complete: false,
+          error: 'DAILY_RETRY_LIMIT',
+          products,
+        });
+        continue;
+      }
+      const digest = hash_({
+          book: config.id,
+          today,
+          selection,
+          products,
+          attempt: batch.attempt,
+        }),
+        requestId =
+          digest.slice(0, 8) +
+          '-' +
+          digest.slice(8, 12) +
+          '-4' +
+          digest.slice(13, 16) +
+          '-a' +
+          digest.slice(17, 20) +
+          '-' +
+          digest.slice(20, 32);
+      let response;
+      try {
+        response = refreshPrices_(
+          Object.assign({}, config, { dailyPriceTest: true }),
+          {
+            action: 'refreshPrices',
+            requestId,
+            expectedRevision: state.revision,
+            bookKey: state.bookKey,
+            products,
+          },
+        );
+      } catch (error) {
+        // Un resultado de escritura incierto conserva UUID e intento para recuperar el receipt.
+        batches.push({
+          ok: false,
+          complete: false,
+          error: error.code || 'DAILY_UPDATE_FAILED',
+          products,
+        });
+        state = readState_(config);
+        continue;
+      }
+      batch.complete =
+        response.results.length > 0 &&
+        response.results.every(
+          (r) =>
+            r.ok &&
+            ['updated', 'unchanged'].indexOf(r.status) >= 0 &&
+            r.ageDays >= 0 &&
+            r.ageDays <= 4,
+        );
+      batch.attempt += 1;
+      ledger.batches[key] = batch;
+      properties.setProperty('DAILY_PRICE_TEST_STATE', JSON.stringify(ledger));
+      batches.push(Object.assign({}, response, { complete: batch.complete }));
+      state = readState_(config);
+    }
+    if (properties.getProperty('DAILY_PRICE_TEST_BOOK') !== config.id)
+      return {
+        ok: true,
+        complete: false,
+        skipped: true,
+        reason: 'DISABLED_DURING_RUN',
+        batches,
+      };
+    ledger.complete =
+      ids.length > 0 &&
+      batches.length === Math.ceil(ids.length / PRICE_LIMIT_) &&
+      batches.every((b) => b.complete);
+    properties.setProperty('DAILY_PRICE_TEST_STATE', JSON.stringify(ledger));
+    const lastRun = {
+      status: !ids.length
+        ? 'no_products'
+        : ledger.complete
+          ? 'complete'
+          : batches.some((b) => b.error === 'DAILY_RETRY_LIMIT') ||
+              Object.values(ledger.batches).some(
+                (b) => !b.complete && b.attempt >= 3,
+              )
+            ? 'retry_limit'
+            : 'partial',
+      today,
+      checkedAt: new Date().toISOString(),
+      complete: ledger.complete,
+      remaining: Math.max(0, ids.length - batches.length * PRICE_LIMIT_),
+      counts: batches.reduce((counts, b) => {
+        (b.results || []).forEach((r) => {
+          const k = r.warning || r.error || r.status;
+          counts[k] = (counts[k] || 0) + 1;
+        });
+        if (b.error) counts[b.error] = (counts[b.error] || 0) + 1;
+        return counts;
+      }, {}),
+    };
+    properties.setProperty('DAILY_PRICE_TEST_STATUS', JSON.stringify(lastRun));
+    const result = Object.assign(
+      { ok: true, environment: 'test', batches },
+      lastRun,
+    );
+    console.log(JSON.stringify(result));
+    return result;
+  } catch (error) {
+    if (properties.getProperty('DAILY_PRICE_TEST_BOOK') === config.id)
+      properties.setProperty(
+        'DAILY_PRICE_TEST_STATUS',
+        JSON.stringify({
+          status: 'failed',
+          today,
+          checkedAt: new Date().toISOString(),
+          complete: false,
+          counts: { [error.code || 'DAILY_UPDATE_FAILED']: 1 },
+        }),
+      );
+    throw error;
+  } finally {
+    locked_(() => {
+      const lease = dailyPriceStored_(properties, 'DAILY_PRICE_TEST_LEASE');
+      if (lease && lease.token === token)
+        properties.deleteProperty('DAILY_PRICE_TEST_LEASE');
+    });
+  }
 }
 
 // Pruebas de instalación: comprobar no escribe cotizaciones; actualizar sí guarda VL verificados.

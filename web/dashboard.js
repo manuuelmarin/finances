@@ -349,6 +349,7 @@ const FinanceDashboard = (() => {
           key: 'capital',
           label: 'Aportación neta',
           shape: 'step',
+          area: true,
           tone: 'chart-blue',
         },
         { key: 'value', label: 'Valor de mercado', tone: 'chart-red' },
@@ -363,16 +364,31 @@ const FinanceDashboard = (() => {
         : 'Rentabilidad de la cartera',
       rows: timeline.rows,
       unit: '%',
+      emptyMessage: product
+        ? 'Sin cotizaciones reales en este periodo'
+        : 'TWR no disponible con los cortes y flujos registrados',
       fields: [
         {
           key: 'returnPct',
-          label: product ? 'Variación de VL' : 'Rentabilidad TWR',
+          connectGaps: true,
+          label: product
+            ? 'Variación de VL'
+            : timeline.coverage.returnStartDate
+              ? 'TWR desde ' + timeline.coverage.returnStartDate
+              : 'Rentabilidad TWR',
           tone: 'chart-mint',
         },
       ],
       description: product
         ? 'Desde la primera cotización real observada; no incluye distribuciones.'
-        : 'Rendimiento neutralizado por aportaciones, únicamente donde existen las valoraciones diarias necesarias. Los huecos permanecen sin dato.',
+        : (timeline.coverage.returnStartDate
+            ? 'Tramo medido desde ' +
+              timeline.coverage.returnStartDate +
+              (timeline.coverage.sinceInception
+                ? '. '
+                : '; el rendimiento anterior es desconocido. ')
+            : '') +
+          'TWR entre valoraciones reales con flujos al cierre. Si hay aportaciones o retiradas entre cortes sin valoración, no puede calcularse: registra los VL de esos cortes. El resultado sobre aportación neta aparece arriba como una métrica distinta.',
     });
     const positions = (current.tables.tProductos || [])
       .filter((p) => !product || p.ID === product)
@@ -480,6 +496,30 @@ const FinanceDashboard = (() => {
     $('settings-check').textContent = current?.checkedAt
       ? new Date(current.checkedAt).toLocaleString('es-ES')
       : 'Sin lectura';
+    const daily = current?.dailyPrices,
+      dailyLabels = {
+        disabled: 'Desactivada',
+        failed: 'Activada · último intento fallido; revisa Google',
+        inspection_unavailable: 'No se ha podido comprobar el programador',
+        trigger_missing: 'Falta reinstalar la rutina en Google',
+        scheduled: 'Activada · pendiente de ejecución',
+        complete: 'Activada · última actualización completada',
+        partial: 'Activada · hay precios pendientes; se reintentará',
+        retry_limit: 'Activada · agotados los intentos del día',
+        no_products: 'Activada · sin inversiones configuradas',
+      };
+    $('settings-daily-status').textContent = !current
+      ? 'Libro sin cargar'
+      : daily
+        ? dailyLabels[daily.status] ||
+          'Estado desconocido · vuelve a leer Google'
+        : 'Requiere actualizar el código de Google';
+    $('settings-daily-schedule').textContent = daily?.schedule
+      ? `${daily.schedule.hours.join(', ')} h · ${daily.schedule.timezone}`
+      : 'Sin comprobar';
+    $('settings-daily-run').textContent = daily?.lastRun?.checkedAt
+      ? `${new Date(daily.lastRun.checkedAt).toLocaleString('es-ES')} · ${daily.lastRun.complete ? 'Completada' : 'Sin completar'}`
+      : 'Sin ejecución registrada';
   }
   for (const [id, update] of [
     [

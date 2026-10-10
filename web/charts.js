@@ -215,7 +215,14 @@ const FinanceCharts = (() => {
   }
   function plot(
     parent,
-    { title, rows = [], fields = [], unit = 'EUR', description = '' },
+    {
+      title,
+      rows = [],
+      fields = [],
+      unit = 'EUR',
+      description = '',
+      emptyMessage = 'Sin datos en este periodo',
+    },
   ) {
     const article = card(parent, title, description);
     const format =
@@ -322,9 +329,7 @@ const FinanceCharts = (() => {
               'text-anchor': 'middle',
               class: 'chart-axis',
             },
-            active.length
-              ? 'Sin datos en este periodo'
-              : 'Selecciona una serie en la leyenda',
+            active.length ? emptyMessage : 'Selecciona una serie en la leyenda',
           ),
         );
         geometry = null;
@@ -333,15 +338,20 @@ const FinanceCharts = (() => {
         return;
       }
       const bars = active.some((f) => f.shape === 'bar');
+      const zeroBaseline = bars || fields.some((f) => f.area);
       const lo = values.reduce((a, b) => Math.min(a, b), Infinity),
         hi = values.reduce((a, b) => Math.max(a, b), -Infinity);
       const span = Math.max(hi - lo, Math.abs(hi) * 0.08, 1);
-      const min = bars
+      const min = zeroBaseline
         ? Math.min(0, lo)
         : lo >= 0
           ? Math.max(0, lo - span * 0.08)
           : lo - span * 0.08;
-      const max = bars ? Math.max(0, hi) || 1 : hi + span * 0.08;
+      const max = bars
+        ? Math.max(0, hi) || 1
+        : zeroBaseline
+          ? Math.max(0, hi + span * 0.08) || 1
+          : hi + span * 0.08;
       const y = (v) => bottom - ((v - min) / (max - min || 1)) * (bottom - top);
       const time = (r, i) => {
         const n = Date.parse((r.date || '') + 'T00:00:00Z');
@@ -442,23 +452,47 @@ const FinanceCharts = (() => {
           });
         } else {
           let path = '',
+            area = '',
+            segment = '',
+            lastX = null,
             connected = false;
+          const closeArea = () => {
+            if (segment) area += segment + ` L ${lastX} ${y(0)} Z`;
+            segment = '';
+          };
           rows.forEach((r, i) => {
             if (!finite(r[f.key])) {
+              if (f.connectGaps) return;
+              closeArea();
               connected = false;
               return;
             }
-            if (!connected) path += ` M ${x(i)} ${y(r[f.key])}`;
-            else
-              path +=
-                f.shape === 'step'
-                  ? ` H ${x(i)} V ${y(r[f.key])}`
-                  : ` L ${x(i)} ${y(r[f.key])}`;
+            const command = !connected
+              ? ` M ${x(i)} ${y(r[f.key])}`
+              : f.shape === 'step'
+                ? ` H ${x(i)} V ${y(r[f.key])}`
+                : ` L ${x(i)} ${y(r[f.key])}`;
+            path += command;
+            segment += !connected
+              ? ` M ${x(i)} ${y(0)} L ${x(i)} ${y(r[f.key])}`
+              : command;
+            lastX = x(i);
             connected = true;
           });
+          closeArea();
+          if (f.area)
+            graph.append(
+              svg('path', {
+                d: area.trim(),
+                class: 'chart-area ' + tone,
+                style: 'fill-opacity: 0.28; stroke: none',
+                'data-baseline': '0',
+              }),
+            );
           graph.append(
             svg('path', {
               d: path.trim(),
+              style: 'fill: none',
               class:
                 'chart-line ' +
                 tone +
