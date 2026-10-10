@@ -506,7 +506,7 @@ test('Ajustes muestra estado diario verificado, horario y resultado parcial sin 
   page,
 }) => {
   await setup(page);
-  await navigate(page, 'settings');
+  await navigate(page, 'connection');
   await expect(page.locator('#settings-daily-status')).toHaveText(
     'Requiere actualizar el código de Google',
   );
