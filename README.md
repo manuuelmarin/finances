@@ -1,106 +1,64 @@
 # Finanzas
 
-Entrega 3.8.1. App responsive y PWA sobre el libro completo de Google Sheets, modelo 3. La API 3.3.0 admite pruebas y principal privado con configuración explícita y libros distintos. Google calcula los resultados; la app registra entradas mediante la API privada y muestra los estados por operación.
+[![Calidad y publicación](https://github.com/manuuelmarin/finances/actions/workflows/pages.yml/badge.svg)](https://github.com/manuuelmarin/finances/actions/workflows/pages.yml)
+[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-abrir%20app-0969da)](https://manuuelmarin.github.io/finances/)
+
+Aplicación personal de finanzas, responsive e instalable como PWA. Google Sheets conserva el libro y calcula sus resultados; una implementación privada de Google Apps Script valida las lecturas y operaciones de la cuenta propietaria. La web pública proporciona la interfaz y el instalador, sin incluir el libro ni su configuración privada.
+
+**Entrega 3.8.1 · API 3.3.0 · modelo 3.** El entorno de trabajo permanece en `test`; publicar GitHub Pages no actualiza Apps Script, instala rutinas en Google ni activa producción.
+
+[Abrir app](https://manuuelmarin.github.io/finances/) · [Instalar](https://manuuelmarin.github.io/finances/install.html) · [Guía de desarrollo](docs/DEVELOPMENT.md) · [Arquitectura](docs/ARCHITECTURE.md) · [Seguridad](SECURITY.md) · [Cambios](CHANGELOG.md) · [Cotizaciones](apps-script/PRICES.md)
+
+## Qué permite hacer
+
+| Sección      | Funciones vigentes                                                                                         |
+| ------------ | ---------------------------------------------------------------------------------------------------------- |
+| Resumen      | Patrimonio, inversión, caja y presupuesto mensual; gráficos con inspección por fecha.                      |
+| Movimientos  | Consultar, filtrar y registrar gastos, ingresos y transferencias; revisar los detalles antes de confirmar. |
+| Inversiones  | Productos, compras, ventas, posiciones y cotizaciones; aportaciones, valor y rentabilidad por periodos.    |
+| Cuentas      | Cuentas, saldos, deudas y observaciones de saldo al corte.                                                 |
+| Presupuestos | Crear, editar y retirar límites mensuales totales o por subcategoría.                                      |
+| Salario      | Nóminas, evolución y ahorro mensual sobre ingreso neto y gasto propio.                                     |
+| Objetivos    | Consultar metas y asignaciones de ahorro.                                                                  |
+| Actividad    | Seguir pendientes y consultar el historial de operaciones confirmadas.                                     |
+| Calculadoras | Estimar plazo, aportación y colchón de liquidez con supuestos explícitos.                                  |
+| Ajustes      | Conexión privada, categorías, fechas, diagnósticos, almacenamiento e instalación.                          |
+
+La app guarda una lectura local para consulta sin conexión y una cola persistente de operaciones. Una operación enviada solo se considera confirmada con la respuesta o el recibo del servidor; ante una respuesta incierta se recupera la misma solicitud. La cola no envía operaciones con la app cerrada; la rutina diaria de precios se ejecuta por separado en Google.
+
+## Uso e instalación privada
+
+1. Abrir el [instalador](https://manuuelmarin.github.io/finances/install.html) y seguir sus instrucciones para los tres archivos de Apps Script y la configuración privada del libro de pruebas.
+2. Ejecutar las comprobaciones indicadas y publicar una nueva versión de la implementación de Google con acceso **Solo yo**.
+3. Guardar su enlace en la app y abrir el libro con la cuenta propietaria. Revisar los resultados individuales de los diagnósticos: `ok: true` indica que la comprobación terminó, no que todas las condiciones o cotizaciones estén completas.
+
+La actualización diaria de cotizaciones es voluntaria y requiere instalar el código correspondiente y activarla en Google. VDOS/Quefondos aporta las cotizaciones disponibles por ISIN; los fallos conservan el último precio. La fuente no reconstruye un histórico diario completo. Los gráficos usan precios reales disponibles y la rentabilidad TWR solo se muestra en tramos con valoraciones suficientes y fecha de inicio identificada. Consulta [fuentes y límites históricos](apps-script/PRICES.md).
+
+La lectura financiera y los pendientes del navegador se guardan en IndexedDB, sin cifrado propio de la app. Utiliza un dispositivo y perfil de confianza; resuelve los pendientes antes de borrar la copia local desde Ajustes. Los controles y las pruebas no garantizan la ausencia de vulnerabilidades. Lee [Seguridad](SECURITY.md) antes de usar datos reales.
 
 ## Desarrollo y calidad
 
-Node 24. `npm ci --ignore-scripts`, `npx playwright install --with-deps chromium`, `npm run check`. Prettier mantiene el formato; ESLint detecta errores; node:test comprueba reglas, canal, precios y recuperación; Playwright prueba ordenador y móvil con datos ficticios. Actions publica Pages únicamente tras superar calidad. Los commits nuevos siguen Conventional Commits: `feat(app): ...`, `fix(api): ...`, `ci(quality): ...`.
+Requiere Node.js 24 o superior. CI utiliza Node 24. Para preparar el proyecto y ejecutar las comprobaciones:
 
-Actions también ejecuta `npm run audit`: vulnerabilidades conocidas altas o críticas bloquean la publicación. Las acciones se fijan por commit completo. Revisar y actualizar deliberadamente esos commits y el lockfile; una revisión sin avisos no garantiza ausencia de fallos desconocidos.
-
-`npm run build` genera el instalador exacto desde los tres archivos de Apps Script y la versión de caché desde los recursos públicos. No editar sus bloques de código a mano. Las dependencias están fijadas en package-lock.json. Las pruebas simuladas no acreditan una implementación privada de Google ni un teléfono físico.
-
-## Uso por agentes
-
-1. Leer el estado por `FinanceApiClient.read()` desde la sesión privada autorizada de Google. El proyecto de pruebas conserva `TEST_SPREADSHEET_ID`, `OWNER_EMAIL` y `ENVIRONMENT=test` fuera del repositorio. El principal requiere un proyecto/implementación separados, `PRODUCTION_SPREADSHEET_ID` distinto y `ENVIRONMENT=production`. No transmitir IDs de libro, credenciales ni URLs privadas en commits.
-2. Preparar operaciones con nombres del negocio o selecciones resueltas. `tools/agent-envelope.cjs` genera una referencia automática y revisión desde la lectura 3.3.0. Los IDs definitivos los genera Apps Script. El adaptador necesita un transporte autenticado; no ofrece un endpoint HTTP público ni evita el inicio de sesión.
-3. Guardar el sobre completo antes de enviar. Usar `client.submit(envelope)`. Ante respuesta incierta consultar `client.requestStatus(envelope)` y reintentar exactamente el mismo sobre. Un conflicto exige nueva lectura y revisión explícita; nunca cambiar silenciosamente una solicitud ya enviada.
-4. Usar altas, correcciones y anulaciones de `financialApi`; nunca escribir celdas para registrar operaciones. No borrar precios al fallar una fuente, no convertir datos desconocidos en cero y no registrar compras históricas otra vez como caja nueva.
-5. El original XLSX se conserva durante pruebas. Su archivo definitivo y la elección de Sheets como única fuente operativa requieren el corte y aceptación del paso 8. Los dos documentos privados de coordinación conservan las referencias y pendientes; no se publican en este repositorio.
-
-## Seguridad y límites de la auditoría
-
-La autorización se comprueba en el servidor antes de acceder a Sheets, tanto en la API como en las funciones públicas del editor. Las escrituras admiten procesos y campos concretos; el cliente no puede elegir un libro o enviar instrucciones de celda. El texto se escribe con `stringValue`, no como fórmula. El HTML de terceros nunca se ejecuta en la app. Los errores internos no se devuelven al navegador. Las cotizaciones solo consultan dos rutas HTTPS fijas del proveedor, por ISIN validado y sin seguir redirecciones.
-
-Bridge valida origen, ventana y referencia de sesión; la API acepta respuestas únicamente del marco y origen exactos del saludo autenticado. La interfaz usa `textContent` para datos del libro. La CSP bloquea scripts en línea, eval, recursos externos, formularios y objetos; los estilos de instalación/vista previa se autorizan por huella. La app incrustada no carga su copia local ni habilita configuración u operaciones; abrirla en su propia ventana. La CSP en una etiqueta meta no permite configurar `frame-ancestors` ni sustituye las cabeceras de un alojamiento con control propio.
-
-La lectura y los pendientes de IndexedDB permiten trabajar sin conexión y no están cifrados por la app. Utilizar un dispositivo, perfil y cuenta de Google de confianza. Borrar la copia local desde Ajustes → Almacenamiento local al dejar de usarlo; resolver primero los pendientes. Todos los proyectos bajo el mismo origen `manuuelmarin.github.io` comparten la frontera de confianza del navegador: no publicar código ajeno o no revisado bajo ese origen. Un dominio/origen dedicado y cabeceras HTTP completas deben valorarse si cambia esa condición.
-
-La revisión cubre los archivos del repositorio y ataques simulados. Antes del uso real comprobar la implementación exacta instalada, acceso Solo yo y rechazo de una cuenta distinta. Ni tests ni una auditoría puntual garantizan ausencia de vulnerabilidades desconocidas o compromiso del dispositivo/cuentas. Mantener Google y GitHub protegidos, y repetir la auditoría al cambiar dependencias, código o despliegues.
-
-## Instalación privada
-
-[Instalador](https://manuuelmarin.github.io/finances/install.html). Copiar los tres archivos, ejecutar `comprobarPaso5`, publicar una nueva versión de Google y abrir el libro desde la app. El resultado general `ok:true` no significa que todos los precios se hayan encontrado: comprobar `complete` y los resultados individuales. El historial de precios conserva cada fecha efectiva y fuente.
-
-La cola y lectura local se separan por implementación y libro. Las solicitudes sin confirmar no se pueden descartar ni editar. El service worker solo cachea archivos públicos de la app; la lectura financiera y los pendientes usan IndexedDB local. No existe envío con la app cerrada. El borrado local se bloquea si quedan pendientes.
-
-## Cola persistente para agentes
-
-`tools/agent-queue.cjs` reutiliza `web/queue.js`: guarda lectura, libro, sobre, referencia y estado antes de enviar; recupera respuestas por el journal. Requiere Node 24 y un cliente de la API privada ya autenticado. No abre sesión ni registra credenciales. Ejemplo dentro del proceso que dispone de ese cliente:
-
-```js
-const { openQueue } = require('./tools/agent-queue.cjs');
-const queue = await openQueue({
-  directory: privateStateDirectory,
-  deploymentUrl,
-});
-await queue.saveSnapshot(await client.read());
-await queue.enqueue(operations, 'Operación revisada');
-await queue.run(client);
+```sh
+npm ci --ignore-scripts
+npx playwright install --with-deps chromium
+npm run check
 ```
 
-Para recuperar tras cierre, abrir la misma cola y llamar `run(client)` sin volver a preparar o encolar la operación. Cada implementación tiene archivo propio, con permisos de usuario, escritura atómica y sincronización a disco. Un libro distinto bloquea el envío; un conflicto queda para revisión. Un archivo corrupto o bloqueo ocupado impide reemplazar la cola. Si el proceso termina durante una escritura, conservar los archivos y retirar el `.lock` solo tras comprobar que ningún proceso lo usa; no borrar pendientes. Ningún adaptador autoriza escribir celdas directamente. Las herramientas OOXML previas quedan para lectura/archivo/recuperación del origen tras el corte; no son un segundo backend real.
+`check` genera los recursos de instalación, comprueba el formato con Prettier, ejecuta ESLint y las pruebas de Node y Playwright. La integración continua añade la auditoría de dependencias; la publicación en Pages depende de superar calidad. Las pruebas usan datos ficticios y no validan por sí solas una implementación privada de Google o un teléfono físico.
 
-## Preparación del uso real y mantenimiento
+La [guía de desarrollo](docs/DEVELOPMENT.md) describe los comandos y recursos generados. Para proponer cambios, consulta [CONTRIBUTING.md](CONTRIBUTING.md).
 
-`comprobarCierre()` en el editor y «Comprobar sistema» en la app hacen la misma comprobación sin escrituras: estructura, cálculos, tarjetas, Bridge, fuentes por ISIN y estabilidad de la revisión. `ok:true` significa que terminó; `technicalReady:true` exige todos los `checks` correctos. No acredita la instalación en un teléfono físico, la autenticación de otra cuenta o la vigencia del origen. La entrega 3.4.0 mantiene API 3.3.0 y sobres antiguos en test; en producción toda mutación/consulta de solicitud requiere el vínculo de libro obtenido de una lectura.
+## Estructura del repositorio
 
-Antes del corte: aceptar pruebas reales, resolver pendientes por dispositivo, comparar fuentes vigentes y guardar copia nativa del principal más código y configuración privada. Mantener el proyecto de pruebas; crear una implementación privada separada para el principal. Preparar su backend con `comprobarPaso4`, comprobar `comprobarCierre` y guardar su nuevo enlace en la app. Nunca copiar operaciones ficticias ni solicitudes pendientes de test al principal. La selección desde el navegador no puede modificar los identificadores configurados en el servidor.
+| Ruta           | Contenido                                                                        |
+| -------------- | -------------------------------------------------------------------------------- |
+| `web/`         | Interfaz pública, cliente API, cola local, gráficos y PWA.                       |
+| `apps-script/` | Backend privado, puente autenticado, manifiesto y documentación de cotizaciones. |
+| `tools/`       | Generación de instalador y caché, comprobaciones y adaptadores para agentes.     |
+| `tests/`       | Pruebas de reglas, API, recuperación y navegador.                                |
+| `docs/`        | Guía de desarrollo y arquitectura.                                               |
+| `.github/`     | Integración continua y configuración de colaboración.                            |
 
-Con Sheets operativo, archivar el XLSX como origen histórico y registrar operaciones solo por la API. Hacer copias completas periódicas y antes de cambios; anotar fecha, revisión y cortes en el seguimiento privado. Para recuperar: detener envíos, preservar actual/colas/journal, restaurar en un libro nuevo, validar fórmulas y entradas y reconciliar cambios posteriores con auditoría y recibos. El reenvío de solicitudes inciertas exige consultar su implementación original; no deduplicar movimientos solo por concepto/importe. Una copia nativa no respalda propiedades ni despliegues de Apps Script.
-
-## Panel y presupuestos · entrega 3.5.0
-
-Nuevo movimiento carga el libro completo desde el clic si todavía no hay lectura. Los accesos de gasto, ingreso y transferencia están en Movimientos; compra, venta y producto están en Inversiones; la comprobación de estructura se distingue de abrir el libro para operar. Se mantienen revisión, cola durable y confirmación del servidor.
-
-En 3.6.0 la primera lectura completa se incorpora al HTML privado de Google, con escape contextual y solo después de comprobar la cuenta propietaria. El puente espera al runner de Google y verifica una llamada autenticada antes de anunciar la conexión. Un canal antiguo, ausente o con formato incorrecto produce un aviso concreto. Los siguientes refrescos y operaciones usan cadenas JSON; se conservan el esquema y la API 3.3.0 para agentes. El cierre de Google y los tiempos de espera distinguen lectura fallida de escritura sin confirmar. La insignia solo indica Datos cargados cuando llega el resumen, o Copia local al recuperar una copia. El formulario conserva los campos y la revisión exige lectura cargada. Esta corrección requiere actualizar los tres archivos y publicar Nueva versión de la implementación privada existente, conservando propiedades, URL y ENVIRONMENT=test. Pages no administra el proyecto de Google.
-
-El panel muestra nueve gráficos: ingresos/gastos por mes, efectivo, categoría, distribución del gasto, ciudad, capital/valor invertido, posiciones, clases de activo y nóminas. Valores y cortes proceden de las tablas, rangos con nombre y resumen calculados por Sheets. Un mes o precio desconocido queda sin dato. La app no carga bibliotecas o imágenes de gráficos externas. Cada serie tiene datos accesibles y se adapta al móvil.
-
-Desde 3.6.1 Comprobar conexión, Abrir mi libro, Comprobar backend y Comprobar sistema reutilizan la misma sesión del libro. La primera conexión carga también los datos; las comprobaciones no cierran Google al terminar. Solo se abre otra ventana si se ha cerrado la anterior, se ha recargado la app o se cambia la implementación. No se comparten sesiones entre pestañas o libros. Las comprobaciones respetan el bloqueo de lectura/envío en curso y descartan resultados de una configuración anterior. Los fallos se muestran en español. Esta mejora del frontend funciona con Google 3.6.0 ya instalado: no requiere volver a copiar código ni publicar otra versión privada. Los bloques del instalador completo se identifican como 3.7.0 y los dos archivos de backend solo cambian su identificador de entrega. Mantener test.
-
-Presupuestos permite crear, editar y retirar límites para un mes concreto, total o por subcategoría de gasto. Cero es un límite válido; no se replica en otros meses ni crea movimientos. Gasto propio = gasto menos parte recuperable menos devoluciones propias, al corte de informe y desde el inicio del seguimiento. Transferencias, compras, cobros compartidos y deuda se excluyen. Total y límites de categoría se muestran independientemente, no se suman como un nuevo patrimonio. Objetivos de ahorro continúan en tObjetivos/tAsignaciones.
-
-La hoja oculta _Finanzas_Presupuestos se crea al preparar el backend o al confirmar el primer límite. Su estado es entero 1/0; modificaciones, auditoría y recibo se guardan en un único lote financiero. Cambiar un límite cambia la revisión; renombrar una subcategoría conserva sus límites. La API sigue en 3.3.0; supportsBudgets identifica la ampliación. Un backend anterior conserva movimientos, pero exige actualizar los tres archivos y la implementación para mostrar gráficos y usar límites.
-
-Mantener ENVIRONMENT=test. Esta entrega no cambia propiedades privadas, no activa el principal y no declara el corte. Los agentes comparten los procesos presupuesto/quitar_presupuesto y los mismos sobres de reintento.
-
-### Revisión del flujo 3.5.1
-
-La cola conserva `RESPONSE_UNCERTAIN` como enviada sin confirmar y consulta su recibo con el mismo UUID antes de reintentar. Una respuesta ambigua no permite descartar o recrear la operación; también se recuperan las que una versión anterior guardó como revisión. App y agentes comparten esta protección.
-
-Cambiar la implementación durante una conexión cancela la lectura anterior; los resultados de otro cliente o almacén no se guardan bajo el nuevo enlace. El instalador sincroniza sus versiones humanas con el paquete y comprueba que coinciden con `BUILD_VERSION_`. La activación del principal continúa suspendida: mantener `ENVIRONMENT=test` hasta instrucción expresa.
-
-## Interfaz · entrega 3.7.0
-
-Resumen, Movimientos, Inversiones, Cuentas, Presupuestos, Salario, Objetivos, Actividad, Calculadoras y Ajustes tienen pantallas propias. En móvil las cuatro secciones principales están en la barra inferior; Más abre las otras seis. El panel de registros se mueve entre pantallas sin releer ni abrir otra sesión de Google. Posiciones, operaciones y precios se consultan en Inversiones; deudas y observaciones de saldo en Cuentas; categorías y fechas en Ajustes. Los filtros se conservan por registro durante la sesión. Movimientos muestra las columnas principales y permite desplegar todos los campos con Detalles.
-
-Los nueve gráficos de Sheets se distribuyen entre Resumen, Movimientos, Inversiones y Salario. Los pendientes y el historial confirmado se consultan por separado en Actividad; este cambio no altera los sobres, recibos ni reintentos. Ajustes conserva el diagnóstico, almacenamiento e instalación en secciones desplegables. La app mantiene el entorno configurado en Google: esta entrega no cambia libros ni autoriza el corte a producción. Es compatible con Google 3.6.0 ya instalado; no requiere reinstalar Apps Script. Los dos archivos de backend solo cambian su identificador de entrega.
-
-## Análisis interactivo · entrega 3.8.0
-
-Resumen concentra patrimonio neto, inversión y saldo del presupuesto total del mes. La composición distingue inversiones y cuentas; deuda queda como contexto. Caja muestra saldos diarios desde las bases de las cuentas y los movimientos al corte. Las leyendas permiten seleccionar series y el cursor o teclado inspeccionan fechas sin marcadores permanentes. Gastos usa distribuciones y acumulados; excluir una categoría cambia el denominador y se indica expresamente. Sin un límite global no se presenta un saldo libre calculado sumando límites solapados.
-
-Movimientos presenta gasto, ingreso y transferencia. Crear cuentas, categorías, productos y objetivos se hace en su sección. Concepto y atributos adicionales se despliegan como opciones; un concepto omitido se completa con el tipo de operación, visible antes de confirmar. Los registros se ordenan y filtran por columna, también en móvil; los filtros son locales y no alteran Sheets ni las revisiones de escritura. ISIN y fuente se muestran por separado, con enlaces de proveedor restringidos. El identificador interno EFECTIVO se presenta como Efectivo.
-
-Inversiones permite seleccionar cualquier producto de la lectura y periodos 1M, 3M, 6M, año actual, 1A y Todo. Aportaciones netas se dibujan como área azul bajo una escalera con base cero; valor usa una línea roja fina sin relleno ni puntos. El historial respeta precios reales y distingue días sin precio de precios arrastrados; no interpola ni aplica el último valor retrospectivamente. La variación de VL por producto empieza en su primera cotización observada. La rentabilidad TWR de cartera enlaza valoraciones reales sin flujos intermedios; un flujo sin valoración suficiente interrumpe el cálculo. Si falta el histórico inicial, el tramo calculable se identifica con su fecha de inicio y declara desconocido el rendimiento anterior. El resultado sobre aportación neta de las tarjetas no sustituye TWR ni la rentabilidad nativa por producto.
-
-Salario incorpora ahorro mensual sobre nómina neta y gasto propio. Objetivos compara asignado y meta, sin cambiar asignaciones. Las calculadoras estiman plazo hasta una meta, aportación necesaria y colchón de liquidez con parámetros explícitos y supuestos constantes; no son previsiones. Presupuestos mantiene su comportamiento previo.
-
-La interfaz es compatible con Google 3.6.0 ya instalado. La mejora de fuentes y actualización diaria voluntaria requieren instalar los tres archivos 3.8.1 y publicar Nueva versión en Google. El permiso adicional script.scriptapp permite administrar únicamente los triggers del proyecto; el código solo crea o retira su propia rutina. Ver [cotizaciones y límites históricos](apps-script/PRICES.md). No se ha instalado ninguna rutina ni activado producción desde GitHub.
-
-## Corrección de inversiones · entrega 3.8.1
-
-La actualización diaria usa una sola fuente general, VDOS/Quefondos, con sus variantes oficiales por ISIN. Un único trigger horario consulta entre las 20 y 22 h de Madrid, con hasta tres intentos por lote y día. Los fallos conservan el último NAV; conflictos y precios atrasados no se presentan como una actualización completada. Ajustes muestra el estado de la rutina y su última ejecución al releer el libro. La desactivación o cambio de libro se revalida también después de consultar la red, antes de guardar.
-
-Publicar GitHub Pages no instala la rutina en Google. El dueño debe actualizar los tres archivos, publicar Nueva versión y ejecutar `activarActualizacionDiariaPreciosTest`. Se mantiene `ENVIRONMENT=test`. No se ha reconstruido el histórico diario anterior; los gráficos usan exclusivamente cotizaciones reales disponibles.
+`web/install.html` y `web/sw.js` se generan con `npm run build`: modifica sus fuentes, no sus bloques generados. La [arquitectura](docs/ARCHITECTURE.md) explica los contratos de lectura, revisión, recibos y recuperación.
