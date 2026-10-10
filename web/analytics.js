@@ -296,7 +296,10 @@ const FinanceAnalytics = (() => {
       validDate(q.Fecha),
     );
     let previous = null,
+      previousValuation = null,
       linked = null,
+      supportedIntervals = 0,
+      returnStartDate = null,
       priceAnchor = null,
       missingDays = 0,
       carriedDays = 0;
@@ -393,31 +396,37 @@ const FinanceAnalytics = (() => {
           )
           .sort((a, b) => b.Fecha.localeCompare(a.Fecha))[0];
         if (value !== null && value > 0 && quote) {
-          if (priceAnchor === null && quote.Fecha === date)
+          if (priceAnchor === null && quote.Fecha === date) {
             priceAnchor = quote['VL EUR'];
-          if (priceAnchor > 0)
+            returnStartDate = date;
+          }
+          if (priceAnchor > 0 && quote.Fecha === date)
             returnPct = 100 * (quote['VL EUR'] / priceAnchor - 1);
         } else priceAnchor = null;
-      } else if (
-        value !== null &&
-        (value > 0 || previous?.value > 0) &&
-        !carried &&
-        flowKnown
-      ) {
-        if (
-          previous &&
-          previous.value > 0 &&
-          !previous.carried &&
-          linked !== null
-        ) {
-          const r = (value - flow) / previous.value - 1;
-          linked *= 1 + r;
-          returnPct = 100 * (linked - 1);
-        } else if (!previous) {
+      } else if (value !== null && !carried && flowKnown) {
+        if (previousValuation?.value > 0 && linked !== null) {
+          // Quotes need not exist every calendar day. Without an intervening
+          // external flow, real endpoint valuations determine the whole return.
+          // Endpoint flows use the declared end-of-day convention.
+          const factor = (value - flow) / previousValuation.value;
+          if (finite(factor) && factor >= 0) {
+            linked *= factor;
+            returnPct = 100 * (linked - 1);
+            supportedIntervals++;
+          } else linked = null;
+        } else if (returnStartDate === null && value > 0) {
+          // Missing inception quotes permit a measured segment from this real
+          // valuation, explicitly dated; never reconstruct the unknown prefix.
+          returnStartDate = date;
           linked = 1;
           returnPct = 0;
         } else linked = null;
-      } else linked = null;
+        previousValuation = { date, value };
+      } else if (!flowKnown || flow !== 0) {
+        // A contribution during an unvalued interval cannot be neutralized
+        // exactly. Do not silently restart a since-inception series afterwards.
+        linked = null;
+      }
       if (value === null) missingDays++;
       if (carried) carriedDays++;
       const row = {
@@ -462,7 +471,11 @@ const FinanceAnalytics = (() => {
         missingDays,
         carriedDays,
         invalidProducts: [...invalidProducts],
-        method: productId ? 'navChange' : 'dailyTwrExactPrices',
+        method: productId ? 'navChange' : 'twrRealValuationIntervals',
+        supportedIntervals,
+        returnStartDate,
+        sinceInception:
+          returnStartDate !== null && returnStartDate === firstDate,
         flowConvention: 'endOfDay',
         notices: [
           'Valoraciones con último VL real disponible; precios arrastrados identificados.',
@@ -473,7 +486,7 @@ const FinanceAnalytics = (() => {
             : []),
           productId
             ? 'Variación de VL desde primera cotización observada; no incluye distribuciones.'
-            : 'TWR solo con cortes diarios reales continuos y flujos al cierre; tras un hueco no se reconstruye rendimiento.',
+            : 'TWR entre cortes de valoración reales y flujos al cierre; los intervalos sin flujos pueden enlazarse sin inventar precios diarios. Un flujo sin valoración rompe el histórico de rentabilidad.',
         ],
       },
     };

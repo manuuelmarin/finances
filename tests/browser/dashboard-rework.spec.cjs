@@ -192,7 +192,7 @@ const snapshot = {
   prices: [],
 };
 
-async function setup(page) {
+async function setup(page, seedSnapshot = snapshot) {
   await page.route(/^https?:\/\/(?!127\.0\.0\.1:4173)/, (route) =>
     route.abort(),
   );
@@ -203,7 +203,7 @@ async function setup(page) {
         throw Error('Read-only fixture must not write');
       },
     });
-  }, snapshot);
+  }, seedSnapshot);
 }
 
 test('resumen concentra patrimonio, caja seleccionable y gráficos accesibles', async ({
@@ -314,6 +314,20 @@ test('selección genérica de producto y periodo conserva escalera, valor e insp
   await expect(page.locator('#investment-kpis')).toContainText(/1\.?100,00/);
   const chart = page.locator('#investment-charts .chart-card').first();
   await expect(chart.locator('path.chart-step')).toHaveCount(1);
+  await expect(chart.locator('path.chart-area.chart-blue')).toHaveAttribute(
+    'data-baseline',
+    '0',
+  );
+  const market = chart.locator('path.chart-line.chart-red');
+  await expect(market).toHaveCount(1);
+  expect(await market.evaluate((node) => getComputedStyle(node).fill)).toBe(
+    'none',
+  );
+  const area = chart.locator('path.chart-area');
+  expect(await area.getAttribute('d')).toContain(' H ');
+  expect(await area.getAttribute('d')).toMatch(/^M [\d.]+ 213 L /);
+  expect(await area.getAttribute('d')).toMatch(/Z$/);
+  await screenshot(page, 'investments-area');
   await expect(chart.locator('.finance-chart circle')).toHaveCount(0);
   const allRows = await chart.locator('tbody tr').count();
   await page.locator('#investment-range').selectOption('1m');
@@ -470,4 +484,84 @@ test('datos del gráfico permiten ordenar y filtrar con teclado sin alterar las 
   expect(
     await amountSort.evaluate((node) => node.getBoundingClientRect().height),
   ).toBeGreaterThanOrEqual(44);
+});
+
+test('TWR insuficiente explica los cortes que faltan y no muestra resultado sobre aportación como rentabilidad', async ({
+  page,
+}) => {
+  const sparse = structuredClone(snapshot);
+  sparse.tables.tPrecios = sparse.tables.tPrecios.filter((r) =>
+    ['2026-01-01', '2026-03-15'].includes(r.Fecha),
+  );
+  await setup(page, sparse);
+  await navigate(page, 'investments');
+  const performance = page.locator('#investment-charts .chart-card').nth(1);
+  await expect(performance).toContainText('TWR entre valoraciones reales');
+  await expect(performance).toContainText('no puede calcularse');
+  const rowValues = await performance.locator('tbody tr').allTextContents();
+  expect(rowValues.at(-1)).toContain('Sin dato');
+});
+
+test('Ajustes muestra estado diario verificado, horario y resultado parcial sin asumir activación', async ({
+  page,
+}) => {
+  await setup(page);
+  await navigate(page, 'connection');
+  await expect(page.locator('#settings-daily-status')).toHaveText(
+    'Requiere actualizar el código de Google',
+  );
+  await expect(page.locator('#settings-daily-schedule')).toHaveText(
+    'Sin comprobar',
+  );
+  const configured = structuredClone(snapshot);
+  configured.dailyPrices = {
+    enabled: true,
+    status: 'partial',
+    schedule: { hours: [9, 12, 18], timezone: 'Europe/Madrid' },
+    lastRun: { checkedAt: '2026-03-15T12:00:00Z', complete: false },
+  };
+  await page.evaluate((seed) => FinanceDashboard.render(seed), configured);
+  await expect(page.locator('#settings-daily-status')).toContainText(
+    'hay precios pendientes',
+  );
+  await expect(page.locator('#settings-daily-schedule')).toHaveText(
+    '9, 12, 18 h · Europe/Madrid',
+  );
+  await expect(page.locator('#settings-daily-run')).toContainText(
+    'Sin completar',
+  );
+  configured.dailyPrices.status = 'disabled';
+  configured.dailyPrices.enabled = false;
+  await page.evaluate((seed) => FinanceDashboard.render(seed), configured);
+  await expect(page.locator('#settings-daily-status')).toHaveText(
+    'Desactivada',
+  );
+  configured.dailyPrices.status = 'inspection_unavailable';
+  await page.evaluate((seed) => FinanceDashboard.render(seed), configured);
+  await expect(page.locator('#settings-daily-status')).toHaveText(
+    'No se ha podido comprobar el programador',
+  );
+});
+
+test('TWR identifica la primera valoración real cuando falta el rendimiento anterior', async ({
+  page,
+}) => {
+  const delayed = structuredClone(snapshot);
+  delayed.tables.tPrecios = delayed.tables.tPrecios.filter(
+    (r) => r.Fecha >= '2026-02-02',
+  );
+  await setup(page, delayed);
+  await navigate(page, 'investments');
+  const performance = page.locator('#investment-charts .chart-card').nth(1);
+  await expect(
+    performance.getByRole('button', {
+      name: 'TWR desde 2026-02-02',
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(performance).toContainText(
+    'el rendimiento anterior es desconocido',
+  );
+  const last = await performance.locator('tbody tr').last().textContent();
+  expect(last).not.toContain('Sin dato');
 });

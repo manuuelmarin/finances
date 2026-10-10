@@ -1979,6 +1979,13 @@ dialog .inline-link {
   fill: var(--series-red);
   stroke: var(--series-red);
 }
+.chart-line.chart-red {
+  fill: none;
+}
+.chart-area {
+  fill-opacity: 0.24;
+  stroke: none;
+}
 .legend-toggle {
   display: inline-flex;
   align-items: center;
@@ -2169,6 +2176,23 @@ dialog .inline-link {
 .settings-overview dd {
   margin: 7px 0 0;
   font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+.daily-price-status {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0;
+}
+.daily-price-status div {
+  display: grid;
+  gap: 4px;
+}
+.daily-price-status dt {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.daily-price-status dd {
+  margin: 0;
   overflow-wrap: anywhere;
 }
 #price-settings p {

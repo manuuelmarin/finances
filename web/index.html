@@ -1221,13 +1221,30 @@
         </section>
         <details class="section-details" id="price-settings">
           <summary>Precios y actualización diaria</summary>
+          <dl
+            class="daily-price-status"
+            aria-label="Actualización automática de precios"
+          >
+            <div>
+              <dt>Actualización diaria</dt>
+              <dd id="settings-daily-status">Libro sin cargar</dd>
+            </div>
+            <div>
+              <dt>Horario</dt>
+              <dd id="settings-daily-schedule">Sin comprobar</dd>
+            </div>
+            <div>
+              <dt>Última ejecución</dt>
+              <dd id="settings-daily-run">Sin comprobar</dd>
+            </div>
+          </dl>
           <p>
             Actualizar precios guarda nuevas cotizaciones verificadas y conserva
             su historial por producto y fecha.
           </p>
           <p class="calculator-note">
             Para acumular precios cada día sin abrir la app, instala la entrega
-            de Google 3.8.0 y ejecuta
+            de Google 3.8.1 y ejecuta
             <code>activarActualizacionDiariaPreciosTest</code> una vez desde el
             editor. La rutina solo actúa en la copia de pruebas. Para detenerla,
             ejecuta <code>desactivarActualizacionDiariaPreciosTest</code>.
@@ -1263,7 +1280,7 @@
       </section>
       <footer class="workspace-footer">
         <p id="app-version" class="app-version">
-          App 3.8.0 · <span data-finance-environment>Sin conectar</span
+          App 3.8.1 · <span data-finance-environment>Sin conectar</span
           ><span id="pwa-status" hidden></span>
         </p>
       </footer>
