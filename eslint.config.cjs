@@ -38,6 +38,7 @@ module.exports = [
         acceptsConnectionMessage: 'readonly',
         compoundInterest: 'readonly',
         mortgage: 'readonly',
+        mortgageRepayment: 'readonly',
       },
     },
     rules: {

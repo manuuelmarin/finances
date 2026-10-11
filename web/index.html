@@ -751,7 +751,7 @@
                     /><span>€</span></span
                   ></label
                 ><label class="field"
-                  >Tipo de interés anual<span class="input-wrap"
+                  >TIN anual<span class="input-wrap"
                     ><input
                       id="mortgage-rate"
                       type="number"
@@ -827,10 +827,112 @@
               </dl>
             </div>
             <p id="mortgage-note" class="calculator-note">
-              Cuotas constantes y tipo fijo. Los gastos iniciales no se
-              financian. Incluye los impuestos en ese importe si quieres
-              contemplarlos.
+              TIN nominal anual, no TAE. Cuotas constantes y tipo fijo. Los
+              gastos iniciales no se financian. Incluye los impuestos en ese
+              importe si quieres contemplarlos.
             </p>
+            <details>
+              <summary>Comparar una amortización anticipada</summary>
+              <p class="calculator-note">
+                Usa el capital y los meses pendientes actuales. Compara bajar la
+                cuota o mantenerla para terminar antes.
+              </p>
+              <form id="repayment-form" aria-describedby="repayment-note">
+                <div class="form-grid">
+                  <label class="field" for="repayment-outstanding"
+                    >Capital pendiente (€)<input
+                      id="repayment-outstanding"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      required
+                  /></label>
+                  <label class="field" for="repayment-months"
+                    >Meses pendientes<input
+                      id="repayment-months"
+                      type="number"
+                      min="1"
+                      max="120000"
+                      step="1"
+                      required
+                  /></label>
+                  <label class="field" for="repayment-annualRate"
+                    >TIN anual (%)<input
+                      id="repayment-annualRate"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      required
+                  /></label>
+                  <label class="field" for="repayment-repayment"
+                    >Amortización anticipada (€)<input
+                      id="repayment-repayment"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      required
+                  /></label>
+                  <label class="field" for="repayment-feeRate"
+                    >Comisión sobre lo amortizado (%)<input
+                      id="repayment-feeRate"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value="0"
+                      required
+                  /></label>
+                  <label class="field" for="repayment-availableCash"
+                    >Efectivo disponible (€), opcional<input
+                      id="repayment-availableCash"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                  /></label>
+                </div>
+                <button class="button button-primary button-full" type="submit">
+                  Comparar opciones
+                </button>
+              </form>
+              <p
+                id="repayment-message"
+                class="field-message"
+                aria-live="polite"
+                hidden
+              ></p>
+              <div
+                id="repayment-result"
+                class="calculator-results"
+                aria-live="polite"
+                aria-atomic="true"
+                hidden
+              >
+                <p id="repayment-summary"></p>
+                <div class="table-scroll">
+                  <table class="chart-table">
+                    <caption>
+                      Coste desde hoy
+                    </caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Opción</th>
+                        <th scope="col">Cuota</th>
+                        <th scope="col">Meses</th>
+                        <th scope="col">Intereses</th>
+                        <th scope="col">Ahorro neto</th>
+                      </tr>
+                    </thead>
+                    <tbody id="repayment-comparison"></tbody>
+                  </table>
+                </div>
+              </div>
+              <p id="repayment-note" class="calculator-note">
+                TIN fijo, sin TAE, seguros ni otros gastos. Intereses y cuotas
+                redondeados al céntimo cada mes; última cuota ajustada. Ahorro
+                neto = intereses evitados menos comisión. No incluye
+                rentabilidad alternativa del efectivo. La entidad puede aplicar
+                otro redondeo.
+              </p>
+            </details>
           </section>
           <section class="calculator" aria-labelledby="goal-time-title">
             <div class="calculator-heading">
@@ -964,17 +1066,18 @@
                     /><span>€</span></span
                   ></label
                 >
-                <label class="field" for="goal-saving-years"
+                <label class="field" for="goal-saving-months"
                   >Plazo<span class="input-wrap"
                     ><input
-                      id="goal-saving-years"
+                      id="goal-saving-months"
                       type="number"
-                      inputmode="decimal"
+                      inputmode="numeric"
                       min="1"
+                      max="120000"
                       step="1"
-                      value="5"
+                      value="60"
                       required
-                    /><span>años</span></span
+                    /><span>meses</span></span
                   ></label
                 >
                 <label class="field" for="goal-saving-annualReturn"

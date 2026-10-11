@@ -321,3 +321,98 @@ test('formularios muestran texto, ocultan resultados obsoletos y no necesitan DO
   form.events.reset();
   assert.equal(message.hidden, true);
 });
+
+test('whole month deadlines and smallest cent contribution handle finite numeric boundaries', () => {
+  for (const months of [1, 6, 18, 60]) {
+    const result = monthlyForGoal({
+      capital: 0,
+      target: 1201.92,
+      months,
+      annualReturn: 0,
+    });
+    assert.equal(result.months, months);
+    assert.ok(result.nominal + 1e-10 >= 1201.92);
+    assert.ok((result.monthly - 0.01) * months < 1201.92);
+  }
+  assert.equal(
+    monthlyForGoal({ capital: 0, target: 1201.92, years: 1, annualReturn: 0 })
+      .monthly,
+    100.16,
+  );
+  assert.throws(() =>
+    monthlyForGoal({
+      capital: 0,
+      target: 10000,
+      years: 1000,
+      annualReturn: 110,
+    }),
+  );
+  assert.throws(() =>
+    monthlyForGoal({ capital: 0, target: 1, months: 1.5, annualReturn: 0 }),
+  );
+  const negative = monthlyForGoal({
+    capital: 1000,
+    target: 1201.92,
+    months: 18,
+    annualReturn: -12,
+  });
+  assert.ok(negative.nominal >= 1201.92 - 1e-10);
+});
+
+const { mortgageRepayment } = require('../web/calculators.js');
+test('mortgage repayment compares rounded schedules, charge and remaining cash', () => {
+  const input = {
+    outstanding: 160000,
+    months: 240,
+    annualRate: 3,
+    repayment: 10000,
+    feeRate: 1,
+    availableCash: 15000,
+  };
+  const result = mortgageRepayment(input);
+  assert.equal(result.baseline.payment, 887.36);
+  assert.equal(result.fee, 100);
+  assert.equal(result.remainingCash, 4900);
+  assert.equal(result.reducedPayment.months, 240);
+  assert.ok(result.reducedPayment.payment < result.baseline.payment);
+  assert.ok(result.reducedTerm.months < 240);
+  assert.ok(result.reducedTerm.interest < result.reducedPayment.interest);
+  assert.equal(
+    result.reducedTerm.netSavings,
+    Math.round(
+      (result.baseline.interest - result.reducedTerm.interest - 100) * 100,
+    ) / 100,
+  );
+  const zero = mortgageRepayment({ ...input, repayment: 0 });
+  assert.equal(zero.reducedPayment.interest, zero.baseline.interest);
+  assert.equal(zero.reducedTerm.months, zero.baseline.months);
+  const full = mortgageRepayment({
+    ...input,
+    repayment: 160000,
+    availableCash: '',
+  });
+  assert.equal(full.reducedTerm.months, 0);
+  assert.equal(full.reducedPayment.payment, 0);
+  assert.equal(full.reducedTerm.interest, 0);
+  assert.equal(full.remainingCash, null);
+  const noInterest = mortgageRepayment({
+    ...input,
+    outstanding: 1200,
+    months: 12,
+    annualRate: 0,
+    repayment: 300,
+  });
+  assert.equal(noInterest.baseline.payment, 100);
+  assert.equal(noInterest.reducedPayment.payment, 75);
+  assert.equal(noInterest.reducedTerm.months, 9);
+  assert.equal(noInterest.reducedTerm.netSavings, -3);
+  for (const patch of [
+    { repayment: 160001 },
+    { annualRate: -1 },
+    { months: 1.5 },
+    { feeRate: -1 },
+    { outstanding: '' },
+    { outstanding: 1e308 },
+  ])
+    assert.throws(() => mortgageRepayment({ ...input, ...patch }));
+});

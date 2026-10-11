@@ -140,13 +140,16 @@ function timeToGoal(input) {
 
 function monthlyForGoal(input) {
   const { capital, target, rate } = goalInputs(input);
-  const years = numberInput(input.years, Number.MIN_VALUE, 'el plazo en años');
-  const months = Math.round(years * 12);
+  const rawMonths =
+    input.months !== undefined
+      ? numberInput(input.months, 1, 'el plazo en meses')
+      : numberInput(input.years, Number.MIN_VALUE, 'el plazo en años') * 12;
+  const months = Math.round(rawMonths);
   if (
     !Number.isSafeInteger(months) ||
     months < 1 ||
     months > GOAL_MAX_MONTHS ||
-    Math.abs(years * 12 - months) > 1e-8
+    Math.abs(rawMonths - months) > 1e-8
   )
     throw new Error(
       'El plazo debe equivaler a meses completos, entre 1 mes y 10.000 años.',
@@ -158,11 +161,115 @@ function monthlyForGoal(input) {
     );
   const annuity =
     rate === 0 ? months : Math.expm1(months * Math.log1p(rate)) / rate;
+  if (!Number.isFinite(annuity) || annuity <= 0)
+    throw new Error(
+      'El escenario supera el rango de cálculo. Reduce el plazo o la rentabilidad.',
+    );
   const exactMonthly = Math.max(0, (target - initial) / annuity);
-  const monthly = Math.ceil(exactMonthly * 100) / 100;
-  if (!Number.isFinite(monthly))
+  const exactCents = exactMonthly * 100;
+  const tolerance = 8 * Number.EPSILON * Math.max(1, Math.abs(exactCents));
+  let cents = Math.max(0, Math.ceil(exactCents - tolerance));
+  if (!Number.isSafeInteger(cents))
     throw new Error('La aportación requerida supera el rango de cálculo.');
+  const reaches = (amount) => {
+    const balance = goalBalance(capital, amount / 100, rate, months);
+    return (
+      Number.isFinite(balance) &&
+      balance + 8 * Number.EPSILON * Math.max(1, target, balance) >= target
+    );
+  };
+  if (!reaches(cents)) cents++;
+  if (cents > 0 && reaches(cents - 1)) cents--;
+  if (!Number.isSafeInteger(cents) || !reaches(cents))
+    throw new Error('La aportación requerida supera el rango de cálculo.');
+  const monthly = cents / 100;
   return { monthly, months, ...goalAmounts(capital, monthly, rate, months) };
+}
+
+// Comparison uses monthly interest and payments rounded to cents, with a smaller final payment.
+function mortgageRepayment(input) {
+  const outstanding = numberInput(input.outstanding, 0, 'el capital pendiente');
+  const repayment = numberInput(
+    input.repayment,
+    0,
+    'la amortización anticipada',
+  );
+  const rate = numberInput(input.annualRate, 0, 'el TIN anual') / 1200;
+  const months = numberInput(input.months, 1, 'los meses pendientes');
+  const feeRate =
+    numberInput(input.feeRate, 0, 'la comisión de amortización') / 100;
+  if (!Number.isSafeInteger(months) || months > GOAL_MAX_MONTHS)
+    throw new Error(
+      'El plazo pendiente debe ser de 1 a 120.000 meses completos.',
+    );
+  if (repayment > outstanding)
+    throw new Error('La amortización no puede superar el capital pendiente.');
+  const money = (n) => {
+    const cents = Math.round(n * 100);
+    if (!Number.isSafeInteger(cents))
+      throw new Error('El importe supera el rango de cálculo.');
+    return cents / 100;
+  };
+  const principal = money(outstanding);
+  const paidNow = money(repayment);
+  const remaining = money(principal - paidNow);
+  const fee = money(paidNow * feeRate);
+  const quote = (balance) =>
+    money(
+      rate === 0
+        ? balance / months
+        : (balance * rate) / -Math.expm1(-months * Math.log1p(rate)),
+    );
+  const schedule = (balance, payment, limit) => {
+    if (balance === 0) payment = 0;
+    let interest = 0;
+    let totalPaid = 0;
+    let count = 0;
+    if (balance > 0 && payment <= 0)
+      throw new Error(
+        'La cuota redondeada es demasiado pequeña para amortizar el préstamo.',
+      );
+    while (balance > 0 && count < limit) {
+      const charge = money(balance * rate);
+      const due = money(balance + charge);
+      const instalment = count === limit - 1 ? due : Math.min(payment, due);
+      if (instalment <= charge && count !== limit - 1)
+        throw new Error(
+          'La cuota redondeada no amortiza el capital. Revisa el escenario.',
+        );
+      interest = money(interest + charge);
+      totalPaid = money(totalPaid + instalment);
+      balance = money(due - instalment);
+      count++;
+    }
+    if (balance > 0) throw new Error('El plazo supera el rango de cálculo.');
+    return { payment, months: count, interest, totalPaid };
+  };
+  const baseline = schedule(principal, quote(principal), months);
+  const reducedPayment = schedule(remaining, quote(remaining), months);
+  const reducedTerm = schedule(remaining, baseline.payment, months);
+  for (const scenario of [reducedPayment, reducedTerm]) {
+    scenario.interestSaved = money(baseline.interest - scenario.interest);
+    scenario.netSavings = money(scenario.interestSaved - fee);
+  }
+  let remainingCash = null;
+  if (
+    input.availableCash !== undefined &&
+    String(input.availableCash).trim() !== ''
+  )
+    remainingCash = money(
+      numberInput(input.availableCash, 0, 'el efectivo disponible') -
+        paidNow -
+        fee,
+    );
+  return {
+    baseline,
+    reducedPayment,
+    reducedTerm,
+    repayment: paidNow,
+    fee,
+    remainingCash,
+  };
 }
 
 function liquidityBuffer({ essentialMonthly, liquidCapital, targetMonths }) {
@@ -211,7 +318,7 @@ function bindPlanningCalculators(doc) {
           : `${r.months === 0 ? 'Meta ya alcanzada' : 'Plazo estimado: ' + duration(r.months)}. Capital: ${currency.format(r.nominal)}. Capital aportado: ${currency.format(r.contributed)}. Rendimiento hipotético: ${currency.format(r.gain)}.`,
     },
     'goal-saving': {
-      fields: ['capital', 'target', 'years', 'annualReturn'],
+      fields: ['capital', 'target', 'months', 'annualReturn'],
       calculate: monthlyForGoal,
       describe: (r) =>
         `Aportación mensual requerida: ${currency.format(r.monthly)} (redondeada hacia arriba al céntimo). Plazo: ${duration(r.months)}. Capital estimado: ${currency.format(r.nominal)}. Capital aportado: ${currency.format(r.contributed)}. Rendimiento hipotético: ${currency.format(r.gain)}.`,
@@ -263,5 +370,6 @@ if (typeof module !== 'undefined' && module.exports)
     timeToGoal,
     monthlyForGoal,
     liquidityBuffer,
+    mortgageRepayment,
     bindPlanningCalculators,
   };
