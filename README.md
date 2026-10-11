@@ -1,44 +1,44 @@
-# Finanzas
+# Finance
 
-[![Calidad y publicación](https://github.com/manuuelmarin/finances/actions/workflows/pages.yml/badge.svg)](https://github.com/manuuelmarin/finances/actions/workflows/pages.yml)
-[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-abrir%20app-0969da)](https://manuuelmarin.github.io/finances/)
+[![Finance quality and deployment](https://github.com/manuuelmarin/finances/actions/workflows/pages.yml/badge.svg)](https://github.com/manuuelmarin/finances/actions/workflows/pages.yml)
+[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-open%20app-0969da)](https://manuuelmarin.github.io/finances/)
 
-Aplicación personal de finanzas, responsive e instalable como PWA. Google Sheets conserva el libro y calcula sus resultados; una implementación privada de Google Apps Script valida las lecturas y operaciones de la cuenta propietaria. La web pública proporciona la interfaz y el instalador, sin incluir el libro ni su configuración privada.
+Finanzas is a responsive personal finance app that can be installed as a PWA. Google Sheets stores the workbook and calculates its results; a private Google Apps Script deployment validates reads and operations for the owner account. The public website provides the interface and installer, without including the workbook or its private configuration. The app interface remains in Spanish.
 
-**Entrega 3.8.1 · API 3.3.0 · modelo 3.** El entorno de trabajo permanece en `test`; publicar GitHub Pages no actualiza Apps Script, instala rutinas en Google ni activa producción.
+**Build 3.8.1 · API 3.3.0 · model 3.** The working environment remains `test`; publishing GitHub Pages does not update Apps Script, install routines in Google, or activate production.
 
-[Abrir app](https://manuuelmarin.github.io/finances/) · [Instalar](https://manuuelmarin.github.io/finances/install.html) · [Guía de desarrollo](docs/DEVELOPMENT.md) · [Arquitectura](docs/ARCHITECTURE.md) · [Seguridad](SECURITY.md) · [Cambios](CHANGELOG.md) · [Cotizaciones](apps-script/PRICES.md)
+[Open app](https://manuuelmarin.github.io/finances/) · [Install](https://manuuelmarin.github.io/finances/install.html) · [Development guide](docs/DEVELOPMENT.md) · [Architecture](docs/ARCHITECTURE.md) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Prices](apps-script/PRICES.md)
 
-## Qué permite hacer
+## Features
 
-| Sección      | Funciones vigentes                                                                                         |
-| ------------ | ---------------------------------------------------------------------------------------------------------- |
-| Resumen      | Patrimonio, inversión, caja y presupuesto mensual; gráficos con inspección por fecha.                      |
-| Movimientos  | Consultar, filtrar y registrar gastos, ingresos y transferencias; revisar los detalles antes de confirmar. |
-| Inversiones  | Productos, compras, ventas, posiciones y cotizaciones; aportaciones, valor y rentabilidad por periodos.    |
-| Cuentas      | Cuentas, saldos, deudas y observaciones de saldo al corte.                                                 |
-| Presupuestos | Crear, editar y retirar límites mensuales totales o por subcategoría.                                      |
-| Salario      | Nóminas, evolución y ahorro mensual sobre ingreso neto y gasto propio.                                     |
-| Objetivos    | Consultar metas y asignaciones de ahorro.                                                                  |
-| Actividad    | Seguir pendientes y consultar el historial de operaciones confirmadas.                                     |
-| Calculadoras | Estimar plazo, aportación y colchón de liquidez con supuestos explícitos.                                  |
-| Ajustes      | Conexión privada, categorías, fechas, diagnósticos, almacenamiento e instalación.                          |
+| App section                | Current features                                                                                  |
+| -------------------------- | ------------------------------------------------------------------------------------------------- |
+| Overview (Resumen)         | Net worth, investments, cash and monthly budget; charts with inspection by date.                  |
+| Transactions (Movimientos) | View, filter and record expenses, income and transfers; review details before confirming.         |
+| Investments (Inversiones)  | Products, purchases, sales, positions and prices; contributions, value and returns by period.     |
+| Accounts (Cuentas)         | Accounts, balances, debts and balance observations at the cutoff date.                            |
+| Budgets (Presupuestos)     | Create, edit and remove monthly overall or subcategory limits.                                    |
+| Salary (Salario)           | Payslips, trends and monthly savings based on net income and personal expenses.                   |
+| Goals (Objetivos)          | View savings targets and allocations.                                                             |
+| Activity (Actividad)       | Track pending requests and view confirmed operation history.                                      |
+| Calculators (Calculadoras) | Estimate time to target, required contributions and a liquidity buffer with explicit assumptions. |
+| Settings (Ajustes)         | Private connection, categories, dates, diagnostics, storage and installation.                     |
 
-La app guarda una lectura local para consulta sin conexión y una cola persistente de operaciones. Una operación enviada solo se considera confirmada con la respuesta o el recibo del servidor; ante una respuesta incierta se recupera la misma solicitud. La cola no envía operaciones con la app cerrada; la rutina diaria de precios se ejecuta por separado en Google.
+The app saves a local snapshot for offline viewing and a persistent operation queue. A submitted operation is confirmed only by the server response or receipt; an uncertain response is recovered using the same request. The queue does not submit operations while the app is closed; the daily price routine runs separately in Google.
 
-## Uso e instalación privada
+## Use and private installation
 
-1. Abrir el [instalador](https://manuuelmarin.github.io/finances/install.html) y seguir sus instrucciones para los tres archivos de Apps Script y la configuración privada del libro de pruebas.
-2. Ejecutar las comprobaciones indicadas y publicar una nueva versión de la implementación de Google con acceso **Solo yo**.
-3. Guardar su enlace en la app y abrir el libro con la cuenta propietaria. Revisar los resultados individuales de los diagnósticos: `ok: true` indica que la comprobación terminó, no que todas las condiciones o cotizaciones estén completas.
+1. Open the [installer](https://manuuelmarin.github.io/finances/install.html) and follow its instructions for the three Apps Script files and the private test workbook configuration.
+2. Run the specified checks and publish a new Google deployment version with access restricted to **Only myself**.
+3. Save its URL in the app and open the workbook with the owner account. Review individual diagnostic results: `ok: true` means the check finished, not that all conditions or prices are complete.
 
-La actualización diaria de cotizaciones es voluntaria y requiere instalar el código correspondiente y activarla en Google. VDOS/Quefondos aporta las cotizaciones disponibles por ISIN; los fallos conservan el último precio. La fuente no reconstruye un histórico diario completo. Los gráficos usan precios reales disponibles y la rentabilidad TWR solo se muestra en tramos con valoraciones suficientes y fecha de inicio identificada. Consulta [fuentes y límites históricos](apps-script/PRICES.md).
+Daily price updates are optional and require installing the corresponding code and enabling the routine in Google. VDOS/Quefondos supplies available prices by ISIN; failures preserve the last price. The source does not reconstruct a complete daily history. Charts use available observed prices, and TWR is shown only for segments with sufficient valuations and an identified start date. See [sources and historical limits](apps-script/PRICES.md).
 
-La lectura financiera y los pendientes del navegador se guardan en IndexedDB, sin cifrado propio de la app. Utiliza un dispositivo y perfil de confianza; resuelve los pendientes antes de borrar la copia local desde Ajustes. Los controles y las pruebas no garantizan la ausencia de vulnerabilidades. Lee [Seguridad](SECURITY.md) antes de usar datos reales.
+The financial snapshot and pending browser requests are stored in IndexedDB, without app-level encryption. Use a trusted device and browser profile; resolve pending requests before deleting the local copy in Settings (Ajustes). Controls and tests do not guarantee the absence of vulnerabilities. Read [Security](SECURITY.md) before using real data.
 
-## Desarrollo y calidad
+## Development and quality
 
-Requiere Node.js 24 o superior. CI utiliza Node 24. Para preparar el proyecto y ejecutar las comprobaciones:
+Requires Node.js 24 or later. CI uses Node 24. To set up the project and run the checks:
 
 ```sh
 npm ci --ignore-scripts
@@ -46,19 +46,19 @@ npx playwright install --with-deps chromium
 npm run check
 ```
 
-`check` genera los recursos de instalación, comprueba el formato con Prettier, ejecuta ESLint y las pruebas de Node y Playwright. La integración continua añade la auditoría de dependencias; la publicación en Pages depende de superar calidad. Las pruebas usan datos ficticios y no validan por sí solas una implementación privada de Google o un teléfono físico.
+`check` generates installation assets, checks formatting with Prettier, runs ESLint, and executes Node and Playwright tests. CI also audits dependencies; Pages deployment depends on passing quality checks. Tests use fictional data and do not independently validate a private Google deployment or a physical phone.
 
-La [guía de desarrollo](docs/DEVELOPMENT.md) describe los comandos y recursos generados. Para proponer cambios, consulta [CONTRIBUTING.md](CONTRIBUTING.md).
+The [development guide](docs/DEVELOPMENT.md) explains commands and generated assets. The [branch protection guide](docs/BRANCH_PROTECTION.md) provides the importable `main` policy and explains how to activate and verify it in GitHub. To propose changes, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Estructura del repositorio
+## Repository structure
 
-| Ruta           | Contenido                                                                        |
-| -------------- | -------------------------------------------------------------------------------- |
-| `web/`         | Interfaz pública, cliente API, cola local, gráficos y PWA.                       |
-| `apps-script/` | Backend privado, puente autenticado, manifiesto y documentación de cotizaciones. |
-| `tools/`       | Generación de instalador y caché, comprobaciones y adaptadores para agentes.     |
-| `tests/`       | Pruebas de reglas, API, recuperación y navegador.                                |
-| `docs/`        | Guía de desarrollo y arquitectura.                                               |
-| `.github/`     | Integración continua y configuración de colaboración.                            |
+| Path           | Contents                                                                 |
+| -------------- | ------------------------------------------------------------------------ |
+| `web/`         | Public interface, API client, local queue, charts and PWA.               |
+| `apps-script/` | Private backend, authenticated bridge, manifest and price documentation. |
+| `tools/`       | Installer and cache generation, checks and agent adapters.               |
+| `tests/`       | Business rules, API, recovery and browser tests.                         |
+| `docs/`        | Development guide and architecture.                                      |
+| `.github/`     | CI and collaboration configuration.                                      |
 
-`web/install.html` y `web/sw.js` se generan con `npm run build`: modifica sus fuentes, no sus bloques generados. La [arquitectura](docs/ARCHITECTURE.md) explica los contratos de lectura, revisión, recibos y recuperación.
+`web/install.html` and `web/sw.js` are generated by `npm run build`: edit their sources rather than generated blocks. The [architecture guide](docs/ARCHITECTURE.md) explains snapshot, revision, receipt and recovery contracts.

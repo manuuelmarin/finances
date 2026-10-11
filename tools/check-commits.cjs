@@ -5,7 +5,7 @@ if (
   !/^[0-9a-f]{40}$/.test(base) ||
   !/^(?:[0-9a-f]{40}|HEAD)$/.test(head)
 )
-  throw Error('Usa revisiones Git completas.');
+  throw Error('Use full Git revision hashes.');
 const output = execFileSync(
   'git',
   ['log', '--format=%H%x09%s', base + '..' + head],
@@ -16,9 +16,6 @@ const pattern =
   /^(feat|fix|chore|refactor|test|docs|build|ci|perf|style|revert)(\([a-z0-9./_-]+\))?!?: .{5,100}$/u;
 const invalid = lines.filter((line) => !pattern.test(line.slice(41)));
 if (invalid.length) {
-  console.error('Asuntos de commit inválidos:\n' + invalid.join('\n'));
+  console.error('Invalid commit subjects:\n' + invalid.join('\n'));
   process.exitCode = 1;
-} else
-  console.log(
-    lines.length + ' commits nuevos con formato Conventional Commits.',
-  );
+} else console.log(lines.length + ' new commits follow Conventional Commits.');

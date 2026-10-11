@@ -1,30 +1,28 @@
 const fs = require('node:fs');
-console.log('### Evidencia de calidad de esta ejecución');
+console.log('### Quality evidence for this run');
 console.log('Commit: `' + (process.env.GITHUB_SHA || 'local') + '`');
 console.log(
-  '\nFormato: Prettier. Análisis: ESLint. Dependencias: npm audit (altas/críticas bloquean). Acciones fijadas por SHA. Reglas/API/cola: node:test. Navegador: Playwright en móvil y ordenador, incluido CSP y bloqueo de acceso incrustado.',
+  '\nFormatting: Prettier. Analysis: ESLint. Dependencies: npm audit (high/critical vulnerabilities block the run). Actions pinned by SHA. Business rules/API/queue: node:test. Browsers: Playwright on mobile and desktop, including CSP and embedded-access restrictions.',
 );
 const unitReport = 'quality-results/unit-tests.tap';
 if (fs.existsSync(unitReport)) {
   const tap = fs.readFileSync(unitReport, 'utf8');
-  console.log('\n| Pruebas de código | Resultado |\n|---|---:|');
+  console.log('\n| Unit tests | Result |\n|---|---:|');
   for (const name of ['tests', 'pass', 'fail', 'skipped']) {
     const match = tap.match(new RegExp('^# ' + name + ' (\\d+)', 'm'));
-    console.log(
-      '| ' + name + ' | ' + (match ? match[1] : 'sin informe') + ' |',
-    );
+    console.log('| ' + name + ' | ' + (match ? match[1] : 'no report') + ' |');
   }
 }
 const report = 'test-results/browser-results.json';
 if (fs.existsSync(report)) {
   const data = JSON.parse(fs.readFileSync(report, 'utf8'));
-  console.log('\n| Pruebas de navegador | Resultado |\n|---|---:|');
+  console.log('\n| Browser tests | Result |\n|---|---:|');
   for (const key of ['expected', 'unexpected', 'flaky', 'skipped'])
     console.log('| ' + key + ' | ' + data.stats[key] + ' |');
 } else
   console.log(
-    '\nNo se ha generado el informe de navegador; comprueba los pasos anteriores.',
+    '\nThe browser report was not generated; check the preceding steps.',
   );
 console.log(
-  '\nLa publicación requiere que el trabajo quality termine correctamente. Las pruebas usan datos ficticios y no acreditan la implementación privada de Google.',
+  '\nDeployment requires the quality job to succeed. Tests use fictional data and do not verify the private Google deployment.',
 );

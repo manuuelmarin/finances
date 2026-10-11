@@ -22,7 +22,7 @@ const escapeHtml = (text) =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#x27;');
 let page = fs.readFileSync(target, 'utf8');
-// Mantener también las instrucciones humanas al día, sin cambiar la versión API.
+// Keep the installation instructions current without changing the API version.
 page = page.replace(
   /(?:Entrega|ENTREGA|buildVersion) \d+\.\d+\.\d+/g,
   (match) => match.replace(/\d+\.\d+\.\d+/, version),
@@ -43,6 +43,4 @@ for (const [i, name] of [
   page = page.replace(expression, (_, open, close) => open + code + close);
 }
 fs.writeFileSync(target, page);
-console.log(
-  'Código de instalación actualizado desde los tres archivos de Apps Script.',
-);
+console.log('Installer code updated from the three Apps Script source files.');

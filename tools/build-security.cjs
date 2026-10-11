@@ -1,4 +1,4 @@
-// Pages no permite configurar cabeceras propias: CSP se aplica antes de los recursos.
+// Pages does not support custom headers: apply CSP before loading resources.
 const fs = require('node:fs'),
   path = require('node:path'),
   crypto = require('node:crypto');
@@ -38,5 +38,5 @@ for (const file of ['index.html', 'install.html', 'preview.html']) {
   fs.writeFileSync(target, page);
 }
 console.log(
-  'CSP generada: scripts locales y estilos identificados por su huella.',
+  'CSP generated: local scripts and styles identified by their hashes.',
 );
