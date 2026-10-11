@@ -1,44 +1,26 @@
 # Main branch protection
 
-[`.github/rulesets/main.json`](../.github/rulesets/main.json) defines the intended GitHub policy. Committing this file does **not** activate branch protection. A repository administrator must import and save the ruleset in GitHub, then verify that it is **Active**.
+[The ruleset JSON](../.github/rulesets/main.json) defines the intended policy. Committing it **does not activate protection**; a repository administrator must import, save and verify it in GitHub.
 
-## Policy
+## Intended policy
 
-| Setting                    | Required value                                           |
-| -------------------------- | -------------------------------------------------------- |
-| Target                     | `refs/heads/main` only                                   |
-| Enforcement                | Active                                                   |
-| Bypass list                | Empty                                                    |
-| Deletion                   | Blocked                                                  |
-| Force pushes               | Blocked                                                  |
-| Pull request               | Required                                                 |
-| Review conversations       | Must be resolved                                         |
-| Required approving reviews | 0                                                        |
-| Required check             | `quality`, from GitHub Actions (`integration_id: 15368`) |
-| Up-to-date branch          | Required before merging                                  |
+Target `main` only, with **Active** enforcement, no bypass actors, and blocked force pushes and deletion. Changes require a PR, resolved review conversations, and the `quality` check from GitHub Actions (`integration_id: 15368`), with the branch up to date before merging.
 
-Zero required approvals keeps a single-maintainer repository usable: authors cannot approve their own PRs. Changes still require a PR, resolved review conversations, and a successful check against the latest `main`. The `quality` job covers dependency audit, commit conventions, build, formatting, lint, unit tests, and desktop/mobile browser tests.
+Required approvals: **0**, allowing a sole maintainer to merge their own PR after checks pass. Authors cannot approve their own PRs. Do not require `deploy`, which runs after merging, or enable **Restrict updates**. Keep the `quality` job ID stable.
 
-Do not require the `deploy` job before merging. Pages deployment runs from `main` after the merge and depends on `quality`; requiring it on PRs would block that workflow. Do not enable **Restrict updates**, which would prevent normal merges without a bypass actor. Keep the `quality` job ID stable when renaming workflow or step display names.
+## Activate and verify
 
-## Activate in GitHub
+1. Download the [JSON](../.github/rulesets/main.json) using GitHub's raw-file download button.
+2. Open **Settings → Rules → Rulesets → New ruleset → Import a ruleset**.
+3. Review the policy, set enforcement to **Active**, save, and reopen to verify. Review existing rules first: applicable rules combine.
 
-1. Download [the ruleset JSON](../.github/rulesets/main.json) using GitHub's raw-file download button.
-2. Open repository **Settings → Rules → Rulesets → New ruleset → Import a ruleset** and select the downloaded file.
-3. Review the target `main`, the empty bypass list, and the required `quality` check from GitHub Actions. Set **Enforcement status** to **Active**, then save the ruleset.
-4. Reopen the saved ruleset and confirm its status and rules. If equivalent rules already exist, review them before importing another ruleset; applicable rules are combined.
-
-Alternatively, create a **New branch ruleset** manually using the policy table above. Editing rules requires repository administration access; ordinary source-code write access is insufficient.
-
-## Verify enforcement
-
-GitHub's public API can report the saved rulesets and effective branch rules without altering the repository:
+Verify saved rulesets and effective rules through these read-only API paths:
 
 ```text
-GET https://api.github.com/repos/manuuelmarin/finances/rulesets
-GET https://api.github.com/repos/manuuelmarin/finances/rules/branches/main
+GET /repos/manuuelmarin/finances/rulesets
+GET /repos/manuuelmarin/finances/rules/branches/main
 ```
 
-Confirm that the active rules include `deletion`, `non_fast_forward`, `pull_request`, and `required_status_checks` with the intended parameters. Then use an ordinary maintenance PR to verify that `quality` is required and merging is available once it passes. Do not attempt a destructive force push or deletion as a test, and do not add bypass permissions to work around a failed check.
+Use an ordinary maintenance PR to confirm that `quality` is required. Never test by force-pushing or deleting `main`, or add bypass permissions to avoid failed checks.
 
-Reference: GitHub's [ruleset management guide](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/managing-rulesets-for-a-repository) and [ruleset API](https://docs.github.com/en/rest/repos/rules).
+See GitHub's [ruleset guide](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/managing-rulesets-for-a-repository).

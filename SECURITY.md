@@ -1,37 +1,29 @@
 # Security
 
-This policy describes the repository code's boundaries for release 3.8.1, API 3.3.0, and model 3. Review and tests do not guarantee the absence of unknown vulnerabilities or automatically verify the code installed in a private Google deployment.
+Applies to app 3.8.1, API 3.3.0 and model 3. Tests use simulated services and fictional data; they do not establish that a private installation is correct or free of unknown vulnerabilities.
 
-## Report a vulnerability
+## Reporting
 
-If GitHub has enabled private reporting under **Security → Report a vulnerability**, use it to submit your finding to the repository. This documentation does not assume that the option is enabled. If it is unavailable, ask the repository maintainer for a private channel through an issue that only requests that channel, without publishing exploitation details or sensitive data. This document does not configure a security email address.
+Use **Security → Report a vulnerability** if private reporting is enabled. Otherwise, ask the maintainer for a private channel through an issue containing only that request. Do not publish exploitation details or sensitive data.
 
-Include the affected version or commit, component, expected impact, and reproducible steps using fictional data. Describe whether the issue occurs in local tests or a private deployment, without sharing its URL, workbook IDs, owner identity, credentials, receipts, envelopes, or financial backups. Do not test against other people's accounts or workbooks.
+Include the affected version, component, impact and reproduction with fictional data. Never include private Google URLs, workbook IDs, credentials, owner details, receipts, envelopes or financial backups. Do not test other people's accounts or workbooks.
 
-## Threat model and controls
+## Trust boundaries
 
-The public GitHub Pages app does not contain the workbook or offer a public HTTP write API. Financial access depends on an authorized Google session and the private Apps Script backend. Relevant code controls include:
+- **Google access:** the backend verifies the owner before reads and writes, including editor entry points. It chooses the configured workbook, accepts defined operations and writes text as `stringValue` rather than formulas. The public site has no public HTTP write API.
+- **Browser channel:** Bridge checks origin, window and session; the client accepts only the authenticated frame/origin. Changing deployment invalidates the previous connection.
+- **Content:** workbook data uses `textContent`; provider HTML is never executed. CSP restricts resources, and installation/preview styles use hashes. Source requests use fixed HTTPS routes and validated ISINs without following redirects. Internal errors are not exposed.
+- **Writes:** revision, workbook binding, UUID and journal detect conflicts and recover receipts. Preserve an uncertain request and check its receipt before retrying the same envelope; do not edit or discard it. See [Architecture](docs/ARCHITECTURE.md).
+- **Publication:** dependencies are locked, actions are pinned by SHA, and CI checks formatting, lint, tests and known high/critical vulnerabilities. See [Contributing](CONTRIBUTING.md).
 
-- **Access and writes:** the server checks the owner account before accessing Sheets, both in the API and in public editor functions. The server selects the configured workbook; it accepts specific processes and fields, not arbitrary cell instructions. Text is written as `stringValue`, not as a formula.
-- **Communication between windows:** Bridge validates the origin, window, and session reference. The client accepts responses from the exact frame and origin established by the authenticated handshake. Changing the deployment invalidates the previous connection.
-- **Content and external sources:** the interface uses `textContent` for workbook data and does not execute provider HTML. The public CSP restricts scripts and resources to those allowed; inline installation and preview styles are authorized by hash. Internal errors are not returned to the browser. Price requests use fixed HTTPS routes with a validated ISIN and do not follow redirects.
-- **Operation integrity:** revision, workbook binding, UUID, and journal enable conflict detection and receipt recovery. A write without a confirmed response remains uncertain and requires checking its receipt before retrying the same envelope.
-- **Dependencies and publication:** CI checks formatting, lint, tests, and known high or critical vulnerabilities. Dependencies are pinned in the lockfile and actions to full commits. Passing these checks does not establish that a dependency is free from unknown flaws.
+## Local data and hosting
 
-Price identity, share class, currency, effective date, and historical coverage rules are documented in [PRICES.md](apps-script/PRICES.md). A failed source must not be replaced with invented, interpolated, or retrospectively applied data.
+IndexedDB snapshots and the agent's queue files contain financial data without app-level encryption. Use a trusted device/profile. Resolve pending requests before deleting the local copy; preserve queues and the journal when investigating uncertain writes. The service worker caches public assets only.
 
-## Local data and hosting boundaries
+All projects under `manuuelmarin.github.io` share an origin. Do not publish unreviewed code there. A meta CSP cannot set `frame-ancestors` or replace hosting headers; embedded operation is restricted. Account/device compromise remains outside these code controls.
 
-IndexedDB retains snapshots and pending operations for local recovery. The app does not encrypt these data. The agent queue stores financial information in user files with atomic writes and disk synchronization; it is not a credential store. The service worker caches public app resources, not financial snapshots or private Google responses.
+## Changes and recovery
 
-Use a trusted device, browser profile, and Google account. Resolve pending operations before deleting the local copy through **Ajustes → Almacenamiento local** (Settings → Local storage); the app blocks deletion while operations remain pending. Preserve queues and the journal when investigating an uncertain response.
+Keep `ENVIRONMENT=test` until an explicit cutover. Verify the installed Google version, **Solo yo** access and rejection of another account. Pages does not change private workbooks, properties, deployments or triggers.
 
-Projects hosted under `manuuelmarin.github.io` share the same origin's trust boundary. Do not publish third-party or unreviewed code under that origin. A CSP in a meta tag cannot configure `frame-ancestors` or replace HTTP headers available on hosting you control. The embedded app restricts configuration and operations; open it in its own window to operate.
-
-Repository controls do not protect against a compromised device, Google account, GitHub account, or code on the same origin. Before real use, verify the exact installed deployment, **Solo yo** (Only me) access, and rejection of a different account. Local tests use simulated services and data; they do not replace those checks.
-
-## Changes and incidents
-
-Keep `ENVIRONMENT=test` until an explicit cutover instruction is given. Publishing Pages does not change workbooks, private properties, permissions, or Apps Script triggers. Changes to authentication, CSP, Bridge, PWA, and permissions require reviewing their effect on this trust boundary, without disabling controls to resolve a connection problem.
-
-If you suspect an incident, stop submissions and preserve the files, queues, and receipts needed for a private investigation. Review the affected accounts and deployment before continuing. A restore must reconcile operations using their journal and receipts; do not deduplicate solely by description and amount. Native Sheets copies do not back up Apps Script properties or deployments.
+Review authentication, Bridge, CSP, PWA and permission changes without disabling controls. On an incident, stop submissions, preserve evidence and reconcile restored operations through receipts/journal, never description/amount alone. Native Sheets backups exclude Apps Script properties and deployments. [Prices](apps-script/PRICES.md) documents source validation and historical limits.
