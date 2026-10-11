@@ -1,68 +1,68 @@
-# Historial de cambios
+# Changelog
 
-Este documento resume las entregas descritas en el repositorio. Los números identifican la app y su código de Apps Script; no implican que existan tags o releases de GitHub. La API conserva su propio identificador, actualmente **3.3.0**.
+This document summarizes the builds described in the repository. Version numbers identify the app and its Apps Script code; they do not imply that GitHub tags or releases exist. The API retains its own identifier, currently **3.3.0**.
 
-## Mantenimiento del repositorio · sin nueva versión de la app
+## Repository maintenance · no new app version
 
-- README centrado en el producto, acceso y documentación vigente.
-- Arquitectura, desarrollo y seguridad separados del historial de entregas.
-- Plantillas de incidencias y PR; convenciones de edición y finales de línea uniformes.
-- Se conservan los archivos ejecutables, dependencias y configuración de despliegue de la entrega 3.8.1.
+- Product-focused README with access links and current documentation.
+- Architecture, development and security documentation separated from build history.
+- Issue and PR templates; consistent editing conventions and line endings.
+- Executable files, dependencies and deployment configuration from build 3.8.1 are preserved.
 
 ## 3.8.1
 
 [PR #14](https://github.com/manuuelmarin/finances/pull/14)
 
-- Aportación neta como área azul bajo una escalera con base cero; valor de mercado como línea roja sin relleno ni puntos.
-- Rentabilidad TWR entre valoraciones reales sin flujos intermedios. Si falta el histórico inicial, el tramo calculable muestra su fecha de inicio; un flujo sin valoración suficiente interrumpe el cálculo.
-- Actualización diaria voluntaria en pruebas: un trigger horario consulta entre las 20 y 22 h de Madrid, con hasta tres intentos por lote y día.
-- Protección concurrente, recuperación mediante recibos y comprobación del libro después de consultar la fuente.
-- Ajustes muestra activación y última ejecución al releer el libro. Los precios atrasados o conflictivos no se presentan como una actualización completada.
+- Net contributions shown as a blue area beneath a step series with a zero baseline; market value shown as a red line without fill or markers.
+- TWR between observed valuations with no intervening cash flows. If initial history is missing, the calculable segment shows its start date; a cash flow without sufficient valuation data interrupts the calculation.
+- Optional daily updates in test: an hourly trigger checks between 20:00 and 22:00 Madrid time, with up to three attempts per batch per day.
+- Concurrency protection, receipt-based recovery and workbook verification after querying the source.
+- Settings shows activation status and the last execution when the workbook is read again. Stale prices or conflicts are not presented as a completed update.
 
 ## 3.8.0
 
-- Resumen de patrimonio, composición y saldo del presupuesto global del mes.
-- Tablas con filtros y ordenación por columna; gráficos con selección de series e inspección por fecha.
-- Inversiones seleccionables por producto y periodo, con ISIN y fuente separados.
-- Análisis de gastos por distribución y acumulados; exclusión explícita de categorías.
-- Evolución diaria del efectivo, ahorro mensual sobre nómina y comparación de asignaciones con metas.
-- Calculadoras de plazo hasta una meta, aportación necesaria y colchón de liquidez.
-- Respaldo entre las dos fichas oficiales de VDOS/Quefondos y preparación de la rutina diaria voluntaria en pruebas.
+- Overview of net worth, composition and the remaining overall monthly budget.
+- Tables with column filtering and sorting; charts with series selection and inspection by date.
+- Investments selectable by product and period, with ISIN and source shown separately.
+- Expense analysis with distributions and cumulative totals; explicit category exclusions.
+- Daily cash balances, monthly savings based on salary, and comparison of allocations against targets.
+- Calculators for time to target, required contributions and a liquidity buffer.
+- Fallback between the two official VDOS/Quefondos pages and preparation of the optional daily routine in test.
 
 ## 3.7.0
 
-- Pantallas propias para Resumen, Movimientos, Inversiones, Cuentas, Presupuestos, Salario, Objetivos, Actividad, Calculadoras y Ajustes.
-- Navegación móvil, conservación de filtros y detalles de los registros.
-- Pendientes e historial confirmado en Actividad; diagnósticos y almacenamiento en Ajustes.
+- Dedicated screens for Overview, Transactions, Investments, Accounts, Budgets, Salary, Goals, Activity, Calculators and Settings.
+- Mobile navigation, retained filters and record details.
+- Pending requests and confirmed history in Activity; diagnostics and storage in Settings.
 
 ## 3.6.1
 
-- Reutilización de la sesión de Google entre lectura, comprobaciones y registro.
-- Bloqueo de comprobaciones duplicadas y descarte de respuestas de una configuración anterior.
-- Avisos de conexión en español y recuperación de la ventana cerrada.
+- Reuse of the Google session across reads, checks and recording operations.
+- Prevention of duplicate checks and rejection of responses from a previous configuration.
+- Connection notices in Spanish and recovery of a closed window.
 
 ## 3.6.0
 
-- Primera lectura completa en el HTML privado de Google después de comprobar la identidad propietaria.
-- Verificación del canal autenticado antes de anunciar la conexión.
-- Transporte JSON para lecturas posteriores y operaciones; distinción entre lectura fallida y escritura sin confirmar.
+- First complete snapshot included in private Google HTML after verifying the owner identity.
+- Authenticated channel verification before announcing the connection.
+- JSON transport for subsequent reads and operations; distinction between a failed read and an unconfirmed write.
 
 ## 3.5.1
 
-- Recuperación de respuestas inciertas con el mismo UUID y consulta del recibo antes de reintentar.
-- Protección de operaciones inciertas frente a edición o descarte.
-- Cancelación de lecturas antiguas al cambiar la implementación.
+- Recovery of uncertain responses with the same UUID and receipt lookup before retrying.
+- Protection against editing or discarding uncertain operations.
+- Cancellation of outdated reads when changing the deployment.
 
 ## 3.5.0
 
-- Alta de movimientos desde la carga del libro, con accesos por tipo de operación.
-- Panel con gráficos y presupuestos mensuales globales o por subcategoría.
-- Límites auditados sin crear movimientos ni alterar el efectivo.
+- Transaction entry from workbook loading, with shortcuts by operation type.
+- Dashboard with charts and monthly overall or subcategory budgets.
+- Audited limits without creating transactions or altering cash balances.
 
 ## 3.4.0
 
-- Comprobación de cierre sobre estructura, cálculos, resumen, Bridge, fuentes y estabilidad de la revisión.
-- Preparación del principal con configuración explícita y distinta de pruebas.
-- Mantenimiento de API 3.3.0 y controles de vínculo de libro, revisión y recibos.
+- Readiness checks covering structure, calculations, summary, Bridge, sources and revision stability.
+- Preparation of the primary workbook with explicit configuration separate from test.
+- Retention of API 3.3.0 and workbook binding, revision and receipt controls.
 
-La instalación privada de Google y el entorno operativo no se deducen de este historial. Se comprueban en la implementación conectada; publicar GitHub Pages no los modifica.
+The private Google installation and operating environment cannot be inferred from this history. They are checked in the connected deployment; publishing GitHub Pages does not change them.

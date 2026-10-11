@@ -1,56 +1,56 @@
-name: Informar de un error
-description: Describe un fallo reproducible sin compartir datos financieros.
-title: '[Error]: '
+name: Bug report
+description: Describe a reproducible issue without sharing financial data.
+title: '[Bug]: '
 body:
   - type: markdown
     attributes:
       value: |
-        Usa datos ficticios. No publiques saldos, movimientos reales, correos, identificadores de libros, enlaces privados de Google ni registros completos de ejecución.
-        Para posibles vulnerabilidades, consulta [SECURITY.md](https://github.com/manuuelmarin/finances/blob/main/SECURITY.md) y utiliza un canal privado.
+        Use fictional data. Do not publish balances, real transactions, email addresses, workbook identifiers, private Google links, or complete execution logs.
+        For potential vulnerabilities, read [SECURITY.md](https://github.com/manuuelmarin/finances/blob/main/SECURITY.md) and use a private reporting channel.
   - type: input
     id: version
     attributes:
-      label: Versiones
-      description: Indica la versión de la app y de Apps Script si las conoces; API y entrega son identificadores distintos.
+      label: Versions
+      description: Include the app and Apps Script versions if known; the API and release have separate version identifiers.
       placeholder: App 3.8.1 · Google 3.8.1 · API 3.3.0
     validations:
       required: true
   - type: dropdown
     id: component
     attributes:
-      label: Componente
+      label: Component
       options:
-        - Conexión con Google
-        - Movimientos y operaciones
-        - Inversiones y cotizaciones
-        - Gráficos y tablas
-        - Presupuestos, salario u objetivos
-        - Instalación o almacenamiento local
-        - Documentación o herramientas de desarrollo
+        - Google connection
+        - Transactions and operations
+        - Investments and prices
+        - Charts and tables
+        - Budgets, salary, or goals
+        - Installation or local storage
+        - Documentation or developer tools
     validations:
       required: true
   - type: textarea
     id: reproduction
     attributes:
-      label: Pasos para reproducir
-      description: Incluye acciones concretas y el mensaje de error, con los datos privados eliminados.
+      label: Steps to reproduce
+      description: Include specific actions and the error message, with private data removed.
     validations:
       required: true
   - type: textarea
     id: expected
     attributes:
-      label: Resultado esperado y resultado observado
+      label: Expected and actual behavior
     validations:
       required: true
   - type: input
     id: browser
     attributes:
-      label: Navegador y dispositivo
-      placeholder: Chrome en ordenador · Safari en teléfono
+      label: Browser and device
+      placeholder: Chrome on desktop · Safari on phone
   - type: checkboxes
     id: privacy
     attributes:
-      label: Privacidad
+      label: Privacy
       options:
-        - label: He usado datos ficticios y he retirado la información privada del informe.
+        - label: I used fictional data and removed private information from this report.
           required: true

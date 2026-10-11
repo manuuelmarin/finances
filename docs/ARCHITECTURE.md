@@ -1,79 +1,79 @@
-# Arquitectura
+# Architecture
 
-Finanzas 3.8.1 utiliza el modelo de libro 3 y la API 3.3.0. Esta documentación describe el comportamiento vigente; no autoriza cambiar el entorno ni realizar el corte a producción.
+Finanzas 3.8.1 uses workbook model 3 and API 3.3.0. This document describes current behavior; it does not authorize an environment change or a production cutover.
 
-## Componentes y fronteras
+## Components and boundaries
 
-| Componente                        | Responsabilidad                                                                                   |
-| --------------------------------- | ------------------------------------------------------------------------------------------------- |
-| GitHub Pages (`web/`)             | Servir la interfaz, los recursos de la PWA y el instalador públicos.                              |
-| Cliente API y Bridge              | Conectar la app con una sesión autenticada de la implementación privada de Google.                |
-| Apps Script                       | Autorizar a la cuenta propietaria, validar contratos y operaciones, y escribir lotes financieros. |
-| Google Sheets                     | Conservar entradas y tablas, ejecutar fórmulas y proporcionar resúmenes y gráficos nativos.       |
-| IndexedDB                         | Guardar la lectura local y los pendientes por implementación y libro.                             |
-| Adaptadores de agentes (`tools/`) | Preparar sobres y conservar una cola durable mediante un transporte privado ya autenticado.       |
+| Component                 | Responsibility                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------ |
+| GitHub Pages (`web/`)     | Serve the public interface, PWA assets and installer.                                            |
+| API client and Bridge     | Connect the app to an authenticated session in the private Google deployment.                    |
+| Apps Script               | Authorize the owner account, validate contracts and operations, and write financial batches.     |
+| Google Sheets             | Store inputs and tables, run formulas, and provide native summaries and charts.                  |
+| IndexedDB                 | Store the local snapshot and pending requests by deployment and workbook.                        |
+| Agent adapters (`tools/`) | Prepare envelopes and maintain a durable queue using an already authenticated private transport. |
 
-La autorización se comprueba en el servidor antes de acceder al libro, también en las funciones públicas del editor. Las operaciones admiten procesos y campos concretos; el cliente no elige el identificador del libro ni envía instrucciones de celda. El texto se escribe como `stringValue`, sin convertirlo en una fórmula.
+Authorization is checked on the server before accessing the workbook, including public editor functions. Operations allow specific processes and fields; the client cannot choose the workbook ID or submit cell instructions. Text is written as `stringValue`, without turning it into a formula.
 
-Bridge valida origen, ventana y referencia de sesión. El cliente acepta respuestas del marco y origen exactos establecidos por el saludo autenticado. La primera lectura puede incorporarse al HTML privado de Google tras comprobar la cuenta propietaria, con escape contextual; las siguientes lecturas y operaciones viajan como cadenas JSON. La sesión del libro se reutiliza entre lecturas y comprobaciones, pero no se comparte entre pestañas o libros. Los resultados de una configuración anterior se descartan al cambiar la implementación.
+Bridge validates origin, window and session reference. The client accepts responses from the exact frame and origin established by the authenticated handshake. The first snapshot can be included in private Google HTML after checking the owner account, with contextual escaping; subsequent reads and operations travel as JSON strings. The workbook session is reused across reads and checks, but is not shared between tabs or workbooks. Results from a previous configuration are discarded when the deployment changes.
 
-El service worker cachea recursos públicos; la lectura financiera y los pendientes se almacenan aparte en IndexedDB. Una app incrustada no habilita configuración, operaciones ni su copia local: debe abrirse en su propia ventana. Consulta las fronteras del navegador y los límites de la revisión en [SECURITY.md](../SECURITY.md).
+The service worker caches public assets; financial snapshots and pending requests are stored separately in IndexedDB. An embedded app does not enable configuration, operations or its local copy: it must be opened in its own window. See browser boundaries and review limitations in [SECURITY.md](../SECURITY.md).
 
-## Lectura y fechas
+## Snapshots and dates
 
-`FinanceApiClient.read()` obtiene tablas, diagnósticos, revisión, vínculo de libro, observaciones, precios, presupuestos y resultados calculados. Los indicadores `backendReady`, `calculationState` y errores de cálculo permiten distinguir datos disponibles de una estructura pendiente de revisión. Los valores desconocidos no deben transformarse en cero.
+`FinanceApiClient.read()` retrieves tables, diagnostics, revision, workbook binding, observations, prices, budgets and calculated results. The `backendReady` and `calculationState` indicators and calculation errors distinguish available data from a structure requiring review. Unknown values must not be converted to zero.
 
-| Campo                 | Significado                                                                                 |
-| --------------------- | ------------------------------------------------------------------------------------------- |
-| `revision`            | Huella del estado usado para preparar una escritura; permite detectar cambios concurrentes. |
-| `bookKey`             | Vínculo con el libro leído, comprobado en el servidor. No es una credencial.                |
-| `settings.start`      | Inicio del seguimiento financiero.                                                          |
-| `settings.asof`       | Corte del informe.                                                                          |
-| `settings.valuation`  | Fecha de valoración de inversiones.                                                         |
-| `supportsBookBinding` | Capacidad de vincular solicitudes al libro leído.                                           |
-| `supportsBudgets`     | Capacidad de leer y modificar presupuestos mensuales.                                       |
+| Field                 | Meaning                                                                       |
+| --------------------- | ----------------------------------------------------------------------------- |
+| `revision`            | Fingerprint of the state used to prepare a write; detects concurrent changes. |
+| `bookKey`             | Binding to the workbook read, checked on the server. It is not a credential.  |
+| `settings.start`      | Start of financial tracking.                                                  |
+| `settings.asof`       | Report cutoff date.                                                           |
+| `settings.valuation`  | Investment valuation date.                                                    |
+| `supportsBookBinding` | Support for binding requests to the workbook read.                            |
+| `supportsBudgets`     | Support for reading and modifying monthly budgets.                            |
 
-Las fechas públicas se expresan como fechas ISO. El backend exige que inicio y valoración no sean posteriores al corte. Una operación puede avanzar los cortes aplicables según sus reglas; los filtros de la interfaz son locales y no modifican esas fechas ni la revisión de escritura.
+Public dates use ISO date format. The backend requires the start and valuation dates to be no later than the report cutoff. An operation can advance the applicable cutoffs according to its rules; interface filters are local and do not change those dates or the write revision.
 
-Google calcula los saldos y resultados del libro. La vista de caja reconstruye los saldos diarios desde las bases de las cuentas y los movimientos al corte. Las observaciones externas de saldo son referencias: una observación de cierre de día comparable se contrasta con saldo inicial más entradas menos salidas desde el inicio del seguimiento. Una referencia sin corte comparable no se presenta como conciliada. No registrar compras históricas otra vez como caja nueva ni deduplicar movimientos solo por concepto e importe.
+Google calculates workbook balances and results. The cash view reconstructs daily balances from account opening balances and transactions through the cutoff date. External balance observations are references: a comparable end-of-day observation is checked against the opening balance plus inflows minus outflows since tracking began. A reference without a comparable cutoff is not presented as reconciled. Do not record historical purchases again as new cash movements or deduplicate transactions solely by description and amount.
 
-## Escrituras, UUID y recibos
+## Writes, UUIDs and receipts
 
-Una transacción contiene `action: 'transact'`, un `requestId` UUID, `expectedRevision`, el vínculo `bookKey` cuando corresponde y entre 1 y 20 operaciones. La referencia de solicitud identifica el sobre completo; los identificadores definitivos de las nuevas entidades los genera Apps Script.
+A transaction contains `action: 'transact'`, a UUID `requestId`, `expectedRevision`, the `bookKey` binding where applicable, and between 1 and 20 operations. The request reference identifies the complete envelope; Apps Script generates the final IDs of new entities.
 
-1. Leer el estado con la sesión privada autorizada.
-2. Preparar las operaciones con nombres o selecciones resueltas y revisar su efecto.
-3. Guardar el sobre completo antes de enviarlo.
-4. Enviar mediante `client.submit(envelope)` y conservar el resultado.
-5. Si la respuesta es incierta, consultar `client.requestStatus(envelope)` y, si procede, reintentar exactamente el mismo sobre.
+1. Read the state using the authorized private session.
+2. Prepare operations with resolved names or selections and review their effects.
+3. Save the complete envelope before sending it.
+4. Submit through `client.submit(envelope)` and retain the result.
+5. If the response is uncertain, query `client.requestStatus(envelope)` and, where appropriate, retry exactly the same envelope.
 
-El servidor consulta el journal de solicitudes antes de comparar la revisión: una solicitud ya aplicada puede recuperar su recibo aunque el libro haya cambiado después. El mismo UUID con contenido distinto devuelve `REQUEST_CONFLICT`. Una solicitud nueva con revisión antigua devuelve `CONFLICT` y exige releer y revisar explícitamente una nueva propuesta.
+The server checks the request journal before comparing the revision: an already applied request can recover its receipt even if the workbook has changed since. The same UUID with different content returns `REQUEST_CONFLICT`. A new request with an outdated revision returns `CONFLICT` and requires another read and explicit review of a new proposal.
 
-Entradas, cambios financieros, auditoría y recibo se registran en un único lote. Si falla la confirmación del lote, el servidor intenta recuperar el recibo y puede devolver `WRITE_UNCERTAIN`. La cola mantiene la escritura como enviada sin confirmar: no permite descartarla, editarla o crear otra como sustitución silenciosa. `RESPONSE_UNCERTAIN` conserva la misma protección en app y agentes.
+Inputs, financial changes, audit entries and the receipt are recorded in a single batch. If batch confirmation fails, the server attempts to recover the receipt and may return `WRITE_UNCERTAIN`. The queue keeps the write as submitted but unconfirmed: it cannot be discarded, edited or silently replaced with a new request. `RESPONSE_UNCERTAIN` preserves the same protection in the app and agent adapters.
 
-En producción, toda mutación y consulta de solicitud exige el vínculo obtenido de una lectura. El entorno `test` conserva compatibilidad con sobres anteriores; esto no elimina la obligación de separar libros y revisar la configuración del servidor.
+In production, every mutation and request-status query requires the binding obtained from a read. The `test` environment retains compatibility with older envelopes; this does not remove the requirement to separate workbooks and review server configuration.
 
-## Presupuestos y cálculos de la interfaz
+## Budgets and interface calculations
 
-Los límites pertenecen a un mes concreto y pueden ser totales o por subcategoría de gasto. Cero es válido. No crean movimientos ni se replican a otros meses. Gasto propio equivale a gasto menos parte recuperable y devoluciones propias, desde el inicio del seguimiento hasta el corte del informe; transferencias, compras, cobros compartidos y deuda quedan excluidos.
+Limits belong to a specific month and can be overall or by expense subcategory. Zero is valid. They do not create transactions or carry over to other months. Personal expenses equal expenses minus the recoverable share and refunds attributable to the owner, from the tracking start through the report cutoff; transfers, purchases, shared-expense reimbursements and debt are excluded.
 
-El límite total y los de categoría se muestran independientemente. No se suman como patrimonio ni para inventar un saldo libre si falta el límite global. Los objetivos mantienen sus asignaciones en `tObjetivos` y `tAsignaciones`.
+The overall limit and category limits are displayed independently. They are not added together as net worth or used to invent an available balance when the overall limit is missing. Goals retain their allocations in `tObjetivos` and `tAsignaciones`.
 
-La hoja oculta `_Finanzas_Presupuestos` se prepara con el backend o al confirmar el primer límite. El estado se registra como entero 1/0; cambios, auditoría y recibo forman parte del lote financiero. Cambiar un límite cambia la revisión; renombrar una subcategoría conserva sus límites. App y agentes usan los procesos `presupuesto` y `quitar_presupuesto`.
+The hidden `_Finanzas_Presupuestos` sheet is prepared with the backend or when the first limit is confirmed. Status is recorded as integer 1/0; changes, audit entries and the receipt belong to the financial batch. Changing a limit changes the revision; renaming a subcategory preserves its limits. The app and agents use the `presupuesto` and `quitar_presupuesto` processes.
 
-Los gráficos combinan resultados nativos del libro y series calculadas a partir de la lectura. No cargan bibliotecas externas. Sus datos son accesibles y los filtros no escriben en Sheets. Las calculadoras utilizan parámetros explícitos y supuestos constantes; sus resultados son estimaciones.
+Charts combine native workbook results and series calculated from the snapshot. They do not load external libraries. Their data is accessible, and filters do not write to Sheets. Calculators use explicit parameters and constant assumptions; their results are estimates.
 
-## Precios y rentabilidad
+## Prices and returns
 
-Las cotizaciones consultan rutas HTTPS fijas de VDOS/Quefondos por ISIN validado, sin seguir redirecciones ni ejecutar HTML del proveedor. Cada precio conserva fecha efectiva y fuente. Un fallo no borra la última cotización, y un precio atrasado o un conflicto no se presenta como actualización completada.
+Price queries use fixed VDOS/Quefondos HTTPS routes with a validated ISIN, without following redirects or executing provider HTML. Each price retains its effective date and source. A failure does not delete the last price, and a stale price or conflict is not presented as a completed update.
 
-La rutina diaria voluntaria utiliza un trigger horario, una ventana entre las 20 y 22 h de Madrid y hasta tres intentos por lote y día. La desactivación y el cambio de libro se revalidan después de consultar la red, antes de guardar. El permiso `script.scriptapp` permite administrar triggers del proyecto; el código crea o retira su propia rutina. Su activación requiere intervención de la cuenta propietaria en Google, con `activarActualizacionDiariaPreciosTest` y `ENVIRONMENT=test`.
+The optional daily routine uses an hourly trigger, a window between 20:00 and 22:00 Madrid time, and up to three attempts per batch per day. Deactivation and workbook changes are checked again after the network query, before saving. The `script.scriptapp` permission allows management of project triggers; the code creates or removes its own routine. Activation requires action by the owner account in Google, using `activarActualizacionDiariaPreciosTest` and `ENVIRONMENT=test`.
 
-El proveedor ofrece las cotizaciones disponibles; no se ha reconstruido el histórico diario anterior. Las series no interpolan ni aplican retrospectivamente el último valor. La variación de valor liquidativo de un producto comienza en su primera cotización observada. TWR enlaza valoraciones reales sin flujos intermedios; un flujo sin valoración suficiente interrumpe el cálculo. Si falta el inicio histórico, se identifica el tramo calculable y su fecha, con rendimiento anterior desconocido. El resultado sobre aportación neta no sustituye TWR ni la rentabilidad nativa por producto. Véase [PRICES.md](../apps-script/PRICES.md).
+The provider supplies available prices; earlier daily history has not been reconstructed. Series do not interpolate or apply the latest value retrospectively. A product's NAV change starts at its first observed price. TWR links observed valuations without intervening cash flows; a cash flow without sufficient valuation data interrupts the calculation. If initial history is missing, the calculable segment and its start date are identified, with earlier returns unknown. The return on net contributions does not replace TWR or native product returns. See [PRICES.md](../apps-script/PRICES.md).
 
-## Agentes y persistencia
+## Agents and persistence
 
-`tools/agent-envelope.cjs` prepara UUID y revisión a partir de una lectura 3.3.0. `tools/agent-queue.cjs` reutiliza `web/queue.js` y conserva lectura, libro, sobre, referencia y estado antes del envío. Ambos necesitan un cliente de API privada ya autenticado; no abren sesión ni ofrecen un endpoint público.
+`tools/agent-envelope.cjs` prepares a UUID and revision from an API 3.3.0 snapshot. `tools/agent-queue.cjs` reuses `web/queue.js` and saves the snapshot, workbook, envelope, reference and status before submission. Both require an already authenticated private API client; they do not sign in or provide a public endpoint.
 
 ```js
 const { openQueue } = require('./tools/agent-queue.cjs');
@@ -82,20 +82,20 @@ const queue = await openQueue({
   deploymentUrl,
 });
 await queue.saveSnapshot(await client.read());
-await queue.enqueue(operations, 'Operación revisada');
+await queue.enqueue(operations, 'Reviewed operation');
 await queue.run(client);
 ```
 
-Tras un cierre, abrir la misma cola y llamar a `run(client)` sin volver a preparar o encolar la operación. Cada implementación usa su archivo, permisos de usuario, escritura atómica y sincronización a disco. Un libro distinto bloquea el envío; los conflictos requieren revisión. Un archivo corrupto o un bloqueo ocupado impiden reemplazar la cola. Antes de retirar un `.lock`, comprobar que ningún proceso lo utiliza y conservar los archivos pendientes.
+After a shutdown, open the same queue and call `run(client)` without preparing or enqueuing the operation again. Each deployment uses its own file, user permissions, atomic writes and disk synchronization. A different workbook blocks submission; conflicts require review. A corrupt file or an occupied lock prevents replacing the queue. Before removing a `.lock`, verify that no process is using it and preserve pending files.
 
-## Entornos, comprobaciones y recuperación
+## Environments, checks and recovery
 
-El proyecto de pruebas mantiene `TEST_SPREADSHEET_ID`, `OWNER_EMAIL` y `ENVIRONMENT=test` fuera del repositorio. Producción requiere un proyecto e implementación separados, `PRODUCTION_SPREADSHEET_ID` distinto y `ENVIRONMENT=production`. Seleccionar otra implementación desde el navegador no cambia la configuración de Google. No publicar identificadores de libro, URLs privadas ni credenciales.
+The test project keeps `TEST_SPREADSHEET_ID`, `OWNER_EMAIL` and `ENVIRONMENT=test` outside the repository. Production requires a separate project and deployment, a different `PRODUCTION_SPREADSHEET_ID` and `ENVIRONMENT=production`. Selecting another deployment in the browser does not change Google configuration. Do not publish workbook IDs, private URLs or credentials.
 
-`comprobarCierre()` y «Comprobar sistema» realizan comprobaciones sin escrituras: estructura, cálculos, tarjetas, Bridge, fuentes por ISIN y estabilidad de revisión. `ok: true` indica que terminaron; `technicalReady: true` requiere todos los `checks` correctos. No acreditan un teléfono físico, el rechazo de otra cuenta ni la vigencia del origen.
+`comprobarCierre()` and “Comprobar sistema” perform checks without writes: structure, calculations, cards, Bridge, ISIN sources and revision stability. `ok: true` means the checks finished; `technicalReady: true` requires every `checks` result to pass. They do not validate a physical phone, rejection of another account or whether the source remains current.
 
-Antes de un corte autorizado, aceptar pruebas reales, resolver los pendientes de cada dispositivo, comparar fuentes vigentes y conservar copia nativa del libro, código y configuración privada. Preparar el backend del principal con `comprobarPaso4`, comprobar `comprobarCierre` y guardar su enlace propio en la app. No trasladar operaciones ficticias ni pendientes de test. Con Sheets aceptado como fuente operativa, el XLSX original queda archivado; las herramientas OOXML previas sirven para lectura o recuperación del origen, no como segundo backend.
+Before an authorized cutover, accept real-world tests, resolve pending requests on every device, compare current sources and retain a native workbook copy, code and private configuration. Prepare the primary backend with `comprobarPaso4`, run `comprobarCierre` and save its own URL in the app. Do not transfer fictional operations or pending test requests. Once Sheets is accepted as the operational source, the original XLSX is archived; earlier OOXML tools are for reading or recovering the original source, not a second backend.
 
-Para recuperar, detener envíos y preservar el libro actual, las colas y el journal; restaurar en un libro nuevo, validar fórmulas y entradas y reconciliar cambios posteriores mediante auditoría y recibos. Consultar las solicitudes inciertas en su implementación original antes de reenviar. Una copia nativa de Sheets no respalda propiedades ni despliegues de Apps Script. Conservar copias completas periódicas y antes de cambios, con fecha, revisión y cortes en el seguimiento privado.
+For recovery, stop submissions and preserve the current workbook, queues and journal; restore into a new workbook, validate formulas and inputs, and reconcile subsequent changes using audit entries and receipts. Check uncertain requests in their original deployment before resubmitting. A native Sheets copy does not back up Apps Script properties or deployments. Keep complete backups periodically and before changes, with dates, revisions and cutoffs recorded in private tracking documentation.
 
-GitHub Actions comprueba y publica los recursos de Pages. Esa publicación no modifica los tres archivos ni la versión de una implementación privada en Google. El instalador y la caché se generan desde las fuentes; consulta [DEVELOPMENT.md](DEVELOPMENT.md) para mantenerlos.
+GitHub Actions checks and publishes Pages assets. Publishing does not change the three files or version of a private Google deployment. The installer and cache are generated from their sources; see [DEVELOPMENT.md](DEVELOPMENT.md) for maintenance.

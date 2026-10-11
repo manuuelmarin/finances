@@ -1,17 +1,17 @@
-## Cambio
+## Change
 
-Describe el problema y el resultado observable de este PR.
+Describe the problem and the observable result of this PR.
 
-## Alcance
+## Scope
 
-Indica qué componentes cambian. Si es documentación o formato, confirma si los archivos de la app permanecen idénticos.
+Identify the components that change. For documentation or formatting work, state whether the app files remain byte-for-byte identical.
 
-## Validación
+## Validation
 
-- [ ] `npm run check` y `npm run audit` pasan, o se documenta qué comprobación no pudo ejecutarse y por qué.
-- [ ] Los archivos generados coinciden con sus fuentes después de `npm run build`.
-- [ ] Se conserva `ENVIRONMENT=test`; cualquier otro entorno requiere una decisión explícita fuera de este PR.
-- [ ] El diff no contiene datos financieros, credenciales, identificadores de libros ni enlaces privados.
-- [ ] Se han descrito las limitaciones relevantes y cualquier paso manual en Google.
+- [ ] `npm run check` and `npm run audit` pass, or any checks that could not run are documented with the reason.
+- [ ] Generated files match their sources after `npm run build`.
+- [ ] `ENVIRONMENT=test` is preserved; switching environments requires an explicit decision outside this PR.
+- [ ] The diff contains no financial data, credentials, workbook identifiers, or private links.
+- [ ] Relevant limitations and any manual steps in Google are documented.
 
-GitHub Pages publica después de superar calidad. Un merge no instala Apps Script ni activa sus rutinas.
+GitHub Pages publishes after quality checks pass. Merging does not install Apps Script or activate its routines.

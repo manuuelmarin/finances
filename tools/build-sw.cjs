@@ -52,5 +52,5 @@ self.addEventListener('fetch', event => {
 `;
 fs.writeFileSync(path.join(web, 'sw.js'), script);
 console.log(
-  'Service worker: ' + version + ' · ' + assets.length + ' recursos públicos.',
+  'Service worker: ' + version + ' · ' + assets.length + ' public assets.',
 );

@@ -1,77 +1,79 @@
-# Desarrollo y herramientas
+# Development and tools
 
-Finanzas 3.8.1 combina una PWA estática y Google Apps Script privado. La API conserva la versión 3.3.0 y el libro utiliza el modelo 3. El entorno operativo sigue siendo `ENVIRONMENT=test`; el mantenimiento del repositorio no activa el principal ni modifica una instalación privada de Google.
+Finanzas 3.8.1 combines a static PWA and private Google Apps Script. The API remains at version 3.3.0 and the workbook uses model 3. The operational environment remains `ENVIRONMENT=test`; repository maintenance does not activate the primary workbook or modify a private Google installation.
 
-## Mapa del repositorio
+## Repository map
 
-| Ruta                          | Responsabilidad                                                                             |
-| ----------------------------- | ------------------------------------------------------------------------------------------- |
-| `web/`                        | Interfaz, cliente de API, canal de conexión, cola, gráficos, cálculos y recursos de la PWA. |
-| `apps-script/Code.gs`         | Backend, autorización, lectura, operaciones, revisión, journal y cotizaciones.              |
-| `apps-script/Bridge.html`     | Puente de la sesión privada de Google hacia la app.                                         |
-| `apps-script/appsscript.json` | Manifiesto y permisos del proyecto de Google.                                               |
-| `apps-script/PRICES.md`       | Fuentes de NAV verificadas, límites históricos y rutina voluntaria de pruebas.              |
-| `tools/`                      | Generadores, servidor local, comprobaciones y adaptadores de agentes.                       |
-| `tests/*.test.cjs`            | Pruebas con `node:test` y servicios simulados.                                              |
-| `tests/browser/`              | Pruebas Playwright de escritorio y móvil con datos ficticios.                               |
-| `.github/workflows/`          | Comprobaciones de calidad y publicación de `web/` en Pages.                                 |
+| Path                          | Responsibility                                                                             |
+| ----------------------------- | ------------------------------------------------------------------------------------------ |
+| `web/`                        | Interface, API client, connection channel, queue, charts, calculations, and PWA resources. |
+| `apps-script/Code.gs`         | Backend, authorization, reads, operations, revision, journal, and prices.                  |
+| `apps-script/Bridge.html`     | Bridge from the private Google session to the app.                                         |
+| `apps-script/appsscript.json` | Google project manifest and permissions.                                                   |
+| `apps-script/PRICES.md`       | Verified NAV sources, historical limits, and the optional test routine.                    |
+| `tools/`                      | Generators, local server, checks, and agent adapters.                                      |
+| `tests/*.test.cjs`            | Tests using `node:test` and simulated services.                                            |
+| `tests/browser/`              | Desktop and mobile Playwright tests with fictional data.                                   |
+| `.github/workflows/`          | Quality checks and publication of `web/` to Pages.                                         |
 
-Consulta [Arquitectura](ARCHITECTURE.md), [Contribuir](../CONTRIBUTING.md) y [Seguridad](../SECURITY.md) para los contratos, el flujo de revisión y la privacidad.
+See [Architecture](ARCHITECTURE.md), [Contributing](../CONTRIBUTING.md), and [Security](../SECURITY.md) for contracts, the review workflow, and privacy.
 
-## Preparar y ejecutar
+## Set up and run
 
-Instala Node.js 24 o superior; CI utiliza Node 24. Desde la raíz:
+Install Node.js 24 or later; CI uses Node 24. From the root:
 
 ```sh
 npm ci --ignore-scripts
 npx playwright install --with-deps chromium
 ```
 
-CI instala Chromium con dependencias de sistema en Ubuntu. En un entorno con esas dependencias ya disponibles puedes usar `npx playwright install chromium`. No se necesitan credenciales ni acceso a Sheets para los tests.
+CI installs Chromium with system dependencies on Ubuntu. If those dependencies are already available, you can use `npx playwright install chromium`. Tests do not require credentials or Sheets access.
 
-Para servir la app en local:
+To serve the app locally:
 
 ```sh
 npm run build
 node tools/serve.cjs
 ```
 
-Abre `http://127.0.0.1:4173`. El servidor solo sirve `web/`; no autentica una sesión de Google ni crea un backend local. La instalación privada continúa en el [instalador](https://manuuelmarin.github.io/finances/install.html). Playwright inicia este servidor automáticamente y prueba perfiles Desktop Chrome y Pixel 7. Los tests bloquean service workers salvo en la prueba específica de PWA, que verifica el caché público y la reapertura sin conexión. Estos perfiles no sustituyen la comprobación de instalación en un teléfono físico.
+Open `http://127.0.0.1:4173`. The server only serves `web/`; it does not authenticate a Google session or create a local backend. Private installation remains in the [installer](https://manuuelmarin.github.io/finances/install.html). Playwright starts this server automatically and tests Desktop Chrome and Pixel 7 profiles. Tests block service workers except in the dedicated PWA test, which checks public caching and offline reopening. These profiles do not replace installation checks on a physical phone.
 
-## Comandos de calidad
+## Quality commands
 
-| Comando                | Efecto                                                                                                                         |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `npm run build`        | Ejecuta, en orden, `build-install.cjs`, `build-security.cjs` y `build-sw.cjs`.                                                 |
-| `npm run format`       | Aplica Prettier a los archivos no excluidos.                                                                                   |
-| `npm run format:check` | Comprueba el formato sin escribir cambios.                                                                                     |
-| `npm run lint`         | Ejecuta ESLint, incluyendo `.js`, `.cjs` y `.gs`.                                                                              |
-| `npm test`             | Ejecuta `tools/test.cjs`, las suites `tests/*.test.cjs` y guarda el informe TAP.                                               |
-| `npm run test:browser` | Ejecuta Playwright y genera resultados e informe HTML.                                                                         |
-| `npm run audit`        | Ejecuta `npm audit --audit-level=high`; falla ante vulnerabilidades conocidas altas o críticas.                                |
-| `npm run check`        | Ejecuta build, comprobación de formato, lint, tests de Node y tests de navegador. No incluye audit ni comprobación de commits. |
+| Command                | Effect                                                                                                          |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `npm run build`        | Runs `build-install.cjs`, `build-security.cjs`, and `build-sw.cjs`, in that order.                              |
+| `npm run format`       | Applies Prettier to files that are not excluded.                                                                |
+| `npm run format:check` | Checks formatting without writing changes.                                                                      |
+| `npm run lint`         | Runs ESLint, including `.js`, `.cjs`, and `.gs`.                                                                |
+| `npm test`             | Runs `tools/test.cjs`, the `tests/*.test.cjs` suites, and saves the TAP report.                                 |
+| `npm run test:browser` | Runs Playwright and generates results and an HTML report.                                                       |
+| `npm run audit`        | Runs `npm audit --audit-level=high`; fails on known high or critical vulnerabilities.                           |
+| `npm run check`        | Runs the build, formatting check, lint, Node tests, and browser tests. Does not include audit or commit checks. |
 
-Prettier utiliza comillas simples y trata `.gs` con parser Babel. También formatea HTML, CSS, JSON, Markdown y YAML. `.prettierignore` excluye dependencias, resultados, lockfile e instalador/service worker generados. No hay código Python ni una etapa de Black.
+Prettier uses single quotes and handles `.gs` with the Babel parser. It also formats HTML, CSS, JSON, Markdown, and YAML. `.prettierignore` excludes dependencies, results, the lockfile, and the generated installer/service worker. There is no Python code or Black step.
 
-Los resultados locales se escriben en `quality-results/`, `test-results/` y `playwright-report/`. `tools/quality-summary.cjs` resume los resultados en GitHub Actions; CI conserva los informes durante 14 días. Usa siempre datos ficticios, también en capturas y trazas.
+Local results are written to `quality-results/`, `test-results/`, and `playwright-report/`. `tools/quality-summary.cjs` summarizes results in GitHub Actions; CI retains reports for 14 days. Always use fictional data, including in screenshots and traces.
 
-El workflow comprueba dependencias, commits nuevos, build, formato, lint y ambas suites. El job de Pages depende de calidad y solo publica desde `main` en eventos que no sean PR. No instala ni actualiza Apps Script.
+The workflow checks dependencies, new commits, the build, formatting, lint, and both suites. The Pages job depends on quality and only publishes from `main` on events other than PRs. It does not install or update Apps Script.
 
-## Fuentes y archivos generados
+The [`main` protection policy](BRANCH_PROTECTION.md) requires a PR and the existing `quality` check, with no bypass actors. The versioned JSON must be imported and activated in GitHub settings; committing it alone does not protect the branch.
 
-`tools/build-install.cjs` incorpora los tres archivos de Apps Script al instalador y verifica las versiones de entrega. `tools/build-security.cjs` genera la CSP de `web/index.html`, `web/install.html` y `web/preview.html`; `tools/build-sw.cjs` calcula la versión de caché a partir de los recursos públicos.
+## Source and generated files
 
-Edita los archivos fuente y ejecuta `npm run build`. No edites a mano los bloques de `web/install.html`, el contenido de `web/sw.js` ni las huellas CSP generadas. Revisa el diff después de regenerar. Cambiar documentación no requiere incrementar la versión de la app, de la API ni del modelo.
+`tools/build-install.cjs` embeds the three Apps Script files into the installer and checks release versions. `tools/build-security.cjs` generates the CSP in `web/index.html`, `web/install.html`, and `web/preview.html`; `tools/build-sw.cjs` calculates the cache version from public resources.
 
-## Herramientas para agentes
+Edit source files and run `npm run build`. Do not manually edit the blocks in `web/install.html`, the contents of `web/sw.js`, or generated CSP hashes. Review the diff after regenerating. Documentation changes do not require increasing the app, API, or model version.
 
-`tools/agent-envelope.cjs` y `tools/agent-queue.cjs` son módulos CommonJS, no comandos que abran una sesión o reciban credenciales. Requieren un cliente privado de `FinanceApiClient` con transporte autenticado de Google. No existe un endpoint HTTP público de escritura ni un mecanismo para omitir el inicio de sesión. No incluyas credenciales, URLs privadas ni IDs reales en argumentos de terminal, ejemplos, commits o reportes.
+## Agent tools
 
-Empieza con `client.read()` y revisa el estado y la revisión del libro. Para consultar una operación ya enviada, usa `client.requestStatus(envelope)` con el sobre conservado y su mismo `requestId` UUID. La consulta del journal permite averiguar si el servidor la confirmó; una respuesta incierta no autoriza crear otra operación.
+`tools/agent-envelope.cjs` and `tools/agent-queue.cjs` are CommonJS modules, not commands that open a session or accept credentials. They require a private `FinanceApiClient` client with authenticated Google transport. There is no public HTTP write endpoint or mechanism to bypass sign-in. Do not include credentials, private URLs, or real IDs in terminal arguments, examples, commits, or reports.
 
-`prepare(snapshot, operations)` genera un sobre `transact` desde una lectura API 3.3.0 con revisión y vínculo de libro. Admite entre 1 y 20 operaciones; la API genera los IDs definitivos de los registros. Preparar un sobre no lo envía. `submit(client, envelope, { persist })` exige persistirlo antes de enviar y consulta el recibo si falla la respuesta.
+Start with `client.read()` and review the workbook's state and revision. To check an operation already submitted, use `client.requestStatus(envelope)` with the preserved envelope and the same `requestId` UUID. Querying the journal lets you determine whether the server confirmed it; an uncertain response does not authorize creating another operation.
 
-La cola persistente comparte el motor de `web/queue.js`. Este ejemplo supone que las operaciones ya se han revisado y su envío está autorizado:
+`prepare(snapshot, operations)` creates a `transact` envelope from an API 3.3.0 snapshot with revision and workbook binding. It accepts 1 to 20 operations; the API generates final record IDs. Preparing an envelope does not submit it. `submit(client, envelope, { persist })` requires persistence before submission and queries the receipt if the response fails.
+
+The persistent queue shares the `web/queue.js` engine. This example assumes the operations have already been reviewed and their submission is authorized:
 
 ```js
 const { openQueue } = require('./tools/agent-queue.cjs');
@@ -80,18 +82,18 @@ const queue = await openQueue({
   deploymentUrl,
 });
 await queue.saveSnapshot(await client.read());
-await queue.enqueue(operations, 'Operación revisada');
+await queue.enqueue(operations, 'Reviewed operation');
 await queue.run(client);
 ```
 
-Guarda el estado fuera del repositorio. La cola conserva lectura, libro, sobre, UUID y estado antes del envío; separa implementaciones y bloquea un cambio de libro. Utiliza permisos de usuario, bloqueo exclusivo, escritura atómica y sincronización a disco. Estos archivos contienen información financiera y no están cifrados por la herramienta.
+Store state outside the repository. The queue preserves the snapshot, workbook, envelope, UUID, and state before submission; it separates deployments and blocks a workbook change. It uses user permissions, exclusive locking, atomic writes, and disk synchronization. These files contain financial information and are not encrypted by the tool.
 
-Después de un cierre, abre la misma cola y llama `run(client)` sin preparar ni encolar otra vez la operación. El motor consulta los recibos de solicitudes inciertas y conserva los conflictos para revisión. Un conflicto exige una lectura nueva y revisión explícita; no cambies silenciosamente un sobre enviado. Un archivo corrupto o un bloqueo ocupado impide reemplazar la cola. Si queda un `.lock` después de un cierre, conserva los archivos y retíralo solo después de comprobar que ningún proceso lo está usando.
+After a shutdown, open the same queue and call `run(client)` without preparing or enqueueing the operation again. The engine queries receipts for uncertain requests and preserves conflicts for review. A conflict requires a new read and explicit review; do not silently change a submitted envelope. A corrupt file or busy lock prevents replacement of the queue. If a `.lock` remains after shutdown, preserve the files and remove it only after checking that no process is using it.
 
-Usa los procesos de `financialApi` para altas, correcciones y anulaciones. Consultar transacciones o un UUID en el journal no requiere escribir celdas, insertar movimientos temporales ni modificar credenciales. Las herramientas no autorizan escrituras directas a Sheets ni activación de producción. Conserva el XLSX de origen y los documentos privados de coordinación hasta el corte expresamente aceptado.
+Use `financialApi` processes to create, correct, and void records. Querying transactions or a UUID in the journal does not require writing cells, inserting temporary transactions, or modifying credentials. The tools do not authorize direct writes to Sheets or production activation. Preserve the source XLSX and private coordination documents until the cutover has been explicitly accepted.
 
-## Cotizaciones y verificación privada
+## Prices and private verification
 
-Una consulta correcta puede devolver `ok:true` y seguir incompleta: revisa `complete` y los resultados individuales. Conserva el último NAV si una fuente falla. Cada precio requiere identidad, clase, divisa y fecha efectiva verificables; no reconstruyas históricos diarios con valores actuales o muestras interpoladas. Consulta [PRICES.md](../apps-script/PRICES.md) antes de modificar fuentes o la rutina diaria.
+A successful query can return `ok:true` while remaining incomplete: check `complete` and the individual results. Preserve the last NAV when a source fails. Each price requires verifiable identity, share class, currency, and effective date; do not reconstruct daily history from current values or interpolated samples. Read [PRICES.md](../apps-script/PRICES.md) before modifying sources or the daily routine.
 
-`comprobarCierre()` y **Comprobar sistema** comprueban estructura, cálculos, canal, fuentes y revisión sin escrituras. `technicalReady:true` exige todos los checks correctos, pero no acredita una instalación en teléfono, otra cuenta o una fuente vigente. Los procedimientos que preparan backend, actualizan cotizaciones o instalan triggers tienen efectos en Google y no forman parte de los tests locales. Mantén el entorno y la implementación existentes durante el mantenimiento del repositorio.
+`comprobarCierre()` and **Comprobar sistema** (Check system) check structure, calculations, the channel, sources, and revision without writes. `technicalReady:true` requires every check to pass, but does not validate installation on a phone, another account, or a current source. Procedures that prepare the backend, update prices, or install triggers have effects in Google and are not part of local tests. Preserve the existing environment and deployment during repository maintenance.
