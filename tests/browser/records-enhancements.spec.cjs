@@ -123,7 +123,7 @@ const snapshot = {
   ],
 };
 
-async function setupRecords(page) {
+async function setupRecords(page, customize) {
   const seed = structuredClone(snapshot);
   seed.tables.tCuentas.push({ Cuenta: 'EFECTIVO', 'Saldo calculado': 25 });
   seed.tables.tMovimientos.push({
@@ -142,6 +142,7 @@ async function setupRecords(page) {
   seed.prices[0].lastValid.source =
     'https://www.quefondos.com/es/fondos/ficha/index.html?isin=ES0123456789';
   seed.tables.tPrecios[0].Fuente = seed.prices[0].lastValid.source;
+  if (customize) customize(seed);
   await page.addInitScript((seed) => {
     localStorage.setItem(
       'finances.appsScriptUrl',
@@ -336,4 +337,91 @@ test('móvil conserva filtros y orden en la tabla sin desbordar la página', asy
   expect(dimensions.tableOverflowsContainer).toBe(true);
   expect(['auto', 'scroll']).toContain(dimensions.overflow);
   expect(dimensions.pageWidth).toBeLessThanOrEqual(dimensions.viewportWidth);
+});
+
+test('percentage filters use displayed percent, retain focus, clear and export all selected rows', async ({
+  page,
+}) => {
+  await setupRecords(page, (seed) => {
+    seed.tables.tProductos[0].Rentabilidad = 0.08;
+    seed.tables.tProductos.push({
+      ...seed.tables.tProductos[0],
+      ID: 'HIGH',
+      Producto: 'Fondo con 18 por ciento',
+      Rentabilidad: 0.18,
+    });
+  });
+  await navigate(page, 'investments');
+  const register = page.locator('#finance-register');
+  const lower = register.getByLabel(
+    'Filtrar Rentabilidad desde en porcentaje',
+    { exact: true },
+  );
+  await lower.fill('10');
+  await lower.press('Tab');
+  await expect(lower).toBeFocused();
+  await expect(register.locator('tbody')).toContainText(
+    'Fondo con 18 por ciento',
+  );
+  await expect(register.locator('tbody')).not.toContainText('Fondo ficticio');
+  const download = page.waitForEvent('download');
+  await register
+    .getByRole('button', { name: 'Exportar CSV filtrado', exact: true })
+    .click();
+  const file = await download;
+  const text = fs.readFileSync(await file.path(), 'utf8');
+  expect(text).toContain('Fondo con 18 por ciento');
+  expect(text).not.toContain('Fondo ficticio');
+  await register
+    .getByRole('button', { name: 'Limpiar filtros', exact: true })
+    .click();
+  await expect(register.locator('tbody')).toContainText('Fondo ficticio');
+  await expect(lower).toHaveValue('');
+});
+
+test('payroll opens a unified editor and reviews old/new values; cancellation names linked effects', async ({
+  page,
+}) => {
+  await setupRecords(page, (seed) => {
+    seed.capabilities = {
+      payrollCorrection: true,
+      archives: true,
+      templates: true,
+    };
+    seed.templates = [];
+    seed.archives = { accounts: [], categories: [] };
+    seed.tables.tMovimientos.push({
+      ID: 'PAY',
+      Fecha: '2026-01-01',
+      Tipo: 'Ingreso',
+      Concepto: 'Synthetic payroll',
+      Destino: 'Cuenta A',
+      Subcategoría: 'Nómina',
+      Importe: 80,
+    });
+    seed.tables.tNominas.push({
+      Movimiento: 'PAY',
+      Bruto: 100,
+      Cotización: 5,
+      IRPF: 10,
+      'Otras deducciones': 5,
+    });
+  });
+  const row = page
+    .locator('#finance-register tbody tr')
+    .filter({ hasText: 'Synthetic payroll' })
+    .first();
+  await row.getByRole('button', { name: 'Corregir', exact: true }).click();
+  await expect(page.locator('#operation-gross')).toHaveValue('100');
+  await expect(page.locator('#operation-amount')).toHaveValue('80');
+  await page.locator('#operation-amount').fill('90');
+  await page.locator('#operation-gross').fill('110');
+  await page.locator('#operation-form button[type=submit]').click();
+  await expect(page.locator('#review-fields')).toContainText('80');
+  await expect(page.locator('#review-fields')).toContainText('90');
+  await page.locator('#review-cancel').click();
+  await page.locator('#operation-cancel').click();
+  await row.getByRole('button', { name: 'Anular', exact: true }).click();
+  await expect(page.locator('#review-note')).toContainText('1 nóminas');
+  await expect(page.locator('#review-note')).toContainText('80 EUR');
 });

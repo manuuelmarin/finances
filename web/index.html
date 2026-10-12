@@ -26,6 +26,7 @@
     <script src="analytics.js" defer></script>
     <script src="charts.js" defer></script>
     <script src="dashboard.js" defer></script>
+    <script src="history.js" defer></script>
     <script src="finance.js" defer></script>
     <script src="pwa.js" defer></script>
     <script src="app.js" defer></script>
@@ -405,8 +406,72 @@
         <p id="investment-coverage" class="calculator-note"></p>
         <div data-register-slot="investments"></div>
         <p id="prices-history-note" class="calculator-note"></p>
+        <details class="section-details" id="history-import">
+          <summary>Importar valores liquidativos históricos</summary>
+          <p>
+            Descarga el histórico diario de la gestora, verifica el ISIN, la
+            clase y la moneda y conviértelo al CSV de nueve columnas. Se revisan
+            veinte fechas por lote; cada lote necesita confirmación. No se
+            rellenan días sin publicación.
+          </p>
+          <p>
+            <a href="./history-template.csv" download
+              >Descargar plantilla CSV</a
+            >
+          </p>
+          <p>
+            Columnas: isin, referenceName, classCurrency, quoteCurrency, date,
+            price, provider, sourceUrl, exportedAt. Fechas ISO; NAV EUR
+            positivo, punto o coma decimal. sourceUrl puede quedar vacío si la
+            procedencia consta en provider.
+          </p>
+          <label class="field"
+            >Producto<select id="history-product"></select
+          ></label>
+          <label class="field"
+            >CSV revisado<input
+              id="history-file"
+              type="file"
+              accept=".csv,text/csv"
+          /></label>
+          <label
+            ><input id="history-source-verified" type="checkbox" /> He
+            comprobado la clase, el ISIN, la moneda EUR y la procedencia del
+            exportado.</label
+          >
+          <div class="button-row">
+            <button id="history-preview" type="button">
+              Previsualizar lote</button
+            ><button id="history-confirm" type="button" disabled>
+              Confirmar lote en cola
+            </button>
+          </div>
+          <pre id="history-output" aria-live="polite"></pre>
+          <p>
+            Fuentes:
+            <a
+              href="https://www.fondosfidelity.es/fondos/ficha/IE00BYX5NX33"
+              target="_blank"
+              rel="noopener noreferrer"
+              >Fidelity · histórico XLS</a
+            >,
+            <a
+              href="https://www.singularam.es/sigma-internacional-fi-clase-a/"
+              target="_blank"
+              rel="noopener noreferrer"
+              >Sigma A · Histórico VL</a
+            >,
+            <a
+              href="https://www.vanguard.co.uk/professional/product/fund/equity/9229/emerging-markets-stock-index-fund-eur-acc"
+              target="_blank"
+              rel="noopener noreferrer"
+              >Vanguard EUR Acc · Historical Prices</a
+            >. La disponibilidad y el rango dependen de cada clase.
+          </p>
+        </details>
         <section class="chart-section">
           <h2 class="section-title">Cartera y evolución</h2>
+          <div id="investment-health" class="budget-grid"></div>
           <div id="investment-charts" class="charts-grid"></div>
         </section>
       </section>
@@ -440,6 +505,11 @@
             </button>
           </div>
         </div>
+        <label class="field"
+          >Mes de cuentas<input id="account-month" type="month"
+        /></label>
+        <p id="account-cut" class="calculator-note"></p>
+        <div id="account-comparisons" class="budget-grid"></div>
         <div id="account-summary" class="kpi-grid analysis-kpis"></div>
         <div data-register-slot="accounts"></div>
         <p class="calculator-note">
@@ -450,6 +520,17 @@
         <section class="chart-section">
           <h2 class="section-title">Liquidez por cuenta</h2>
           <div id="account-charts" class="charts-grid"></div>
+          <h2 class="section-title">Planes y previsión de efectivo</h2>
+          <p class="calculator-note">
+            Los pagos e ingresos previstos son supuestos, no movimientos reales.
+            Solo se convierten en registros al confirmar su realización.
+          </p>
+          <button id="plan-new" type="button" class="button button-secondary">
+            Añadir pago o ingreso previsto
+          </button>
+          <div id="planned-list" class="budget-grid"></div>
+          <p id="forecast-note" class="calculator-note"></p>
+          <div id="forecast-chart" class="charts-grid"></div>
         </section>
       </section>
       <section
@@ -473,6 +554,7 @@
         <div data-register-slot="salary"></div>
         <section class="chart-section">
           <h2 class="section-title">Histórico de nóminas</h2>
+          <p id="salary-cut" class="calculator-note"></p>
           <div id="salary-charts" class="charts-grid"></div>
           <h2 class="section-title">Ahorro mensual</h2>
           <div id="salary-saving-charts" class="charts-grid"></div>
@@ -501,12 +583,13 @@
             ><button
               type="button"
               class="button button-secondary"
-              data-operation="asignacion"
+              id="goal-assign-new"
             >
               Asignar activos
             </button>
           </div>
         </div>
+        <div id="goal-availability" class="budget-grid"></div>
         <div id="saving-goals" class="budget-grid"></div>
         <div id="goal-charts" class="charts-grid"></div>
         <div data-register-slot="goals"></div>
@@ -543,6 +626,7 @@
           </div>
         </div>
         <p id="budget-note" class="calculator-note"></p>
+        <div id="budget-analysis" class="charts-grid"></div>
         <div id="budget-cards" class="budget-grid"></div>
       </section>
       <section
@@ -751,7 +835,7 @@
                     /><span>€</span></span
                   ></label
                 ><label class="field"
-                  >Tipo de interés anual<span class="input-wrap"
+                  >TIN anual<span class="input-wrap"
                     ><input
                       id="mortgage-rate"
                       type="number"
@@ -827,10 +911,112 @@
               </dl>
             </div>
             <p id="mortgage-note" class="calculator-note">
-              Cuotas constantes y tipo fijo. Los gastos iniciales no se
-              financian. Incluye los impuestos en ese importe si quieres
-              contemplarlos.
+              TIN nominal anual, no TAE. Cuotas constantes y tipo fijo. Los
+              gastos iniciales no se financian. Incluye los impuestos en ese
+              importe si quieres contemplarlos.
             </p>
+            <details>
+              <summary>Comparar una amortización anticipada</summary>
+              <p class="calculator-note">
+                Usa el capital y los meses pendientes actuales. Compara bajar la
+                cuota o mantenerla para terminar antes.
+              </p>
+              <form id="repayment-form" aria-describedby="repayment-note">
+                <div class="form-grid">
+                  <label class="field" for="repayment-outstanding"
+                    >Capital pendiente (€)<input
+                      id="repayment-outstanding"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      required
+                  /></label>
+                  <label class="field" for="repayment-months"
+                    >Meses pendientes<input
+                      id="repayment-months"
+                      type="number"
+                      min="1"
+                      max="120000"
+                      step="1"
+                      required
+                  /></label>
+                  <label class="field" for="repayment-annualRate"
+                    >TIN anual (%)<input
+                      id="repayment-annualRate"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      required
+                  /></label>
+                  <label class="field" for="repayment-repayment"
+                    >Amortización anticipada (€)<input
+                      id="repayment-repayment"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      required
+                  /></label>
+                  <label class="field" for="repayment-feeRate"
+                    >Comisión sobre lo amortizado (%)<input
+                      id="repayment-feeRate"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value="0"
+                      required
+                  /></label>
+                  <label class="field" for="repayment-availableCash"
+                    >Efectivo disponible (€), opcional<input
+                      id="repayment-availableCash"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                  /></label>
+                </div>
+                <button class="button button-primary button-full" type="submit">
+                  Comparar opciones
+                </button>
+              </form>
+              <p
+                id="repayment-message"
+                class="field-message"
+                aria-live="polite"
+                hidden
+              ></p>
+              <div
+                id="repayment-result"
+                class="calculator-results"
+                aria-live="polite"
+                aria-atomic="true"
+                hidden
+              >
+                <p id="repayment-summary"></p>
+                <div class="table-scroll">
+                  <table class="chart-table">
+                    <caption>
+                      Coste desde hoy
+                    </caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Opción</th>
+                        <th scope="col">Cuota</th>
+                        <th scope="col">Meses</th>
+                        <th scope="col">Intereses</th>
+                        <th scope="col">Ahorro neto</th>
+                      </tr>
+                    </thead>
+                    <tbody id="repayment-comparison"></tbody>
+                  </table>
+                </div>
+              </div>
+              <p id="repayment-note" class="calculator-note">
+                TIN fijo, sin TAE, seguros ni otros gastos. Intereses y cuotas
+                redondeados al céntimo cada mes; última cuota ajustada. Ahorro
+                neto = intereses evitados menos comisión. No incluye
+                rentabilidad alternativa del efectivo. La entidad puede aplicar
+                otro redondeo.
+              </p>
+            </details>
           </section>
           <section class="calculator" aria-labelledby="goal-time-title">
             <div class="calculator-heading">
@@ -964,17 +1150,18 @@
                     /><span>€</span></span
                   ></label
                 >
-                <label class="field" for="goal-saving-years"
+                <label class="field" for="goal-saving-months"
                   >Plazo<span class="input-wrap"
                     ><input
-                      id="goal-saving-years"
+                      id="goal-saving-months"
                       type="number"
-                      inputmode="decimal"
+                      inputmode="numeric"
                       min="1"
+                      max="120000"
                       step="1"
-                      value="5"
+                      value="60"
                       required
-                    /><span>años</span></span
+                    /><span>meses</span></span
                   ></label
                 >
                 <label class="field" for="goal-saving-annualReturn"
@@ -1244,10 +1431,12 @@
           </p>
           <p class="calculator-note">
             Para acumular precios cada día sin abrir la app, instala la entrega
-            de Google 3.8.1 y ejecuta
+            de Google 3.9.0 y ejecuta
             <code>activarActualizacionDiariaPreciosTest</code> una vez desde el
-            editor. La rutina solo actúa en la copia de pruebas. Para detenerla,
-            ejecuta <code>desactivarActualizacionDiariaPreciosTest</code>.
+            editor. La activación de pruebas actúa solo en su copia. La
+            producción necesita su propia activación expresa del dueño. Para
+            detener las pruebas, ejecuta
+            <code>desactivarActualizacionDiariaPreciosTest</code>.
           </p>
           <a class="inline-link" href="./install.html#daily-prices"
             >Configurar actualización diaria</a
@@ -1280,7 +1469,7 @@
       </section>
       <footer class="workspace-footer">
         <p id="app-version" class="app-version">
-          App 3.8.1 · <span data-finance-environment>Sin conectar</span
+          App 3.9.0 · <span data-finance-environment>Sin conectar</span
           ><span id="pwa-status" hidden></span>
         </p>
       </footer>
@@ -1417,6 +1606,78 @@
           >Ver el código<svg class="icon"><use href="#icon-up" /></svg
         ></a>
       </div>
+    </dialog>
+    <dialog id="goal-assign-dialog" aria-labelledby="goal-assign-title">
+      <h2 id="goal-assign-title">Asignar activos existentes</h2>
+      <p>
+        La asignación etiqueta activos: no es una transferencia ni una
+        aportación de dinero.
+      </p>
+      <form id="goal-assign-form">
+        <label class="field"
+          >Objetivo<select id="goal-assign-goal" required></select
+        ></label>
+        <label class="field"
+          >Origen<select id="goal-assign-origin" required></select
+        ></label>
+        <label class="field"
+          >Acción<select id="goal-assign-mode">
+            <option value="set">Establecer asignación total</option>
+            <option value="add">Añadir a la asignación existente</option>
+          </select></label
+        >
+        <label class="field"
+          >Importe EUR<input
+            id="goal-assign-amount"
+            inputmode="decimal"
+            required
+        /></label>
+        <p id="goal-assign-current" class="calculator-note"></p>
+        <p id="goal-assign-error" role="alert" hidden></p>
+        <button
+          type="button"
+          id="goal-assign-cancel"
+          class="button button-secondary"
+        >
+          Cancelar
+        </button>
+        <button type="submit" class="button button-primary">
+          Revisar asignación
+        </button>
+      </form>
+    </dialog>
+    <dialog id="plan-dialog" aria-labelledby="plan-title">
+      <h2 id="plan-title">Pago o ingreso previsto</h2>
+      <form id="plan-form">
+        <label class="field"
+          >Tipo<select id="plan-kind">
+            <option value="expense">Pago previsto</option>
+            <option value="income">Ingreso previsto</option>
+          </select></label
+        >
+        <label class="field"
+          >Fecha<input id="plan-date" type="date" required
+        /></label>
+        <label class="field"
+          >Concepto<input id="plan-concept" required
+        /></label>
+        <label class="field"
+          >Cuenta<select id="plan-account" required></select
+        ></label>
+        <label class="field"
+          >Subcategoría<select id="plan-category" required></select
+        ></label>
+        <label class="field"
+          >Importe EUR<input id="plan-amount" inputmode="decimal" required
+        /></label>
+        <p id="plan-error" role="alert" hidden></p>
+        <button id="plan-cancel" type="button" class="button button-secondary">
+          Cancelar
+        </button>
+        <button type="submit" class="button button-primary">
+          Revisar plan
+        </button>
+      </form>
     </dialog>
     <dialog
       id="budget-dialog"

@@ -139,3 +139,58 @@ for (const prefix of ['inflation', 'mortgage']) {
     calculatorMessage(prefix + '-message', '');
   });
 }
+
+const repaymentForm = document.getElementById('repayment-form');
+repaymentForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  document.getElementById('repayment-result').hidden = true;
+  calculatorMessage('repayment-message', '');
+  try {
+    const input = Object.fromEntries(
+      [
+        'outstanding',
+        'months',
+        'annualRate',
+        'repayment',
+        'feeRate',
+        'availableCash',
+      ].map((field) => [field, value('repayment-' + field)]),
+    );
+    const r = mortgageRepayment(input);
+    const body = document.getElementById('repayment-comparison');
+    body.replaceChildren();
+    for (const [label, scenario] of [
+      ['Sin amortizar', r.baseline],
+      ['Reducir cuota', r.reducedPayment],
+      ['Reducir plazo', r.reducedTerm],
+    ]) {
+      const row = document.createElement('tr');
+      for (const [index, text] of [
+        label,
+        euros.format(scenario.payment),
+        String(scenario.months),
+        euros.format(scenario.interest),
+        euros.format(scenario.netSavings || 0),
+      ].entries()) {
+        const cell = document.createElement(index === 0 ? 'th' : 'td');
+        if (index === 0) cell.scope = 'row';
+        cell.textContent = text;
+        row.appendChild(cell);
+      }
+      body.appendChild(row);
+    }
+    document.getElementById('repayment-summary').textContent =
+      `Amortización: ${euros.format(r.repayment)}. Comisión: ${euros.format(r.fee)}.` +
+      (r.remainingCash === null
+        ? ''
+        : ` Efectivo restante: ${euros.format(r.remainingCash)}${r.remainingCash < 0 ? ' (el efectivo indicado no cubre amortización y comisión)' : ''}.`);
+    document.getElementById('repayment-result').hidden = false;
+  } catch (error) {
+    calculatorMessage('repayment-message', error.message);
+  }
+});
+for (const event of ['input', 'reset'])
+  repaymentForm.addEventListener(event, () => {
+    document.getElementById('repayment-result').hidden = true;
+    calculatorMessage('repayment-message', '');
+  });

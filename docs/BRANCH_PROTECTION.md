@@ -1,6 +1,6 @@
 # Main branch protection
 
-[The ruleset JSON](../.github/rulesets/main.json) defines the intended policy. Committing it **does not activate protection**; a repository administrator must import, save and verify it in GitHub.
+[The ruleset JSON](../.github/rulesets/main.json) defines the intended policy. Committing it **does not activate protection**; a repository administrator must import, save and verify it in GitHub. The latest read-only check found `main` unprotected and no saved rulesets. Treat activation as pending until a subsequent read-only verification confirms the saved policy.
 
 ## Intended policy
 

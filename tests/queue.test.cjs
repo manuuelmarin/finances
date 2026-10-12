@@ -238,3 +238,104 @@ test('respuesta ambigua heredada como revisión se recupera sin permitir descart
   assert.equal(calls.length, 1);
   assert.equal(r.state().tables.tMovimientos.length, 1);
 });
+
+test('explicit outcomes preserve confirmation and transport causes', async () => {
+  const { q, client } = setup();
+  await q.saveSnapshot(await client.read());
+  await q.enqueue([expense(1)], 'Fixture');
+  const envelope = (await q.get()).queue[0].envelope;
+  const read = client.read;
+  let reads = 0;
+  client.read = async () => {
+    if (reads++) throw Error('READ_TIMEOUT');
+    return read();
+  };
+  const result = await q.run(client);
+  assert.equal(result.status, 'confirmed');
+  assert.equal(result.reason, 'POST_CONFIRM_READ_FAILED');
+  assert.equal(result.readError, 'READ_TIMEOUT');
+  assert.deepEqual((await q.get()).queue[0].envelope, envelope);
+  assert.equal((await q.get()).queue[0].status, 'confirmed');
+});
+
+test('missing and discarded items cannot be claimed and failures remain recoverable', async () => {
+  const { q, client } = setup();
+  assert.equal(await q.claim('missing'), null);
+  await q.saveSnapshot(await client.read());
+  await q.enqueue([expense(1)], 'Fixture');
+  const id = (await q.get()).queue[0].envelope.requestId;
+  await q.discard(id);
+  assert.equal(await q.claim(id), null);
+  await q.enqueue([expense(2)], 'Uncertain');
+  client.submit = async () => {
+    throw Error('GOOGLE_WINDOW_CLOSED');
+  };
+  const outcome = await q.run(client);
+  assert.equal(outcome.status, 'unconfirmed');
+  assert.equal(outcome.reason, 'GOOGLE_WINDOW_CLOSED');
+  assert.equal((await q.get()).queue[1].result.error, 'GOOGLE_WINDOW_CLOSED');
+});
+
+test('historical payload cannot replace the queue-generated envelope identity', async () => {
+  const { q, client } = setup();
+  await q.saveSnapshot(await client.read());
+  await q.enqueue(null, 'History', 'importPriceHistory', {
+    product: 'fictional-product',
+    rows: [{ date: '2026-01-02', price: 1 }],
+    sourceVerified: true,
+    requestId: 'replacement',
+    action: 'transact',
+    expectedRevision: 'replacement',
+    bookKey: 'replacement',
+  });
+  const item = (await q.get()).queue[0];
+  assert.notEqual(item.envelope.requestId, 'replacement');
+  assert.equal(item.envelope.action, 'importPriceHistory');
+  assert.notEqual(item.envelope.expectedRevision, 'replacement');
+  assert.notEqual(item.envelope.bookKey, 'replacement');
+});
+
+test('exclusive lock recovers an abandoned protected claim through its receipt without resubmitting', async () => {
+  const { q, store, client, calls } = setup();
+  await q.saveSnapshot(await client.read());
+  await q.enqueue([expense(1)], 'Abandoned browser sender');
+  const original = (await q.get()).queue[0].envelope;
+  await q.claim(original.requestId, true);
+  await client.submit(original);
+  // The old document ended without persisting a receipt or releasing its claim.
+  const reopened = new Queue(store, 'fixture', {
+    locks: { request: async (name, options, callback) => callback({ name }) },
+  });
+  const outcome = await reopened.run(client);
+  assert.equal(outcome.status, 'confirmed');
+  assert.equal((await reopened.get()).queue[0].status, 'confirmed');
+  assert.deepEqual((await reopened.get()).queue[0].envelope, original);
+  assert.equal(calls.length, 1);
+});
+
+test('exclusive lock never takes over a live claim created without lock protection', async () => {
+  const { q, store, client, calls } = setup();
+  await q.saveSnapshot(await client.read());
+  await q.enqueue([expense(1)], 'Unlocked sender');
+  const id = (await q.get()).queue[0].envelope.requestId;
+  await q.claim(id);
+  const reopened = new Queue(store, 'fixture', {
+    locks: { request: async (name, options, callback) => callback({ name }) },
+  });
+  assert.equal((await reopened.run(client)).status, 'busy');
+  assert.equal(calls.length, 0);
+  assert.equal((await reopened.get()).queue[0].status, 'uncertain');
+});
+
+test('settled uncertainty releases only its own claim in the same saved update', async () => {
+  const { q, client } = setup();
+  await q.saveSnapshot(await client.read());
+  await q.enqueue([expense(1)], 'Settled lost reply');
+  const id = (await q.get()).queue[0].envelope.requestId;
+  await q.claim(id);
+  await q.status(id, 'uncertain', { ok: false, error: 'RESPONSE_UNCERTAIN' });
+  const item = (await q.get()).queue[0];
+  assert.equal(item.claim, undefined);
+  assert.equal(item.result.error, 'RESPONSE_UNCERTAIN');
+  assert.equal(item.status, 'uncertain');
+});

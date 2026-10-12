@@ -1,6 +1,6 @@
 # Development
 
-Finanzas 3.8.1 uses API 3.3.0 and workbook model 3. Keep `ENVIRONMENT=test`; repository maintenance does not modify the private Google deployment.
+Finanzas 3.9.0 uses API 3.3.0 and workbook model 3. Keep `ENVIRONMENT=test`; repository maintenance does not modify the private Google deployment.
 
 ## Local setup
 
@@ -41,7 +41,7 @@ See [Architecture](ARCHITECTURE.md), [Contributing](../CONTRIBUTING.md), [Securi
 | `npm run audit`                   | Block known high/critical dependency vulnerabilities.                        |
 | `npm run check`                   | Build, format check, lint and both suites; excludes audit and commit checks. |
 
-Edit sources, then rebuild; do not manually edit `web/install.html`, `web/sw.js` or generated CSP hashes. Documentation does not require a version increase. Results use `quality-results/`, `test-results/` and `playwright-report/`; CI retains reports for 14 days. Tests simulate services; the dedicated PWA test checks offline reopening, not installation on a physical phone. Pages publication does not update Apps Script.
+Edit `tools/install-template.html` for installer instructions and the three `apps-script/` files for embedded code, then rebuild; do not manually edit generated `web/install.html`, `web/sw.js` or CSP hashes. Documentation does not require a version increase. Results use `quality-results/`, `test-results/` and `playwright-report/`; CI retains reports for 14 days. Tests simulate services; the dedicated PWA test checks offline reopening, not installation on a physical phone. Pages publication does not update Apps Script.
 
 ## Agent workflow
 

@@ -369,3 +369,309 @@ test('May investment with first quotes in September measures only the September 
   assert.equal(timeline.rows.at(-1).returnPct, null);
   assert.equal(timeline.coverage.returnStartDate, '2026-09-01');
 });
+test('monthly coverage distinguishes planned future, prestart, full and partial observation', () => {
+  const s = fixture();
+  s.settings.start = '2026-01-15';
+  s.settings.asof = '2026-03-12';
+  assert.equal(A.monthCoverage(s, '2025-12').status, 'prestart');
+  assert.equal(A.monthCoverage(s, '2026-01').status, 'partial');
+  assert.equal(A.monthCoverage(s, '2026-02').status, 'full');
+  assert.equal(A.monthCoverage(s, '2026-03').status, 'partial');
+  assert.equal(A.monthCoverage(s, '2026-04').status, 'future');
+  s.budgets = [{ month: '2026-04', amount: 500, category: null }];
+  assert.equal(A.spending(s, '2026-04'), null);
+  assert.equal(A.freeBudget(s, '2026-04'), null);
+  assert.equal(A.budget(s, s.budgets[0]).remaining, null);
+  assert.equal(A.spendingAnalysis(s, '2025-12').total, null);
+  assert.deepEqual(
+    A.salarySavings(s).map((r) => r.month),
+    ['2026-01', '2026-02', '2026-03'],
+  );
+  assert.ok(
+    A.salarySavings(s).every((r) => r.payroll === null && r.rate === null),
+  );
+});
+test('goal availability totals assignments without moving money and preserves missing valuation', () => {
+  const s = fixture();
+  s.tables.tCuentas[0]['Saldo calculado'] = 100;
+  s.tables.tAsignaciones = [
+    { Objetivo: 'G1', Origen: 'A', Importe: 70 },
+    { Objetivo: 'G2', Origen: 'A', Importe: 50 },
+    { Objetivo: 'G1', Origen: 'P', Importe: 40 },
+  ];
+  s.summary = { missingPrices: ['Fund'] };
+  const before = JSON.stringify(s);
+  const rows = A.goalAvailability(s);
+  assert.equal(rows.find((r) => r.origin === 'A').free, -20);
+  assert.equal(rows.find((r) => r.origin === 'A').overallocated, true);
+  assert.equal(rows.find((r) => r.origin === 'P').free, null);
+  assert.equal(rows.find((r) => r.origin === 'P').available, null);
+  assert.equal(JSON.stringify(s), before);
+  assert.equal(
+    A.goalProgress(s, { Meta: 200, Asignado: 100, Fecha: '2025-12-31' })
+      .expired,
+    true,
+  );
+  assert.equal(
+    A.goalProgress(s, { Meta: 200, Asignado: null, Fecha: '2026-06-01' })
+      .monthlyPace,
+    null,
+  );
+});
+test('forecast uses current known cash and selected dated plans without creating actual cash', () => {
+  const s = fixture();
+  s.tables.tCuentas[0]['Saldo calculado'] = 180;
+  s.tables.tCuentas[1]['Saldo calculado'] = 40;
+  s.planned = [
+    {
+      id: 'out',
+      date: '2026-01-05',
+      concept: 'Rent',
+      account: 'B',
+      amount: 50,
+      kind: 'expense',
+      active: true,
+    },
+    {
+      id: 'in',
+      date: '2026-01-10',
+      concept: 'Income',
+      account: 'A',
+      amount: 100,
+      kind: 'income',
+      active: true,
+    },
+    {
+      id: 'past',
+      date: '2026-01-01',
+      concept: 'Overdue',
+      account: 'A',
+      amount: 999,
+      kind: 'expense',
+      active: true,
+    },
+  ];
+  const before = JSON.stringify(s);
+  assert.deepEqual(
+    A.cashForecast(s, ['out', 'in']).rows.map((r) => r.projected),
+    [220, 170, 270],
+  );
+  assert.deepEqual(
+    A.cashForecast(s, ['out']).rows.map((r) => r.projected),
+    [220, 170],
+  );
+  assert.equal(A.cashForecast(s).notices.length, 1);
+  assert.equal(JSON.stringify(s), before);
+  s.tables.tCuentas[0]['Saldo calculado'] = null;
+  assert.ok(A.cashForecast(s).rows.every((r) => r.projected === null));
+  s.tables.tCuentas[0]['Saldo calculado'] = 180;
+  s.planned[0].account = 'Missing';
+  assert.ok(
+    A.cashForecast(s, ['out', 'in'])
+      .rows.slice(1)
+      .every((r) => r.projected === null),
+  );
+});
+test('cashless fund transfer carries signed net contribution basis and neutralizes only product market flow', () => {
+  const s = fixture();
+  s.tables.tOperaciones = [s.tables.tOperaciones[0]];
+  s.tables.tProductos.push({
+    ID: 'Q',
+    Producto: 'Destination',
+    'Fecha base': '2026-01-01',
+    'Unidades base': 0,
+    'Coste base': 0,
+  });
+  s.tables.tOperaciones.push(
+    {
+      ID: 'out',
+      Producto: 'P',
+      Fecha: '2026-01-02',
+      Tipo: 'Venta',
+      Participaciones: 5,
+      Importe: 50,
+      Precio: 10,
+    },
+    {
+      ID: 'in',
+      Producto: 'Q',
+      Fecha: '2026-01-02',
+      Tipo: 'Compra',
+      Participaciones: 10,
+      Importe: 50,
+      Precio: 5,
+    },
+  );
+  s.tables.tPrecios.push(
+    { Producto: 'Q', Fecha: '2026-01-02', 'VL EUR': 5 },
+    { Producto: 'Q', Fecha: '2026-01-03', 'VL EUR': 5.5 },
+  );
+  s.fundTransfers = [
+    {
+      id: 'T',
+      date: '2026-01-02',
+      fromProduct: 'P',
+      toProduct: 'Q',
+      outTradeID: 'out',
+      inTradeID: 'in',
+      costBasis: 50,
+      investedBasis: 50,
+      amount: 50,
+      rawOut: 50,
+      rawIn: 50,
+      valuationResidual: 0,
+    },
+  ];
+  const rows = A.investmentTimeline(s).rows;
+  assert.deepEqual(
+    rows.map((r) => r.capital),
+    [100, 100, 100],
+  );
+  assert.deepEqual(
+    rows.map((r) => r.value),
+    [100, 100, 110],
+  );
+  assert.ok(Math.abs(rows.at(-1).returnPct - 10) < 1e-8);
+  assert.equal(
+    A.investmentTimeline(s, { productId: 'P' }).rows[1].totalReturnPct,
+    0,
+  );
+  s.fundTransfers[0].costBasis = -20;
+  assert.equal(
+    A.investmentTimeline(s, { productId: 'P' }).rows.at(-1).capital,
+    120,
+  );
+  assert.equal(
+    A.investmentTimeline(s, { productId: 'Q' }).rows.at(-1).capital,
+    -20,
+  );
+  assert.equal(A.investmentTimeline(s).rows.at(-1).capital, 100);
+  s.fundTransfers[0].costBasis = null;
+  assert.equal(A.investmentTimeline(s).rows.at(-1).capital, null);
+});
+test('asymmetric raw transfer adjusts portfolio TWR only with same-day NAV evidence', () => {
+  const s = fixture();
+  s.settings.asof = s.settings.valuation = '2026-01-03';
+  s.tables.tProductos.push({
+    ID: 'Q',
+    Producto: 'Destination',
+    'Fecha base': '2026-01-01',
+    'Unidades base': 1,
+    'Coste base': 10,
+  });
+  s.tables.tProductos.find((p) => p.ID === 'P')['Unidades base'] = 10;
+  s.tables.tProductos.find((p) => p.ID === 'P')['Coste base'] = 100;
+  s.tables.tOperaciones = [
+    {
+      ID: 'out',
+      Producto: 'P',
+      Fecha: '2026-01-02',
+      Tipo: 'Venta',
+      Participaciones: 0.6,
+      Importe: 6,
+      Precio: 10,
+      Movimiento: null,
+    },
+    {
+      ID: 'in',
+      Producto: 'Q',
+      Fecha: '2026-01-02',
+      Tipo: 'Compra',
+      Participaciones: 0.6003,
+      Importe: 6,
+      Precio: 10,
+      Movimiento: null,
+    },
+  ];
+  s.tables.tPrecios = [
+    { Producto: 'P', Fecha: '2026-01-01', 'VL EUR': 10 },
+    { Producto: 'P', Fecha: '2026-01-02', 'VL EUR': 10 },
+    { Producto: 'P', Fecha: '2026-01-03', 'VL EUR': 10 },
+    { Producto: 'Q', Fecha: '2026-01-01', 'VL EUR': 10 },
+    { Producto: 'Q', Fecha: '2026-01-02', 'VL EUR': 10 },
+    { Producto: 'Q', Fecha: '2026-01-03', 'VL EUR': 10 },
+  ];
+  s.fundTransfers = [
+    {
+      id: 'T',
+      date: '2026-01-02',
+      fromProduct: 'P',
+      toProduct: 'Q',
+      outTradeID: 'out',
+      inTradeID: 'in',
+      costBasis: 6,
+      investedBasis: 6,
+      amount: 6,
+      rawOut: 6,
+      rawIn: 6.003,
+      valuationResidual: 0.003,
+    },
+  ];
+  const timeline = A.investmentTimeline(s);
+  const transferRow = timeline.rows[1];
+  assert.equal(transferRow.returnPct, 0);
+  assert.equal(transferRow.value, 110.003);
+  assert.equal(transferRow.capital, 110);
+  assert.equal(transferRow.precisionAdjustment, 0.003);
+  assert.equal(timeline.coverage.precisionAdjustments[0].verified, true);
+  assert.equal(
+    A.investmentTimeline(s, { productId: 'P' }).rows[1].returnPct,
+    0,
+  );
+  assert.equal(
+    A.investmentTimeline(s, { productId: 'Q' }).rows[1].returnPct,
+    0,
+  );
+  assert.equal(
+    A.investmentTimeline(s, { productId: 'Q' }).rows[1].totalReturnPct,
+    0,
+  );
+  assert.deepEqual(
+    s.tables.tMovimientos.map((m) => m.ID),
+    ['transfer', 'expense', 'payroll'],
+  );
+
+  s.tables.tPrecios = s.tables.tPrecios.filter(
+    (q) => !(q.Producto === 'Q' && q.Fecha === '2026-01-02'),
+  );
+  const unverified = A.investmentTimeline(s);
+  assert.equal(unverified.rows[1].returnPct, null);
+  assert.equal(unverified.rows[2].returnPct, null);
+});
+test('same-class total return includes net distributions once while NAV variation remains separate', () => {
+  const s = fixture();
+  s.tables.tOperaciones = [
+    s.tables.tOperaciones[0],
+    {
+      Producto: 'P',
+      Fecha: '2026-01-02',
+      Tipo: 'Cobro',
+      Precio: 2,
+      Comisión: 0.2,
+      Retención: 0.5,
+    },
+  ];
+  const rows = A.investmentTimeline(s, { productId: 'P' }).rows;
+  assert.ok(Math.abs(rows[1].totalReturnPct - 1.3) < 1e-8);
+  assert.equal(rows[1].returnPct, 0);
+  s.tables.tPrecios = s.tables.tPrecios.filter((p) => p.Fecha !== '2026-01-02');
+  assert.equal(
+    A.investmentTimeline(s, { productId: 'P' }).rows.at(-1).totalReturnPct,
+    null,
+  );
+});
+test('selected-window NAV health counts actual dates and gaps independently of latest freshness', () => {
+  const s = fixture();
+  s.settings.valuation = '2026-04-03';
+  s.tables.tPrecios.push({ Producto: 'P', Fecha: '2026-04-03', 'VL EUR': 12 });
+  const timeline = A.investmentTimeline(s, { productId: 'P', range: '1m' });
+  assert.equal(timeline.coverage.selectedStartDate, '2026-03-03');
+  assert.equal(timeline.coverage.selectedEndDate, '2026-04-03');
+  assert.equal(timeline.coverage.perProduct[0].quoteCount, 1);
+  assert.equal(timeline.coverage.perProduct[0].firstQuote, '2026-04-03');
+  assert.equal(timeline.coverage.carriedDays, 31);
+  assert.ok(
+    timeline.coverage.inceptionCarriedDays > timeline.coverage.carriedDays,
+  );
+  assert.equal(timeline.coverage.perProduct[0].carriedDays, 31);
+});

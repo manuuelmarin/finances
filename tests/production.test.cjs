@@ -49,6 +49,7 @@ test('no infiere producción con configuración incompleta, entorno desconocido 
   for (const props of [
     { ENVIRONMENT: 'production' },
     { ENVIRONMENT: 'production', PRODUCTION_SPREADSHEET_ID: 'fixture-book' },
+    { ENVIRONMENT: 'test', PRODUCTION_SPREADSHEET_ID: 'fixture-book' },
     { ENVIRONMENT: 'other' },
     { ...properties, TEST_SPREADSHEET_ID: '' },
   ]) {

@@ -12,6 +12,8 @@ const assets = [
   'domain.js',
   'queue.js',
   'finance.js',
+  'history.js',
+  'history-template.csv',
   'analytics.js',
   'dashboard.js',
   'charts.js',

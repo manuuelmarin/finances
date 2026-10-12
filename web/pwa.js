@@ -28,9 +28,12 @@
         button.className = 'button button-secondary';
         button.textContent = 'Actualizar app';
         button.addEventListener('click', () => {
-          if (document.querySelector('dialog[open]')) {
+          if (
+            document.querySelector('dialog[open]') ||
+            document.documentElement.dataset.bookBusy === 'true'
+          ) {
             document.getElementById('finance-state').textContent =
-              'Cierra los formularios antes de actualizar. Los pendientes guardados se conservan.';
+              'Cierra los formularios antes de actualizar. Espera a que termine la lectura o el envío. Los pendientes guardados se conservan.';
             return;
           }
           registration.waiting?.postMessage({ type: 'ACTIVATE_UPDATE' });

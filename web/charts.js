@@ -588,7 +588,7 @@ const FinanceCharts = (() => {
           ' · ' +
           number.format((r.value / total) * 100) +
           ' % del total mostrado';
-        for (const button of legend.children)
+        for (const button of legend.querySelectorAll('button'))
           button.setAttribute('aria-pressed', String(button === b));
       };
       b.setAttribute('aria-pressed', 'false');
@@ -598,6 +598,15 @@ const FinanceCharts = (() => {
       legend.append(b);
       start += angle;
     });
+    for (const row of rows.filter((r) => !finite(r.value))) {
+      const item = html('div', undefined, 'distribution-item');
+      item.append(
+        html('span', row.label),
+        html('strong', 'Sin dato'),
+        html('span', 'Peso desconocido', 'distribution-percent'),
+      );
+      legend.append(item);
+    }
     chart.append(
       svg('circle', { cx: 120, cy: 120, r: 68, class: 'donut-hole' }),
       svg(
@@ -613,9 +622,13 @@ const FinanceCharts = (() => {
     );
     content.append(chart, legend);
     article.append(content, readout);
-    if (rows.some((r) => r.value === null))
+    if (rows.some((r) => !finite(r.value)))
       article.append(
-        html('p', 'Reparto parcial: faltan valores.', 'chart-description'),
+        html(
+          'p',
+          'Reparto parcial: faltan valores. Los porcentajes corresponden al subtotal positivo conocido; no representan la composición completa.',
+          'chart-description',
+        ),
       );
     if (rows.some((r) => r.value < 0))
       article.append(

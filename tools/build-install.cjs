@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const root = path.resolve(__dirname, '..');
+const source = path.join(root, 'tools/install-template.html');
 const target = path.join(root, 'web/install.html');
 const version = JSON.parse(
   fs.readFileSync(path.join(root, 'package.json'), 'utf8'),
@@ -21,12 +22,9 @@ const escapeHtml = (text) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#x27;');
-let page = fs.readFileSync(target, 'utf8');
-// Keep the installation instructions current without changing the API version.
-page = page.replace(
-  /(?:Entrega|ENTREGA|buildVersion) \d+\.\d+\.\d+/g,
-  (match) => match.replace(/\d+\.\d+\.\d+/, version),
-);
+let page = fs
+  .readFileSync(source, 'utf8')
+  .replaceAll('{{BUILD_VERSION}}', version);
 for (const [i, name] of [
   'Code.gs',
   'Bridge.html',

@@ -387,7 +387,7 @@ test('tres nuevas calculadoras funcionan localmente y mantienen las existentes',
   for (const [field, value] of Object.entries({
     capital: '1000',
     target: '10000',
-    years: '5',
+    months: '60',
     annualReturn: '0',
   }))
     await page.locator('#goal-saving-' + field).fill(value);
@@ -496,7 +496,9 @@ test('TWR insuficiente explica los cortes que faltan y no muestra resultado sobr
   await setup(page, sparse);
   await navigate(page, 'investments');
   const performance = page.locator('#investment-charts .chart-card').nth(1);
-  await expect(performance).toContainText('TWR entre valoraciones reales');
+  await expect(performance).toContainText(
+    'TWR ajustado entre valoraciones reales',
+  );
   await expect(performance).toContainText('no puede calcularse');
   const rowValues = await performance.locator('tbody tr').allTextContents();
   expect(rowValues.at(-1)).toContain('Sin dato');
@@ -555,7 +557,7 @@ test('TWR identifica la primera valoración real cuando falta el rendimiento ant
   const performance = page.locator('#investment-charts .chart-card').nth(1);
   await expect(
     performance.getByRole('button', {
-      name: 'TWR desde 2026-02-02',
+      name: 'TWR ajustado desde 2026-02-02',
       exact: true,
     }),
   ).toBeVisible();
@@ -564,4 +566,213 @@ test('TWR identifica la primera valoración real cuando falta el rendimiento ant
   );
   const last = await performance.locator('tbody tr').last().textContent();
   expect(last).not.toContain('Sin dato');
+});
+
+test('future budget is planned, account month is independent and unknown goal assets remain visible', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  seed.tables.tCuentas[0]['Saldo calculado'] = null;
+  seed.tables.tObjetivos = [
+    {
+      ID: 'G',
+      Objetivo: 'Meta ficticia',
+      Meta: 1000,
+      Asignado: 500,
+      Fecha: '2026-02-01',
+    },
+  ];
+  seed.tables.tAsignaciones = [
+    { Objetivo: 'G', Origen: 'EFECTIVO', Importe: 600 },
+  ];
+  await setup(page, seed);
+  await navigate(page, 'budgets');
+  await page.locator('#budget-month').fill('2026-04');
+  await expect(page.locator('#budget-spent')).toHaveText('Sin dato');
+  await expect(page.locator('#budget-note')).toContainText(
+    'Mes futuro planificado',
+  );
+  await navigate(page, 'accounts');
+  await page.locator('#account-month').fill('2026-02');
+  await navigate(page, 'home');
+  await page.locator('#cash-month').fill('2026-01');
+  await navigate(page, 'accounts');
+  await expect(page.locator('#account-month')).toHaveValue('2026-02');
+  await navigate(page, 'goals');
+  await expect(page.locator('#goal-availability')).toContainText(
+    'Sobreasignado',
+  );
+  await expect(page.locator('#goal-availability')).toContainText(
+    'Disponibilidad desconocida',
+  );
+  await expect(page.locator('#saving-goals')).toContainText('Plazo vencido');
+});
+
+test('planned realization reviews actual plus plan closing and projection selection does not write', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  seed.supportsPlanning = true;
+  seed.capabilities = { planned: true };
+  seed.planned = [
+    {
+      id: 'P1',
+      date: '2026-04-01',
+      concept: 'Pago ficticio',
+      account: 'Banco ficticio',
+      category: 'Alquiler',
+      amount: 50,
+      kind: 'expense',
+      active: true,
+    },
+  ];
+  await setup(page, seed);
+  await page.evaluate(
+    (seed) =>
+      FinanceDashboard.render(seed, {
+        review: (operations) => {
+          window.reviewedOperations = operations;
+        },
+      }),
+    seed,
+  );
+  await navigate(page, 'accounts');
+  await expect(page.locator('#forecast-note')).toContainText(
+    'no es saldo disponible actual',
+  );
+  await page.locator('#planned-list input[type=checkbox]').uncheck();
+  expect(await page.evaluate(() => window.reviewedOperations)).toBeUndefined();
+  await page
+    .getByRole('button', { name: 'Confirmar realizado', exact: true })
+    .click();
+  expect(await page.evaluate(() => window.reviewedOperations)).toEqual([
+    {
+      process: 'gasto',
+      date: '2026-04-01',
+      concept: 'Pago ficticio',
+      account: 'Banco ficticio',
+      category: 'Alquiler',
+      amount: 50,
+    },
+    { process: 'quitar_obligacion', id: 'P1' },
+  ]);
+});
+
+test('closing or changing a book clears analytics evidence and open book-specific forms', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  seed.tables.tAsignaciones = [
+    { Objetivo: 'G', Origen: 'EFECTIVO', Importe: 600 },
+  ];
+  await setup(page, seed);
+  await navigate(page, 'goals');
+  await page.locator('#goal-assign-new').click();
+  await expect(page.locator('#goal-assign-dialog')).toBeVisible();
+  await page.evaluate(() => FinanceDashboard.render(null));
+  await expect(page.locator('#goal-assign-dialog')).not.toBeVisible();
+  await expect(page.locator('#goal-availability')).toBeEmpty();
+  await expect(page.locator('#budget-analysis')).toBeEmpty();
+  await expect(page.locator('#account-comparisons')).toBeEmpty();
+  await expect(page.locator('#account-cut')).toBeEmpty();
+  await expect(page.locator('#salary-cut')).toBeEmpty();
+  await expect(page.locator('#goal-assign-new')).toBeDisabled();
+});
+
+test('planning capability permits first plan before its metadata sheet exists and old backends stay disabled', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  seed.supportsPlanning = false;
+  seed.capabilities = { planned: true };
+  seed.planned = [];
+  await setup(page, seed);
+  await page.evaluate(
+    (seed) =>
+      FinanceDashboard.render(seed, {
+        review: (operations) => {
+          window.reviewedOperations = operations;
+        },
+      }),
+    seed,
+  );
+  await navigate(page, 'accounts');
+  await expect(page.locator('#plan-new')).toBeEnabled();
+  await page.locator('#plan-new').click();
+  await page.locator('#plan-date').fill('2026-04-01');
+  await page.locator('#plan-concept').fill('First fictitious planned payment');
+  await page.locator('#plan-amount').fill('50');
+  await page.locator('#plan-form button[type=submit]').click();
+  expect(await page.evaluate(() => window.reviewedOperations)).toEqual([
+    {
+      process: 'obligacion',
+      date: '2026-04-01',
+      concept: 'First fictitious planned payment',
+      account: 'Banco ficticio',
+      category: 'Alquiler',
+      amount: 50,
+      kind: 'expense',
+    },
+  ]);
+  delete seed.capabilities;
+  await page.evaluate((seed) => FinanceDashboard.render(seed), seed);
+  await expect(page.locator('#plan-new')).toBeDisabled();
+});
+
+test('future expense panels and missing-price portfolio composition never imply observed zero or known weight', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  seed.summary.missingPrices = ['Fondo Alfa ficticio'];
+  await setup(page, seed);
+  await navigate(page, 'investments');
+  const composition = page.locator('#investment-charts .chart-card').filter({
+    has: page.getByRole('heading', {
+      name: 'Distribución de la cartera',
+      exact: true,
+    }),
+  });
+  await expect(composition.locator('.distribution-legend')).toContainText(
+    'Fondo Alfa ficticio',
+  );
+  await expect(composition.locator('.distribution-legend')).toContainText(
+    'Sin dato',
+  );
+  await expect(composition).toContainText('subtotal positivo conocido');
+  await navigate(page, 'book');
+  await page.locator('#spending-month').fill('2026-04');
+  await expect(page.locator('#spending-summary')).toContainText('Sin dato');
+  await expect(page.locator('#spending-charts .chart-card')).toHaveCount(0);
+  await expect(page.locator('#spending-charts')).toContainText(
+    'Mes futuro planificado',
+  );
+});
+
+test('new planned payments and budget limits reuse archive-aware reference choices', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  seed.capabilities = { planned: true };
+  seed.archives = { accounts: ['Banco ficticio'], categories: ['Alquiler'] };
+  await setup(page, seed);
+  await navigate(page, 'accounts');
+  await page.locator('#plan-new').click();
+  await expect(
+    page.locator('#plan-account option[value="Banco ficticio"]'),
+  ).toHaveCount(0);
+  await expect(
+    page.locator('#plan-account option[value="EFECTIVO"]'),
+  ).toHaveCount(1);
+  await expect(
+    page.locator('#plan-category option[value="Alquiler"]'),
+  ).toHaveCount(0);
+  await page.locator('#plan-cancel').click();
+  await navigate(page, 'budgets');
+  await page.locator('#budget-new').click();
+  await expect(
+    page.locator('#budget-category option[value="Alquiler"]'),
+  ).toHaveCount(0);
+  await expect(
+    page.locator('#budget-category option[value="Compra"]'),
+  ).toHaveCount(1);
 });

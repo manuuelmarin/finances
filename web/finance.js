@@ -1,3 +1,4 @@
+/* global currentDeployment */
 'use strict';
 
 (() => {
@@ -28,7 +29,12 @@
     editing = null,
     loading = false,
     configurationEpoch = 0,
-    limit = 50;
+    limit = 50,
+    activityLimit = 50,
+    activityFilter = 'all',
+    recoveryRequested = false,
+    recoveryAttempts = 0,
+    recoveryTimer = null;
   const store = new FinanceSync.BrowserStore();
   const el = (tag, text, cls) => {
     const e = document.createElement(tag);
@@ -53,10 +59,14 @@
       EMBEDDED_CONTEXT:
         'Abre Finanzas en su propia ventana para acceder a tu libro.',
       UPDATE_REQUIRED:
-        'Actualiza Code.gs, Bridge.html y appsscript.json desde el instalador 3.6.0 y publica Nueva versión de la implementación de pruebas. Guardar el editor no actualiza el enlace /exec.',
+        'Actualiza Code.gs, Bridge.html y appsscript.json desde el instalador 3.9.0 y publica Nueva versión de la implementación del entorno seleccionado (pruebas o principal). Guardar el editor no actualiza el enlace /exec.',
       POPUP_BLOCKED:
         'Permite abrir la ventana de Google y vuelve a pulsar Abrir mi libro.',
       NOT_CONNECTED: 'Abre Google para leer o enviar los pendientes.',
+      CANNOT_DISCARD_IN_FLIGHT:
+        'La solicitud ya está en curso o sin confirmar. Consulta su recibo; no se puede descartar.',
+      CANNOT_DISCARD:
+        'La solicitud ya no se puede descartar. Actualiza Actividad para ver su estado.',
       BOOK_BUSY:
         'Hay una lectura o un envío en curso. Espera a que termine y vuelve a comprobar.',
       CONNECTION_TIMEOUT:
@@ -73,6 +83,11 @@
         'Google no ha respondido a la comprobación del canal. Mantén abierta su ventana y vuelve a abrir el libro.',
       INVALID_RESPONSE:
         'Google no ha devuelto el formato vigente. Actualiza los tres archivos desde el instalador y publica Nueva versión.',
+      SUBMIT_FAILED:
+        'El canal falló durante el envío. Se conserva la solicitud para consultar su recibo.',
+      STATUS_FAILED:
+        'No se pudo consultar el recibo. La solicitud se conserva sin confirmar.',
+      REVIEW_REQUIRED: 'Hay solicitudes que requieren revisión en Actividad.',
       RESPONSE_UNCERTAIN:
         'Envío sin confirmar. La solicitud se conserva para consultar el recibo antes de reintentar.',
       STORAGE_UNAVAILABLE:
@@ -118,6 +133,7 @@
     }
   }
   function enabled() {
+    document.documentElement.dataset.bookBusy = String(loading);
     $('finance-new').disabled = loading;
     $('finance-prices').disabled = !snapshot || loading;
     const channelBlocked = client?.session?.rpcReady === false;
@@ -135,7 +151,7 @@
     return queue ? queue.get() : { queue: [], snapshot: null };
   }
   async function configure() {
-    const next = savedDeployment(window.localStorage);
+    const next = currentDeployment();
     if (openingClient && openingClient.url !== next) {
       openingClient.close();
       openingClient = null;
@@ -214,7 +230,7 @@
       client?.session &&
       client.session.rpcReady === true &&
       !client.session.popup?.closed &&
-      client.url === savedDeployment(window.localStorage) &&
+      client.url === currentDeployment() &&
       client.url === url,
     );
   }
@@ -224,7 +240,7 @@
       return false;
     }
     // Abrir la ventana en el clic, antes de esperar IndexedDB.
-    const next = savedDeployment(window.localStorage);
+    const next = currentDeployment();
     if (!next) {
       if (propagate) throw Error('NOT_CONFIGURED');
       location.hash = 'connection';
@@ -257,7 +273,7 @@
       await Promise.all([configuration, handshake]);
       if (
         epoch !== configurationEpoch ||
-        savedDeployment(window.localStorage) !== next ||
+        currentDeployment() !== next ||
         url !== next ||
         !queue ||
         !opening.session
@@ -282,6 +298,7 @@
       if (openingClient === opening) openingClient = null;
       loading = false;
       enabled();
+      scheduleRecovery();
     }
   }
   // Todas las comprobaciones usan el mismo canal que las operaciones del libro.
@@ -311,6 +328,7 @@
                 apiVersion: snapshot.apiVersion,
                 buildVersion: snapshot.buildVersion,
                 rpcReady: checkedClient.session.rpcReady,
+                bridgeVersion: checkedClient.session.bridgeVersion,
               }
             : await checkedClient[action]();
         if (
@@ -332,10 +350,38 @@
       } finally {
         loading = false;
         enabled();
+        scheduleRecovery();
       }
     },
   };
+  const priceHistory = globalThis.FinanceHistory?.bind({
+    getSnapshot: () => snapshot,
+    preview: async (payload) => {
+      if (!liveSession()) throw Error('NOT_CONNECTED');
+      return client.request(payload);
+    },
+    enqueue: async (label, action, payload) => {
+      if (!queue || !snapshot) throw Error('READ_REQUIRED');
+      if (action !== 'importPriceHistory') throw Error('INVALID_REQUEST');
+      const submittedQueue = queue;
+      const data = await submittedQueue.enqueue(null, label, action, payload);
+      const item = data.queue[data.queue.length - 1];
+      await render();
+      if (liveSession()) await sync();
+      if (queue !== submittedQueue) throw Error('CONFIGURATION_CHANGED');
+      return { requestId: item.envelope.requestId };
+    },
+    receipt: async (requestId) =>
+      (await saved()).queue.find(
+        (item) => item.envelope.requestId === requestId,
+      ) || null,
+    status,
+  });
   async function sync() {
+    if (loading) {
+      recoveryRequested = true;
+      return;
+    }
     if (!client?.session) {
       status('Abre Google para enviar los pendientes.');
       return;
@@ -344,19 +390,37 @@
     enabled();
     status('Consultando y enviando pendientes…');
     try {
-      await queue.run(client, () => {
+      const outcome = await queue.run(client, () => {
         void render();
       });
       snapshot = (await saved()).snapshot;
+      if (
+        recoveryAttempts > 0 &&
+        recoveryAttempts < 3 &&
+        ['unconfirmed', 'busy'].includes(outcome.status)
+      )
+        recoveryRequested = true;
       status(
-        'Sincronización terminada. Revisa el estado de cada operación.',
+        outcome.status === 'busy'
+          ? 'Otra ventana está comprobando o enviando los pendientes.'
+          : outcome.reason === 'POST_CONFIRM_READ_FAILED'
+            ? 'Google confirmó la operación. La lectura posterior falló; el recibo se conserva. Actualiza los datos.'
+            : outcome.status === 'unconfirmed'
+              ? 'Quedan envíos sin confirmar. ' +
+                errorText(Error(outcome.reason))
+              : outcome.status === 'review'
+                ? 'Hay operaciones que requieren revisión. Consulta Actividad.'
+                : 'Sincronización confirmada. Revisa el estado de cada operación.',
         snapshot ? 'loaded' : 'unread',
       );
     } catch (error) {
+      if (recoveryAttempts > 0 && recoveryAttempts < 3)
+        recoveryRequested = true;
       status(errorText(error), 'error');
     } finally {
       loading = false;
       await render();
+      scheduleRecovery();
     }
   }
   function presentation(value) {
@@ -431,9 +495,10 @@
     const visibleColumns = columns;
     const numericColumn = (key) =>
       rows.some((row) => typeof row[key] === 'number') ||
-      /Importe|Saldo|Valor|Resultado|Rentabilidad|Participaciones|Precio|Comisión|Retención|Recuperable|Meta|Asignado|Pendiente|Avance|Neto|Bruto|Cotización|IRPF|deducciones|VL EUR|amount|difference/.test(
+      /Importe|Saldo|Valor|Resultado|Rentabilidad|Peso|Participaciones|Precio|Comisión|Retención|Recuperable|Meta|Asignado|Pendiente|Avance|Neto|Bruto|Cotización|IRPF|deducciones|VL EUR|amount|difference/.test(
         key,
       );
+    const percentageColumn = (key) => /Rentabilidad|Peso|Avance/.test(key);
     const dateColumn = (key) => /Fecha|^date$/.test(key);
     const filtered = rows.filter((row) =>
       visibleColumns.every(([key]) => {
@@ -446,9 +511,14 @@
           return (
             (!filter.min ||
               value >=
-                (numericColumn(key) ? Number(filter.min) : filter.min)) &&
+                (numericColumn(key)
+                  ? Number(filter.min) / (percentageColumn(key) ? 100 : 1)
+                  : filter.min)) &&
             (!filter.max ||
-              value <= (numericColumn(key) ? Number(filter.max) : filter.max))
+              value <=
+                (numericColumn(key)
+                  ? Number(filter.max) / (percentageColumn(key) ? 100 : 1)
+                  : filter.max))
           );
         }
         return (
@@ -480,6 +550,25 @@
     const caption = el(
       'caption',
       `${Math.min(filtered.length, limit)}${filtered.length > limit ? ' de ' + filtered.length : ''} registros`,
+    );
+    const tools = el('div', undefined, 'table-tools');
+    tools.append(
+      button('Limpiar filtros', () => {
+        state.filters = {};
+        table(parent, rows, columns, name, actions);
+        parent.querySelector('.column-filter')?.focus();
+      }),
+      button('Exportar CSV filtrado', () => {
+        const blob = new Blob([D.csv(filtered, visibleColumns)], {
+          type: 'text/csv;charset=utf-8',
+        });
+        const link = el('a');
+        const href = URL.createObjectURL(blob);
+        link.href = href;
+        link.download = name + '.csv';
+        link.click();
+        URL.revokeObjectURL(href);
+      }),
     );
     t.append(caption);
     const head = el('thead'),
@@ -525,14 +614,18 @@
           'aria-label',
           'Filtrar ' +
             title +
-            (part === 'min' ? ' desde' : part === 'max' ? ' hasta' : ''),
+            (part === 'min' ? ' desde' : part === 'max' ? ' hasta' : '') +
+            (percentageColumn(key) ? ' en porcentaje' : ''),
         );
+        input.dataset.filterKey = key + '-' + part;
         input.placeholder =
-          part === 'min' ? 'Desde' : part === 'max' ? 'Hasta' : 'Filtrar';
+          (part === 'min' ? 'Desde' : part === 'max' ? 'Hasta' : 'Filtrar') +
+          (percentageColumn(key) ? ' %' : '');
         input.addEventListener('change', () => {
           state.filters[key] = { ...state.filters[key], [part]: input.value };
           limit = 50;
           table(parent, rows, columns, name, actions);
+          parent.querySelector(`[data-filter-key="${key}-${part}"]`)?.focus();
         });
         filterCell.append(input);
       }
@@ -582,6 +675,28 @@
           toggle.setAttribute('aria-controls', detailRow.id);
           td.append(toggle);
         }
+        if (['tCuentas', 'tCategorias'].includes(name)) {
+          const kind = name === 'tCuentas' ? 'account' : 'category',
+            reference = row[name === 'tCuentas' ? 'Cuenta' : 'Subcategoría'];
+          const archived =
+            snapshot.archives?.[
+              kind === 'account' ? 'accounts' : 'categories'
+            ]?.includes(reference);
+          td.append(
+            button(archived ? 'Recuperar' : 'Archivar', () => {
+              if (!snapshot.capabilities?.archives) {
+                status('Actualiza el backend para archivar referencias.');
+                return;
+              }
+              showReview(
+                [{ process: 'archivar', kind, reference, archived: !archived }],
+                (archived ? 'Recuperar ' : 'Archivar ') + reference,
+                null,
+                'El historial se conserva. Las referencias archivadas se ocultan al crear operaciones y siguen disponibles al corregir registros.',
+              );
+            }),
+          );
+        }
         td.append(
           button('Corregir', () => editRow(name, row)),
           button('Anular', () => cancelRow(name, row)),
@@ -605,7 +720,7 @@
       body.append(empty);
     }
     t.append(body);
-    wrap.append(t);
+    wrap.append(tools, t);
     parent.append(wrap);
     if (filtered.length > limit)
       parent.append(
@@ -644,6 +759,7 @@
       ['Producto'],
       ['ISIN'],
       ['Tipo'],
+      ['Concepto'],
       ['Participaciones'],
       ['Precio'],
       ['Comisión'],
@@ -798,6 +914,19 @@
               price.product === (name === 'tProductos' ? row.ID : row.Producto),
           )?.isin || null,
       }));
+    if (name === 'tOperaciones') {
+      const transferConcepts = new Map();
+      for (const transfer of snapshot?.fundTransfers || []) {
+        if (transfer.outTradeID)
+          transferConcepts.set(transfer.outTradeID, transfer.concept);
+        if (transfer.inTradeID)
+          transferConcepts.set(transfer.inTradeID, transfer.concept);
+      }
+      rows = rows.map((row) => ({
+        ...row,
+        Concepto: transferConcepts.get(row.ID) || null,
+      }));
+    }
     rows = rows.filter((row) => {
       const date = row.Fecha || row['Fecha cobro'] || row.date;
       return (
@@ -882,6 +1011,7 @@
     const data = await saved();
     if (epoch !== configurationEpoch || renderingQueue !== queue) return;
     snapshot = data.snapshot;
+    priceHistory?.refresh(snapshot);
     enabled();
     for (const label of document.querySelectorAll('[data-finance-environment]'))
       label.textContent = snapshot
@@ -942,19 +1072,48 @@
       review: 'Requiere revisión',
       discarded: 'Descartada sin enviar',
     };
-    const active = items
+    const filtered = items.filter(
+      (item) => activityFilter === 'all' || item.status === activityFilter,
+    );
+    const filter = el('select');
+    filter.setAttribute('aria-label', 'Filtrar actividad');
+    filter.append(new Option('Toda la actividad', 'all'));
+    for (const [value, label] of Object.entries(labels))
+      filter.append(new Option(label, value));
+    filter.value = activityFilter;
+    filter.addEventListener('change', () => {
+      activityFilter = filter.value;
+      activityLimit = 50;
+      void render();
+    });
+    parent.append(
+      filter,
+      el(
+        'p',
+        filtered.length +
+          ' solicitudes del filtro · ' +
+          items.length +
+          ' en este navegador.',
+      ),
+    );
+    const active = filtered
       .filter((q) => !['discarded', 'confirmed'].includes(q.status))
       .slice()
       .reverse();
-    const confirmed = items
+    const confirmed = filtered
       .filter((q) => q.status === 'confirmed')
       .slice()
       .reverse();
-    $('pending-total').textContent = String(active.length);
-    $('history-total').textContent = String(confirmed.length);
+    const pendingCount = items.filter(
+      (item) => !['confirmed', 'discarded'].includes(item.status),
+    ).length;
+    $('pending-total').textContent = String(pendingCount);
+    $('history-total').textContent = String(
+      items.filter((item) => item.status === 'confirmed').length,
+    );
     for (const badge of document.querySelectorAll('[data-pending-count]')) {
-      badge.textContent = String(active.length);
-      badge.hidden = !active.length;
+      badge.textContent = String(pendingCount);
+      badge.hidden = !pendingCount;
     }
     if (!active.length) {
       parent.append(el('p', 'No hay operaciones pendientes.', 'empty-state'));
@@ -967,12 +1126,36 @@
           'empty-state',
         ),
       );
-    for (const item of [...active.slice(0, 50), ...confirmed.slice(0, 50)]) {
+    if (
+      Math.max(
+        active.length,
+        confirmed.length,
+        filtered.filter((q) => q.status === 'discarded').length,
+      ) > activityLimit
+    )
+      parent.append(
+        button('Mostrar más actividad', () => {
+          activityLimit += 50;
+          void render();
+        }),
+      );
+    for (const item of [
+      ...active.slice(0, activityLimit),
+      ...confirmed.slice(0, activityLimit),
+      ...filtered
+        .filter((q) => q.status === 'discarded')
+        .slice()
+        .reverse()
+        .slice(0, activityLimit),
+    ]) {
       const card = el('article', undefined, 'queue-item');
       card.dataset.state = item.status;
       card.append(
         el('strong', item.label),
         el('span', labels[item.status]),
+        ...(item.claim?.until > Date.now()
+          ? [el('p', 'En curso en otra ventana; espera su confirmación.')]
+          : []),
         el(
           'small',
           new Date(item.createdAt).toLocaleString('es-ES', {
@@ -980,7 +1163,17 @@
           }),
         ),
       );
+      card.append(el('small', 'Solicitud: ' + item.envelope.requestId));
       if (item.result?.message) card.append(el('p', item.result.message));
+      else if (item.result?.error)
+        card.append(el('p', errorText(Error(item.result.error))));
+      if (item.status === 'confirmed')
+        card.append(
+          el(
+            'p',
+            'Recibo de Google confirmado y conservado en este navegador.',
+          ),
+        );
       if (item.result?.complete === false)
         card.append(
           el(
@@ -1032,12 +1225,12 @@
       input.append(new Option(f.required ? 'Selecciona…' : 'Sin dato', ''));
       const values =
         f.type === 'select'
-          ? D.options(
-              f.source,
-              snapshot,
-              $('operation-kind').value,
-              Object.fromEntries(new FormData($('operation-form'))),
-            )
+          ? D.options(f.source, snapshot, $('operation-kind').value, {
+              ...editing?.row,
+              _allowArchived: !!editing,
+              _editingMovement: editing?.contextual,
+              ...Object.fromEntries(new FormData($('operation-form'))),
+            })
           : [
               ['true', 'Sí'],
               ['false', 'No'],
@@ -1108,6 +1301,96 @@
       );
       parent.append(additional);
     }
+    if (
+      [
+        'gasto',
+        'ingreso',
+        'nomina',
+        'traspaso',
+        'prestamo',
+        'pago_deuda',
+        'cobro_compartido',
+        'devolucion_gasto',
+      ].includes(process)
+    ) {
+      const templates = el('details', undefined, 'operation-templates');
+      templates.append(el('summary', 'Plantillas de este libro'));
+      if (!snapshot?.capabilities?.templates)
+        templates.append(
+          el('p', 'Actualiza el backend para guardar y reutilizar plantillas.'),
+        );
+      else {
+        const name = el('input');
+        name.placeholder = 'Nombre de la plantilla';
+        name.setAttribute('aria-label', 'Nombre de la plantilla');
+        templates.append(
+          name,
+          button('Guardar como plantilla', () => {
+            try {
+              const values = Object.fromEntries(
+                new FormData($('operation-form')),
+              );
+              if (!values.concept) values.concept = spec.label;
+              const operation = D.operation(process, values);
+              if (!name.value.trim())
+                throw Error('Introduce un nombre para la plantilla.');
+              showReview(
+                [{ process: 'plantilla', name: name.value.trim(), operation }],
+                'Guardar plantilla · ' + name.value.trim(),
+                null,
+                'Se guarda una propuesta reutilizable. No se registra ningún movimiento.',
+              );
+            } catch (error) {
+              status(errorText(error));
+            }
+          }),
+        );
+        for (const template of snapshot.templates || []) {
+          const card = el('div');
+          card.append(
+            el('span', template.name),
+            button('Usar', () => {
+              operationChoices(template.operation.process);
+              $('operation-kind').value = template.operation.process;
+              processFields(template.operation);
+            }),
+            button('Actualizar con estos datos', () => {
+              try {
+                const values = Object.fromEntries(
+                  new FormData($('operation-form')),
+                );
+                if (!values.concept) values.concept = spec.label;
+                showReview(
+                  [
+                    {
+                      process: 'plantilla',
+                      id: template.id,
+                      name: name.value.trim() || template.name,
+                      operation: D.operation(process, values),
+                    },
+                  ],
+                  'Actualizar plantilla · ' + template.name,
+                  null,
+                  'La plantilla cambia; no se registra dinero.',
+                );
+              } catch (error) {
+                status(errorText(error));
+              }
+            }),
+            button('Eliminar plantilla', () =>
+              showReview(
+                [{ process: 'quitar_plantilla', id: template.id }],
+                'Eliminar plantilla · ' + template.name,
+                null,
+                'Se retira únicamente la plantilla. Su historial y las operaciones confirmadas se conservan.',
+              ),
+            ),
+          );
+          templates.append(card);
+        }
+      }
+      parent.append(templates);
+    }
     if (process === 'renombrar')
       $('operation-kind').form.elements.kind.addEventListener('change', () => {
         const current =
@@ -1116,6 +1399,8 @@
       });
     $('operation-note').textContent =
       {
+        traspaso_fondo:
+          'Las dos partes deben liquidar el mismo importe ejecutado en céntimos. El valor bruto puede diferir por la precisión de participaciones o valor liquidativo; esa diferencia se muestra al revisar. Se trasladan participaciones y aportaciones; no se crea caja ni ingreso. El backend verifica y conserva las fórmulas revisadas antes de registrar el lote.',
         producto:
           'La posición base recoge lo que ya tienes en esa fecha. No crea compras ni caja. Si cambias de fondo, crea otro producto para conservar su historial.',
         asignacion:
@@ -1219,6 +1504,134 @@
     ],
   };
   function editRow(name, row) {
+    const payroll =
+      name === 'tNominas'
+        ? row
+        : name === 'tMovimientos'
+          ? snapshot.tables.tNominas.find((n) => n.Movimiento === row.ID)
+          : null;
+    if (payroll) {
+      const movement = snapshot.tables.tMovimientos.find(
+        (m) => m.ID === payroll.Movimiento,
+      );
+      if (!snapshot.capabilities?.payrollCorrection) {
+        status('Actualiza el backend para corregir la nómina completa.');
+        return;
+      }
+      const values = {
+        date: movement.Fecha,
+        concept: movement.Concepto,
+        account: movement.Destino,
+        category: movement.Subcategoría,
+        amount: movement.Importe,
+        gross: payroll.Bruto,
+        contribution: payroll.Cotización,
+        tax: payroll.IRPF,
+        otherDeductions: payroll['Otras deducciones'],
+        location: movement.Localización,
+      };
+      editing = {
+        name,
+        row: values,
+        sourceRow: row,
+        payroll: movement.ID,
+        fields: D.processes.nomina.fields,
+      };
+      $('operation-title').textContent =
+        'Corregir nómina · ' + movement.Concepto;
+      $('operation-kind-field').hidden = true;
+      $('operation-kind').value = 'nomina';
+      $('operation-fields').replaceChildren();
+      for (const f of editing.fields)
+        $('operation-fields').append(fieldInput(f, values[f.key]));
+      $('operation-note').textContent =
+        'Fecha, cuenta, neto y desglose se revisan juntos. El ingreso conserva su ID.';
+      $('operation-error').hidden = true;
+      $('operation-dialog').showModal();
+      return;
+    }
+    const kinds = {
+      Gasto: 'gasto',
+      Ingreso: 'ingreso',
+      Transferencia: 'traspaso',
+      'Préstamo recibido': 'prestamo',
+      'Devolución deuda': 'pago_deuda',
+      'Cobro compartido': 'cobro_compartido',
+      'Devolución gasto': 'devolucion_gasto',
+    };
+    if (
+      name === 'tMovimientos' &&
+      kinds[row.Tipo] &&
+      snapshot.capabilities?.contextualCorrection
+    ) {
+      const kind = kinds[row.Tipo],
+        link = snapshot.tables.tVinculos.find((r) => r.Movimiento === row.ID);
+      const values = {
+        date: row.Fecha,
+        concept: row.Concepto,
+        account:
+          row.Tipo === 'Gasto' || row.Tipo === 'Devolución deuda'
+            ? row.Origen
+            : row.Destino,
+        from: row.Origen,
+        to: row.Destino,
+        category: row.Subcategoría,
+        amount: row.Importe,
+        recoverable: row.Recuperable,
+        original: link?.['Vinculado a'],
+        debt: link?.['Vinculado a'],
+        location: row.Localización,
+        recurring:
+          row.Recurrente === 'Sí'
+            ? true
+            : row.Recurrente === 'No'
+              ? false
+              : null,
+      };
+      editing = {
+        name,
+        row: values,
+        sourceRow: row,
+        contextual: row.ID,
+        kind,
+        fields: D.processes[kind].fields,
+      };
+      $('operation-title').textContent =
+        'Corregir ' + D.readable(name, row, snapshot);
+      $('operation-kind-field').hidden = true;
+      $('operation-kind').value = kind;
+      $('operation-fields').replaceChildren();
+      const label = el('label', 'Tipo de movimiento', 'field'),
+        select = el('select');
+      select.name = 'editKind';
+      for (const [type, value] of Object.entries(kinds))
+        select.append(new Option(type, value));
+      select.value = kind;
+      select.addEventListener('change', () =>
+        editRow(name, {
+          ...row,
+          Tipo: Object.keys(kinds).find((k) => kinds[k] === select.value),
+        }),
+      );
+      label.append(select);
+      $('operation-fields').append(label);
+      for (const f of editing.fields)
+        $('operation-fields').append(fieldInput(f, values[f.key]));
+      $('operation-note').textContent =
+        'La corrección conserva el ID y actualiza el vínculo en el mismo lote. Google comprueba el saldo pendiente y el recuperable.';
+      $('operation-error').hidden = true;
+      $('operation-dialog').showModal();
+      return;
+    }
+    if (
+      name === 'tOperaciones' &&
+      snapshot.fundTransfers?.some((t) =>
+        [t.outTradeID, t.inTradeID].includes(row.ID),
+      )
+    ) {
+      status('Anula el traspaso completo y prepara sus dos partes corregidas.');
+      return;
+    }
     const linked =
       name === 'tMovimientos' &&
       snapshot.tables.tOperaciones.some((r) => r.Movimiento === row.ID);
@@ -1266,6 +1679,20 @@
     $('operation-dialog').showModal();
   }
   function cancelRow(tableName, row) {
+    const transfer =
+      tableName === 'tOperaciones' &&
+      snapshot.fundTransfers?.find((t) =>
+        [t.outTradeID, t.inTradeID].includes(row.ID),
+      );
+    if (transfer) {
+      showReview(
+        [{ process: 'anular_traspaso_fondo', id: transfer.id }],
+        'Anular traspaso entre fondos',
+        null,
+        'Se retiran las dos partes juntas y se restituye el capital aportado trasladado. No se crea ningún movimiento de caja. Las operaciones posteriores deben conservar participaciones suficientes.',
+      );
+      return;
+    }
     const label = 'Anular ' + D.readable(tableName, row, snapshot);
     showReview(
       [
@@ -1277,7 +1704,84 @@
       ],
       label,
       null,
-      'Google verifica los vínculos. Al anular un movimiento también se anulan su nómina, vínculos y operaciones de inversión; al anular una operación se recalcula su caja agrupada. Una referencia todavía utilizada impide la anulación.',
+      (() => {
+        const t = snapshot.tables;
+        if (tableName === 'tMovimientos') {
+          const payrolls = t.tNominas.filter(
+              (n) => n.Movimiento === row.ID,
+            ).length,
+            trades = t.tOperaciones.filter(
+              (o) => o.Movimiento === row.ID,
+            ).length,
+            links = t.tVinculos.filter((v) => v.Movimiento === row.ID).length;
+          const dependents = t.tVinculos.filter(
+            (v) => v['Vinculado a'] === row.ID,
+          ).length;
+          return (
+            `Se retira ${row.Importe} EUR de ${row.Origen || row.Destino || 'su cuenta'} en ${row.Fecha}. Se anulan ${payrolls} nóminas, ${trades} operaciones de inversión y ${links} vínculos asociados.` +
+            (dependents
+              ? ` Hay ${dependents} cobros o devoluciones que lo utilizan: anúlalos o corrígelos primero.`
+              : ' El ID dejará de existir.')
+          );
+        }
+        if (tableName === 'tOperaciones')
+          return `Se retiran ${row.Participaciones || 0} participaciones de esta operación. ${row.Movimiento ? 'Se recalcula su caja agrupada; se retira el movimiento si no quedan operaciones enlazadas.' : 'No hay movimiento de caja asociado.'}`;
+        if (tableName === 'tNominas')
+          return 'Se retira únicamente el desglose de nómina. El ingreso y su ID se conservan.';
+        if (tableName === 'tObjetivos')
+          return `Se retira el objetivo y ${t.tAsignaciones.filter((a) => a.Objetivo === row.ID).length} asignaciones. No se mueve dinero.`;
+        if (tableName === 'tAsignaciones')
+          return 'Se libera esta asignación del objetivo. No se mueve dinero.';
+        if (['tCuentas', 'tCategorias', 'tDeudas'].includes(tableName)) {
+          const reference =
+            tableName === 'tCuentas'
+              ? row.Cuenta
+              : tableName === 'tCategorias'
+                ? row.Subcategoría
+                : row.ID;
+          const keys =
+            tableName === 'tCuentas'
+              ? ['account', 'from', 'to']
+              : tableName === 'tCategorias'
+                ? ['category']
+                : ['debt'];
+          const templates = (snapshot.templates || []).filter((template) =>
+            keys.some((key) => template.operation[key] === reference),
+          ).length;
+          const plans = (snapshot.planned || []).filter(
+            (plan) =>
+              (tableName === 'tCuentas'
+                ? plan.account
+                : tableName === 'tCategorias'
+                  ? plan.category
+                  : null) === reference,
+          ).length;
+          const archived = (
+            tableName === 'tCuentas'
+              ? snapshot.archives?.accounts
+              : tableName === 'tCategorias'
+                ? snapshot.archives?.categories
+                : []
+          )?.includes(reference);
+          return (
+            `Hay ${templates} plantillas activas y ${plans} obligaciones previstas que utilizan esta referencia.` +
+            (archived
+              ? ' La referencia está archivada: recupérala antes de anularla.'
+              : '') +
+            (templates || plans
+              ? ' Elimina o cambia esas referencias primero; la anulación se bloqueará mientras se utilicen.'
+              : ' Google comprueba además los movimientos y observaciones que la utilizan. Para conservar el historial de cuentas o subcategorías, utiliza Archivar.')
+          );
+        }
+        if (
+          tableName === 'tCuentas' ||
+          tableName === 'tCategorias' ||
+          tableName === 'tProductos' ||
+          tableName === 'tDeudas'
+        )
+          return 'Una referencia utilizada impide la anulación. Para conservar el historial de cuentas o subcategorías, utiliza Archivar.';
+        return 'Se retira este registro; las referencias y columnas calculadas se validan antes de guardar.';
+      })(),
     );
   }
   function showReview(operations, label, action, note) {
@@ -1298,14 +1802,39 @@
         if (['process', 'table', 'key'].includes(key)) continue;
         if (key === 'changes') {
           for (const [k, v] of Object.entries(value)) {
-            dl.append(el('dt', k), el('dd', displayValue(k, v, snapshot)));
+            const before = editing?.row?.[k];
+            dl.append(
+              el('dt', k),
+              el(
+                'dd',
+                `${displayValue(k, before, snapshot)} → ${displayValue(k, v, snapshot)}`,
+              ),
+            );
+          }
+          continue;
+        }
+        if (key === 'operation') {
+          for (const [k, v] of Object.entries(value)) {
+            if (k === 'process') continue;
+            const field = D.processes[value.process]?.fields.find(
+              (f) => f.key === k,
+            );
+            dl.append(
+              el('dt', field?.label || k),
+              el('dd', displayValue(k, v, snapshot)),
+            );
           }
           continue;
         }
         const f = D.processes[op.process]?.fields.find((f) => f.key === key);
         dl.append(
           el('dt', f?.label || key),
-          el('dd', displayValue(key, value, snapshot)),
+          el(
+            'dd',
+            editing && !['movement', 'kind'].includes(key)
+              ? `${displayValue(key, editing.row[key], snapshot)} → ${displayValue(key, value, snapshot)}`
+              : displayValue(key, value, snapshot),
+          ),
         );
       }
     }
@@ -1317,6 +1846,22 @@
     $('review-dialog').showModal();
   }
   function reviewQueued(item) {
+    if (
+      item.envelope.action === 'importPriceHistory' &&
+      item.status === 'review'
+    ) {
+      showReview(
+        [],
+        item.label,
+        async () => {
+          status(
+            'Revisa de nuevo el archivo histórico con los datos actuales antes de preparar otra solicitud.',
+          );
+        },
+        'Google rechazó este lote histórico. El sobre se conserva. Descarta la solicitud rechazada y vuelve a previsualizar el archivo con la lectura actual; no se crea otro envío automáticamente.',
+      );
+      return;
+    }
     if (item.status === 'pending') {
       showReview(
         item.envelope.operations || [],
@@ -1361,7 +1906,18 @@
       if (!snapshot || !queue) throw Error('READ_REQUIRED');
       const values = Object.fromEntries(new FormData(event.target));
       let op, label;
-      if (editing) {
+      if (editing?.payroll || editing?.contextual) {
+        const kind = editing.payroll ? 'nomina' : editing.kind;
+        op = D.operation(kind, values);
+        op = {
+          ...op,
+          process: editing.payroll ? 'corregir_nomina' : 'editar_movimiento',
+          movement: editing.payroll || editing.contextual,
+        };
+        if (editing.contextual) op.kind = kind;
+        label =
+          'Corregir ' + D.readable(editing.name, editing.sourceRow, snapshot);
+      } else if (editing) {
         const changes = {};
         for (const f of editing.fields) {
           const value = values[f.key] ?? '';
@@ -1391,6 +1947,13 @@
       } else {
         const process = $('operation-kind').value;
         if (
+          process === 'traspaso_fondo' &&
+          !snapshot.capabilities?.fundTransfers
+        )
+          throw Error(
+            'Actualiza el backend para registrar traspasos entre fondos.',
+          );
+        if (
           ['gasto', 'ingreso', 'traspaso'].includes(process) &&
           !String(values.concept || '').trim()
         )
@@ -1400,7 +1963,11 @@
           D.processes[process].label +
           (op.concept ? ' · ' + op.concept : op.name ? ' · ' + op.name : '');
       }
-      showReview([op], label);
+      const transferNote =
+        op.process === 'traspaso_fondo'
+          ? `Importe ejecutado: ${displayValue('amount', op.amount, snapshot)}. Valor bruto de salida: ${(op.outUnits * op.outPrice).toLocaleString('es-ES', { maximumFractionDigits: 12 })} EUR; valor bruto de entrada: ${(op.inUnits * op.inPrice).toLocaleString('es-ES', { maximumFractionDigits: 12 })} EUR. Diferencia de valoración por precisión: ${(op.inUnits * op.inPrice - op.outUnits * op.outPrice).toLocaleString('es-ES', { maximumFractionDigits: 12 })} EUR. Se conservan las participaciones y los valores liquidativos reales. No se registra caja; las aportaciones se trasladan sin esa diferencia.`
+          : undefined;
+      showReview([op], label, null, transferNote);
     } catch (error) {
       $('operation-error').textContent = errorText(error);
       $('operation-error').hidden = false;
@@ -1414,7 +1981,7 @@
       if (
         current.epoch !== configurationEpoch ||
         current.queue !== queue ||
-        current.url !== savedDeployment(window.localStorage) ||
+        current.url !== currentDeployment() ||
         current.bookKey !== snapshot?.bookKey
       )
         throw Error('CONFIGURATION_CHANGED');
@@ -1458,6 +2025,7 @@
       'compra',
       'venta',
       'rendimiento',
+      'traspaso_fondo',
       'producto',
       'precio',
       'vincular_isin',
@@ -1517,6 +2085,7 @@
     } finally {
       loading = false;
       enabled();
+      scheduleRecovery();
     }
   });
   $('finance-sync').addEventListener('click', () => {
@@ -1545,6 +2114,139 @@
       },
       'Consulta los productos por ISIN y nombre. Solo guarda valores nuevos verificados. Cada lote incluye hasta veinte productos. Si falla un fondo, conserva su precio anterior y muestra el error.',
     );
+  });
+  const localSettings = $('local-settings');
+  localSettings.append(
+    el(
+      'p',
+      'Ocultar datos solo cambia la pantalla: la copia local contiene datos sin cifrado. Cerrar Google detiene el canal; desconectar elimina el enlace guardado; borrar elimina solo copias resueltas.',
+    ),
+  );
+  let hiddenData = false;
+  const hiddenBefore = new Map();
+  localSettings.append(
+    button('Ocultar / mostrar datos', () => {
+      hiddenData = !hiddenData;
+      for (const view of [
+        'home',
+        'book',
+        'investments',
+        'accounts',
+        'budgets',
+        'salary',
+        'goals',
+        'activity',
+      ]) {
+        for (const target of $('view-' + view)?.children || []) {
+          if (hiddenData) {
+            hiddenBefore.set(target, target.hidden);
+            target.hidden = true;
+          } else {
+            target.hidden = hiddenBefore.get(target) || false;
+          }
+        }
+      }
+      status(
+        hiddenData
+          ? 'Datos ocultos visualmente. La copia sigue guardada sin cifrado.'
+          : 'Datos visibles.',
+      );
+    }),
+  );
+  localSettings.append(
+    button('Cerrar ventana de Google', () => {
+      client?.close();
+      client = null;
+      status(
+        'Canal de Google cerrado. La copia y los pendientes se conservan.',
+        snapshot ? 'offline' : 'unread',
+      );
+      enabled();
+    }),
+  );
+  localSettings.append(
+    button('Desconectar enlace', () => $('setup-clear').click()),
+  );
+  const readiness = el(
+    'p',
+    'Preparación del entorno: sin comprobar. Las colas de otros dispositivos requieren revisión independiente.',
+  );
+  localSettings.append(
+    button('Comprobar preparación del entorno', async () => {
+      try {
+        const result = await globalThis.FinanceBook.check('diagnostics');
+        const unresolved = (await saved()).queue.filter((item) =>
+          ['pending', 'uncertain', 'review'].includes(item.status),
+        ).length;
+        readiness.textContent =
+          (result.environment === 'production'
+            ? 'Libro principal'
+            : 'Copia de pruebas') +
+          ' · API ' +
+          result.apiVersion +
+          ' · estructura ' +
+          (result.backendReady === true ? 'verificada' : 'requiere revisión') +
+          ' · cálculos ' +
+          (result.calculationReady === true
+            ? 'verificados'
+            : 'requieren revisión') +
+          ' · ' +
+          unresolved +
+          ' solicitudes locales sin resolver. Esto no confirma permisos, copias de seguridad ni colas de otros dispositivos; no autoriza el cambio de entorno.';
+      } catch (error) {
+        readiness.textContent = errorText(error);
+      }
+    }),
+    readiness,
+  );
+  const storedCopies = el('div');
+  storedCopies.id = 'stored-copies';
+  localSettings.append(storedCopies);
+  async function renderStoredCopies() {
+    const copies = await store.list();
+    storedCopies.replaceChildren(
+      el(
+        'p',
+        'Copias de este navegador; las colas de otros dispositivos no se conocen.',
+      ),
+    );
+    for (const [index, copy] of copies.entries()) {
+      const unresolved = copy.queue.filter((item) =>
+        ['pending', 'uncertain', 'review'].includes(item.status),
+      ).length;
+      const row = el(
+        'p',
+        (copy.label || 'Copia privada') +
+          ' · copia ' +
+          (index + 1) +
+          ' · ' +
+          unresolved +
+          ' sin resolver',
+      );
+      const erase = button('Borrar copia resuelta ' + (index + 1), () => {
+        showReview(
+          [],
+          'Borrar copia local resuelta',
+          async () => {
+            await new FinanceSync.Queue(store, copy.key).clear();
+            if (queue?.key === copy.key) {
+              client?.close();
+              client = null;
+              snapshot = null;
+            }
+            await renderStoredCopies();
+          },
+          'El libro de Google se conserva. Las solicitudes pendientes, inciertas o en revisión bloquean el borrado.',
+        );
+      });
+      erase.disabled = unresolved > 0;
+      row.append(erase);
+      storedCopies.append(row);
+    }
+  }
+  localSettings.addEventListener('toggle', () => {
+    if (localSettings.open)
+      void renderStoredCopies().catch((error) => status(errorText(error)));
   });
   $('finance-clear').addEventListener('click', () => {
     showReview(
@@ -1594,12 +2296,54 @@
       snapshot ? 'offline' : 'unread',
     ),
   );
-  window.addEventListener('online', () => {
-    if (client?.session && !loading) void sync();
-    else
-      status(
-        'Conexión recuperada. Abre Google para sincronizar los pendientes.',
-      );
+  function scheduleRecovery() {
+    if (!recoveryRequested || recoveryTimer || recoveryAttempts >= 3) return;
+    recoveryTimer = setTimeout(
+      () => {
+        recoveryTimer = null;
+        if (loading) return;
+        recoveryRequested = false;
+        if (liveSession() && navigator.onLine) {
+          recoveryAttempts++;
+          void sync();
+        } else status('Abre Google para recuperar los pendientes conservados.');
+      },
+      500 * 2 ** recoveryAttempts,
+    );
+  }
+  function requestRecovery() {
+    recoveryRequested = true;
+    recoveryAttempts = 0;
+    scheduleRecovery();
+  }
+  window.addEventListener('online', requestRecovery);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') requestRecovery();
   });
+  const changes =
+    typeof BroadcastChannel === 'function'
+      ? new BroadcastChannel('finances-queue-v1')
+      : null;
+  changes?.addEventListener('message', (event) => {
+    if (
+      queue &&
+      event.data?.key === queue.key &&
+      event.data?.bookKey === snapshot?.bookKey
+    ) {
+      const changedQueue = queue;
+      void changedQueue
+        .get()
+        .then((data) => {
+          if (queue !== changedQueue || data.bookKey !== snapshot?.bookKey)
+            return;
+          snapshot = data.snapshot;
+          void render();
+          if (localSettings.open) void renderStoredCopies();
+        })
+        .catch((error) => status(errorText(error)));
+    }
+  });
+  store.changed = (key, data) =>
+    changes?.postMessage({ key, bookKey: data.bookKey });
   void configure().catch((error) => status(errorText(error)));
 })();
