@@ -294,3 +294,48 @@ test('historical payload cannot replace the queue-generated envelope identity', 
   assert.notEqual(item.envelope.expectedRevision, 'replacement');
   assert.notEqual(item.envelope.bookKey, 'replacement');
 });
+
+test('exclusive lock recovers an abandoned protected claim through its receipt without resubmitting', async () => {
+  const { q, store, client, calls } = setup();
+  await q.saveSnapshot(await client.read());
+  await q.enqueue([expense(1)], 'Abandoned browser sender');
+  const original = (await q.get()).queue[0].envelope;
+  await q.claim(original.requestId, true);
+  await client.submit(original);
+  // The old document ended without persisting a receipt or releasing its claim.
+  const reopened = new Queue(store, 'fixture', {
+    locks: { request: async (name, options, callback) => callback({ name }) },
+  });
+  const outcome = await reopened.run(client);
+  assert.equal(outcome.status, 'confirmed');
+  assert.equal((await reopened.get()).queue[0].status, 'confirmed');
+  assert.deepEqual((await reopened.get()).queue[0].envelope, original);
+  assert.equal(calls.length, 1);
+});
+
+test('exclusive lock never takes over a live claim created without lock protection', async () => {
+  const { q, store, client, calls } = setup();
+  await q.saveSnapshot(await client.read());
+  await q.enqueue([expense(1)], 'Unlocked sender');
+  const id = (await q.get()).queue[0].envelope.requestId;
+  await q.claim(id);
+  const reopened = new Queue(store, 'fixture', {
+    locks: { request: async (name, options, callback) => callback({ name }) },
+  });
+  assert.equal((await reopened.run(client)).status, 'busy');
+  assert.equal(calls.length, 0);
+  assert.equal((await reopened.get()).queue[0].status, 'uncertain');
+});
+
+test('settled uncertainty releases only its own claim in the same saved update', async () => {
+  const { q, client } = setup();
+  await q.saveSnapshot(await client.read());
+  await q.enqueue([expense(1)], 'Settled lost reply');
+  const id = (await q.get()).queue[0].envelope.requestId;
+  await q.claim(id);
+  await q.status(id, 'uncertain', { ok: false, error: 'RESPONSE_UNCERTAIN' });
+  const item = (await q.get()).queue[0];
+  assert.equal(item.claim, undefined);
+  assert.equal(item.result.error, 'RESPONSE_UNCERTAIN');
+  assert.equal(item.status, 'uncertain');
+});

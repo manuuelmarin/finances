@@ -56,6 +56,34 @@ const FinanceDomain = (() => {
     'false',
   );
   const processes = {
+    traspaso_fondo: {
+      label: 'Traspaso entre fondos',
+      fields: [
+        date,
+        concept,
+        field('fromProduct', 'Fondo de origen', 'select', true, 'products'),
+        field('toProduct', 'Fondo de destino', 'select', true, 'products'),
+        field('outUnits', 'Participaciones de salida', 'decimal'),
+        field('outPrice', 'Valor liquidativo de salida EUR', 'decimal'),
+        field('inUnits', 'Participaciones de entrada', 'decimal'),
+        field('inPrice', 'Valor liquidativo de entrada EUR', 'decimal'),
+      ],
+    },
+    archivar: {
+      label: 'Archivar o recuperar referencia',
+      ui: false,
+      fields: [
+        field('kind', 'Tipo'),
+        field('reference', 'Referencia'),
+        field('archived', 'Archivado', 'boolean'),
+      ],
+    },
+    obligacion: {
+      label: 'Obligación prevista',
+      ui: false,
+      fields: [date, concept, account, category, amount, field('kind', 'Tipo')],
+    },
+
     presupuesto: {
       label: 'Límite mensual de gasto',
       ui: false,
@@ -389,27 +417,130 @@ const FinanceDomain = (() => {
     return result;
   }
   const pairs = (items) => items.map((v) => [v, v]);
+  function linkEligibility(snapshot, kind, reference, excludingMovement) {
+    const t = snapshot?.tables || {},
+      movements = (t.tMovimientos || []).filter(
+        (m) => m.ID !== excludingMovement,
+      ),
+      links = (t.tVinculos || []).filter(
+        (l) => l.Movimiento !== excludingMovement,
+      );
+    const linked = movements.filter((m) =>
+      links.some(
+        (l) => l.Movimiento === m.ID && l['Vinculado a'] === reference,
+      ),
+    );
+    if (['prestamo', 'pago_deuda'].includes(kind)) {
+      const debt = (t.tDeudas || []).find((d) => d.ID === reference);
+      return debt
+        ? Math.max(
+            0,
+            (debt['Saldo inicial'] || 0) +
+              linked.reduce(
+                (sum, m) =>
+                  sum +
+                  (m.Tipo === 'Préstamo recibido'
+                    ? m.Importe
+                    : m.Tipo === 'Devolución deuda'
+                      ? -m.Importe
+                      : 0),
+                0,
+              ),
+          )
+        : 0;
+    }
+    const original = (t.tMovimientos || []).find(
+      (m) => m.ID === reference && m.Tipo === 'Gasto',
+    );
+    if (!original) return 0;
+    return Math.max(
+      0,
+      kind === 'cobro_compartido'
+        ? (original.Recuperable || 0) -
+            linked.reduce(
+              (sum, m) =>
+                sum +
+                (m.Tipo === 'Cobro compartido'
+                  ? m.Importe
+                  : m.Tipo === 'Devolución gasto'
+                    ? m.Recuperable || 0
+                    : 0),
+              0,
+            )
+        : original.Importe -
+            linked
+              .filter((m) => m.Tipo === 'Devolución gasto')
+              .reduce((sum, m) => sum + m.Importe, 0),
+    );
+  }
   function options(source, snapshot, process, values = {}) {
     const t = snapshot?.tables || {};
-    const accounts = pairs((t.tCuentas || []).map((r) => r.Cuenta));
-    const products = (t.tProductos || []).map((r) => [r.ID, r.Producto]);
+    const accounts = pairs(
+      (t.tCuentas || [])
+        .filter(
+          (r) =>
+            !snapshot?.archives?.accounts?.includes(r.Cuenta) ||
+            (values._allowArchived && Object.values(values).includes(r.Cuenta)),
+        )
+        .map((r) => r.Cuenta),
+    );
+    const products = (t.tProductos || [])
+      .filter(
+        (r) =>
+          !snapshot?.archives?.accounts?.includes(r.Cuenta) ||
+          values._allowArchived,
+      )
+      .map((r) => [r.ID, r.Producto]);
     const map = {
       accounts,
       products,
-      debts: (t.tDeudas || []).map((r) => [r.ID, r.Acreedor]),
+      debts: (t.tDeudas || [])
+        .filter(
+          (r) =>
+            process !== 'pago_deuda' ||
+            linkEligibility(snapshot, process, r.ID, values._editingMovement) >
+              0 ||
+            values.debt === r.ID,
+        )
+        .map((r) => [
+          r.ID,
+          r.Acreedor +
+            (process === 'pago_deuda'
+              ? ' · pendiente ' +
+                linkEligibility(
+                  snapshot,
+                  process,
+                  r.ID,
+                  values._editingMovement,
+                ) +
+                ' EUR'
+              : ''),
+        ]),
       goals: (t.tObjetivos || []).map((r) => [r.ID, r.Objetivo]),
       categories: pairs(
         (t.tCategorias || [])
+          .filter(
+            (r) =>
+              !snapshot?.archives?.categories?.includes(r.Subcategoría) ||
+              (values._allowArchived &&
+                Object.values(values).includes(r.Subcategoría)),
+          )
           .filter(
             (r) => r.Grupo === (process === 'gasto' ? 'Gastos' : 'Ingresos'),
           )
           .map((r) => r.Subcategoría),
       ),
       expenses: (t.tMovimientos || [])
-        .filter((r) => r.Tipo === 'Gasto')
+        .filter(
+          (r) =>
+            r.Tipo === 'Gasto' &&
+            (linkEligibility(snapshot, process, r.ID, values._editingMovement) >
+              0 ||
+              values.original === r.ID),
+        )
         .map((r) => [
           r.ID,
-          `${r.Fecha} · ${r.Concepto} · ${r.Origen} · ${r.Importe} EUR`,
+          `${r.Fecha} · ${r.Concepto} · ${r.Origen} · disponible ${linkEligibility(snapshot, process, r.ID, values._editingMovement)} EUR`,
         ]),
       origins: [
         ...accounts.map(([id, name]) => [id, 'Cuenta · ' + name]),
@@ -514,7 +645,31 @@ const FinanceDomain = (() => {
       );
     return typeof value === 'boolean' ? (value ? 'Sí' : 'No') : String(value);
   }
+  function csv(rows, columns) {
+    const escape = (value) => {
+      let text =
+        value === null || value === undefined
+          ? ''
+          : typeof value === 'number'
+            ? String(value).replace('.', ',')
+            : String(value);
+      if (/^[\s]*[=+\-@]/.test(text) && typeof value !== 'number')
+        text = "'" + text;
+      return '"' + text.replace(/"/g, '""') + '"';
+    };
+    return (
+      '\ufeff' +
+      [
+        columns.map(([key, label]) => escape(label || key)).join(';'),
+        ...rows.map((row) =>
+          columns.map(([key]) => escape(row[key])).join(';'),
+        ),
+      ].join('\r\n')
+    );
+  }
   return {
+    csv,
+    linkEligibility,
     processes,
     operation,
     decimal,

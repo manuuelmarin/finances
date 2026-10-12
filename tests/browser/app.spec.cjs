@@ -878,9 +878,10 @@ test('Actividad distingue pendientes del recibo confirmado sin volver a enviar',
   await expect(page.locator('#finance-queue')).toContainText(
     'No hay operaciones pendientes',
   );
-  await expect(page.locator('#finance-queue')).not.toContainText(
-    'Confirmada por Google',
-  );
+  await expect(page.locator('#finance-queue .queue-item')).toHaveCount(0);
+  await expect(
+    page.locator('#finance-queue .queue-item[data-state=confirmed]'),
+  ).toHaveCount(0);
   await page.locator('#confirmed-history summary').click();
   await expect(page.locator('#finance-history')).toContainText(
     'Confirmada por Google',

@@ -495,9 +495,10 @@
     const visibleColumns = columns;
     const numericColumn = (key) =>
       rows.some((row) => typeof row[key] === 'number') ||
-      /Importe|Saldo|Valor|Resultado|Rentabilidad|Participaciones|Precio|Comisión|Retención|Recuperable|Meta|Asignado|Pendiente|Avance|Neto|Bruto|Cotización|IRPF|deducciones|VL EUR|amount|difference/.test(
+      /Importe|Saldo|Valor|Resultado|Rentabilidad|Peso|Participaciones|Precio|Comisión|Retención|Recuperable|Meta|Asignado|Pendiente|Avance|Neto|Bruto|Cotización|IRPF|deducciones|VL EUR|amount|difference/.test(
         key,
       );
+    const percentageColumn = (key) => /Rentabilidad|Peso|Avance/.test(key);
     const dateColumn = (key) => /Fecha|^date$/.test(key);
     const filtered = rows.filter((row) =>
       visibleColumns.every(([key]) => {
@@ -510,9 +511,14 @@
           return (
             (!filter.min ||
               value >=
-                (numericColumn(key) ? Number(filter.min) : filter.min)) &&
+                (numericColumn(key)
+                  ? Number(filter.min) / (percentageColumn(key) ? 100 : 1)
+                  : filter.min)) &&
             (!filter.max ||
-              value <= (numericColumn(key) ? Number(filter.max) : filter.max))
+              value <=
+                (numericColumn(key)
+                  ? Number(filter.max) / (percentageColumn(key) ? 100 : 1)
+                  : filter.max))
           );
         }
         return (
@@ -544,6 +550,25 @@
     const caption = el(
       'caption',
       `${Math.min(filtered.length, limit)}${filtered.length > limit ? ' de ' + filtered.length : ''} registros`,
+    );
+    const tools = el('div', undefined, 'table-tools');
+    tools.append(
+      button('Limpiar filtros', () => {
+        state.filters = {};
+        table(parent, rows, columns, name, actions);
+        parent.querySelector('.column-filter')?.focus();
+      }),
+      button('Exportar CSV filtrado', () => {
+        const blob = new Blob([D.csv(filtered, visibleColumns)], {
+          type: 'text/csv;charset=utf-8',
+        });
+        const link = el('a');
+        const href = URL.createObjectURL(blob);
+        link.href = href;
+        link.download = name + '.csv';
+        link.click();
+        URL.revokeObjectURL(href);
+      }),
     );
     t.append(caption);
     const head = el('thead'),
@@ -589,14 +614,18 @@
           'aria-label',
           'Filtrar ' +
             title +
-            (part === 'min' ? ' desde' : part === 'max' ? ' hasta' : ''),
+            (part === 'min' ? ' desde' : part === 'max' ? ' hasta' : '') +
+            (percentageColumn(key) ? ' en porcentaje' : ''),
         );
+        input.dataset.filterKey = key + '-' + part;
         input.placeholder =
-          part === 'min' ? 'Desde' : part === 'max' ? 'Hasta' : 'Filtrar';
+          (part === 'min' ? 'Desde' : part === 'max' ? 'Hasta' : 'Filtrar') +
+          (percentageColumn(key) ? ' %' : '');
         input.addEventListener('change', () => {
           state.filters[key] = { ...state.filters[key], [part]: input.value };
           limit = 50;
           table(parent, rows, columns, name, actions);
+          parent.querySelector(`[data-filter-key="${key}-${part}"]`)?.focus();
         });
         filterCell.append(input);
       }
@@ -646,6 +675,28 @@
           toggle.setAttribute('aria-controls', detailRow.id);
           td.append(toggle);
         }
+        if (['tCuentas', 'tCategorias'].includes(name)) {
+          const kind = name === 'tCuentas' ? 'account' : 'category',
+            reference = row[name === 'tCuentas' ? 'Cuenta' : 'Subcategoría'];
+          const archived =
+            snapshot.archives?.[
+              kind === 'account' ? 'accounts' : 'categories'
+            ]?.includes(reference);
+          td.append(
+            button(archived ? 'Recuperar' : 'Archivar', () => {
+              if (!snapshot.capabilities?.archives) {
+                status('Actualiza el backend para archivar referencias.');
+                return;
+              }
+              showReview(
+                [{ process: 'archivar', kind, reference, archived: !archived }],
+                (archived ? 'Recuperar ' : 'Archivar ') + reference,
+                null,
+                'El historial se conserva. Las referencias archivadas se ocultan al crear operaciones y siguen disponibles al corregir registros.',
+              );
+            }),
+          );
+        }
         td.append(
           button('Corregir', () => editRow(name, row)),
           button('Anular', () => cancelRow(name, row)),
@@ -669,7 +720,7 @@
       body.append(empty);
     }
     t.append(body);
-    wrap.append(t);
+    wrap.append(tools, t);
     parent.append(wrap);
     if (filtered.length > limit)
       parent.append(
@@ -1160,12 +1211,12 @@
       input.append(new Option(f.required ? 'Selecciona…' : 'Sin dato', ''));
       const values =
         f.type === 'select'
-          ? D.options(
-              f.source,
-              snapshot,
-              $('operation-kind').value,
-              Object.fromEntries(new FormData($('operation-form'))),
-            )
+          ? D.options(f.source, snapshot, $('operation-kind').value, {
+              ...editing?.row,
+              _allowArchived: !!editing,
+              _editingMovement: editing?.contextual,
+              ...Object.fromEntries(new FormData($('operation-form'))),
+            })
           : [
               ['true', 'Sí'],
               ['false', 'No'],
@@ -1236,6 +1287,96 @@
       );
       parent.append(additional);
     }
+    if (
+      [
+        'gasto',
+        'ingreso',
+        'nomina',
+        'traspaso',
+        'prestamo',
+        'pago_deuda',
+        'cobro_compartido',
+        'devolucion_gasto',
+      ].includes(process)
+    ) {
+      const templates = el('details', undefined, 'operation-templates');
+      templates.append(el('summary', 'Plantillas de este libro'));
+      if (!snapshot?.capabilities?.templates)
+        templates.append(
+          el('p', 'Actualiza el backend para guardar y reutilizar plantillas.'),
+        );
+      else {
+        const name = el('input');
+        name.placeholder = 'Nombre de la plantilla';
+        name.setAttribute('aria-label', 'Nombre de la plantilla');
+        templates.append(
+          name,
+          button('Guardar como plantilla', () => {
+            try {
+              const values = Object.fromEntries(
+                new FormData($('operation-form')),
+              );
+              if (!values.concept) values.concept = spec.label;
+              const operation = D.operation(process, values);
+              if (!name.value.trim())
+                throw Error('Introduce un nombre para la plantilla.');
+              showReview(
+                [{ process: 'plantilla', name: name.value.trim(), operation }],
+                'Guardar plantilla · ' + name.value.trim(),
+                null,
+                'Se guarda una propuesta reutilizable. No se registra ningún movimiento.',
+              );
+            } catch (error) {
+              status(errorText(error));
+            }
+          }),
+        );
+        for (const template of snapshot.templates || []) {
+          const card = el('div');
+          card.append(
+            el('span', template.name),
+            button('Usar', () => {
+              operationChoices(template.operation.process);
+              $('operation-kind').value = template.operation.process;
+              processFields(template.operation);
+            }),
+            button('Actualizar con estos datos', () => {
+              try {
+                const values = Object.fromEntries(
+                  new FormData($('operation-form')),
+                );
+                if (!values.concept) values.concept = spec.label;
+                showReview(
+                  [
+                    {
+                      process: 'plantilla',
+                      id: template.id,
+                      name: name.value.trim() || template.name,
+                      operation: D.operation(process, values),
+                    },
+                  ],
+                  'Actualizar plantilla · ' + template.name,
+                  null,
+                  'La plantilla cambia; no se registra dinero.',
+                );
+              } catch (error) {
+                status(errorText(error));
+              }
+            }),
+            button('Eliminar plantilla', () =>
+              showReview(
+                [{ process: 'quitar_plantilla', id: template.id }],
+                'Eliminar plantilla · ' + template.name,
+                null,
+                'Se retira únicamente la plantilla. Su historial y las operaciones confirmadas se conservan.',
+              ),
+            ),
+          );
+          templates.append(card);
+        }
+      }
+      parent.append(templates);
+    }
     if (process === 'renombrar')
       $('operation-kind').form.elements.kind.addEventListener('change', () => {
         const current =
@@ -1244,6 +1385,8 @@
       });
     $('operation-note').textContent =
       {
+        traspaso_fondo:
+          'Las dos partes deben cerrar el mismo valor en EUR. Se trasladan participaciones y aportaciones; no se crea caja ni ingreso. El backend verifica y conserva las fórmulas revisadas antes de registrar el lote.',
         producto:
           'La posición base recoge lo que ya tienes en esa fecha. No crea compras ni caja. Si cambias de fondo, crea otro producto para conservar su historial.',
         asignacion:
@@ -1347,6 +1490,134 @@
     ],
   };
   function editRow(name, row) {
+    const payroll =
+      name === 'tNominas'
+        ? row
+        : name === 'tMovimientos'
+          ? snapshot.tables.tNominas.find((n) => n.Movimiento === row.ID)
+          : null;
+    if (payroll) {
+      const movement = snapshot.tables.tMovimientos.find(
+        (m) => m.ID === payroll.Movimiento,
+      );
+      if (!snapshot.capabilities?.payrollCorrection) {
+        status('Actualiza el backend para corregir la nómina completa.');
+        return;
+      }
+      const values = {
+        date: movement.Fecha,
+        concept: movement.Concepto,
+        account: movement.Destino,
+        category: movement.Subcategoría,
+        amount: movement.Importe,
+        gross: payroll.Bruto,
+        contribution: payroll.Cotización,
+        tax: payroll.IRPF,
+        otherDeductions: payroll['Otras deducciones'],
+        location: movement.Localización,
+      };
+      editing = {
+        name,
+        row: values,
+        sourceRow: row,
+        payroll: movement.ID,
+        fields: D.processes.nomina.fields,
+      };
+      $('operation-title').textContent =
+        'Corregir nómina · ' + movement.Concepto;
+      $('operation-kind-field').hidden = true;
+      $('operation-kind').value = 'nomina';
+      $('operation-fields').replaceChildren();
+      for (const f of editing.fields)
+        $('operation-fields').append(fieldInput(f, values[f.key]));
+      $('operation-note').textContent =
+        'Fecha, cuenta, neto y desglose se revisan juntos. El ingreso conserva su ID.';
+      $('operation-error').hidden = true;
+      $('operation-dialog').showModal();
+      return;
+    }
+    const kinds = {
+      Gasto: 'gasto',
+      Ingreso: 'ingreso',
+      Transferencia: 'traspaso',
+      'Préstamo recibido': 'prestamo',
+      'Devolución deuda': 'pago_deuda',
+      'Cobro compartido': 'cobro_compartido',
+      'Devolución gasto': 'devolucion_gasto',
+    };
+    if (
+      name === 'tMovimientos' &&
+      kinds[row.Tipo] &&
+      snapshot.capabilities?.contextualCorrection
+    ) {
+      const kind = kinds[row.Tipo],
+        link = snapshot.tables.tVinculos.find((r) => r.Movimiento === row.ID);
+      const values = {
+        date: row.Fecha,
+        concept: row.Concepto,
+        account:
+          row.Tipo === 'Gasto' || row.Tipo === 'Devolución deuda'
+            ? row.Origen
+            : row.Destino,
+        from: row.Origen,
+        to: row.Destino,
+        category: row.Subcategoría,
+        amount: row.Importe,
+        recoverable: row.Recuperable,
+        original: link?.['Vinculado a'],
+        debt: link?.['Vinculado a'],
+        location: row.Localización,
+        recurring:
+          row.Recurrente === 'Sí'
+            ? true
+            : row.Recurrente === 'No'
+              ? false
+              : null,
+      };
+      editing = {
+        name,
+        row: values,
+        sourceRow: row,
+        contextual: row.ID,
+        kind,
+        fields: D.processes[kind].fields,
+      };
+      $('operation-title').textContent =
+        'Corregir ' + D.readable(name, row, snapshot);
+      $('operation-kind-field').hidden = true;
+      $('operation-kind').value = kind;
+      $('operation-fields').replaceChildren();
+      const label = el('label', 'Tipo de movimiento', 'field'),
+        select = el('select');
+      select.name = 'editKind';
+      for (const [type, value] of Object.entries(kinds))
+        select.append(new Option(type, value));
+      select.value = kind;
+      select.addEventListener('change', () =>
+        editRow(name, {
+          ...row,
+          Tipo: Object.keys(kinds).find((k) => kinds[k] === select.value),
+        }),
+      );
+      label.append(select);
+      $('operation-fields').append(label);
+      for (const f of editing.fields)
+        $('operation-fields').append(fieldInput(f, values[f.key]));
+      $('operation-note').textContent =
+        'La corrección conserva el ID y actualiza el vínculo en el mismo lote. Google comprueba el saldo pendiente y el recuperable.';
+      $('operation-error').hidden = true;
+      $('operation-dialog').showModal();
+      return;
+    }
+    if (
+      name === 'tOperaciones' &&
+      snapshot.fundTransfers?.some((t) =>
+        [t.outTradeID, t.inTradeID].includes(row.ID),
+      )
+    ) {
+      status('Anula el traspaso completo y prepara sus dos partes corregidas.');
+      return;
+    }
     const linked =
       name === 'tMovimientos' &&
       snapshot.tables.tOperaciones.some((r) => r.Movimiento === row.ID);
@@ -1394,6 +1665,20 @@
     $('operation-dialog').showModal();
   }
   function cancelRow(tableName, row) {
+    const transfer =
+      tableName === 'tOperaciones' &&
+      snapshot.fundTransfers?.find((t) =>
+        [t.outTradeID, t.inTradeID].includes(row.ID),
+      );
+    if (transfer) {
+      showReview(
+        [{ process: 'anular_traspaso_fondo', id: transfer.id }],
+        'Anular traspaso entre fondos',
+        null,
+        'Se retiran las dos partes juntas y se restituye el capital aportado trasladado. No se crea ningún movimiento de caja. Las operaciones posteriores deben conservar participaciones suficientes.',
+      );
+      return;
+    }
     const label = 'Anular ' + D.readable(tableName, row, snapshot);
     showReview(
       [
@@ -1405,7 +1690,84 @@
       ],
       label,
       null,
-      'Google verifica los vínculos. Al anular un movimiento también se anulan su nómina, vínculos y operaciones de inversión; al anular una operación se recalcula su caja agrupada. Una referencia todavía utilizada impide la anulación.',
+      (() => {
+        const t = snapshot.tables;
+        if (tableName === 'tMovimientos') {
+          const payrolls = t.tNominas.filter(
+              (n) => n.Movimiento === row.ID,
+            ).length,
+            trades = t.tOperaciones.filter(
+              (o) => o.Movimiento === row.ID,
+            ).length,
+            links = t.tVinculos.filter((v) => v.Movimiento === row.ID).length;
+          const dependents = t.tVinculos.filter(
+            (v) => v['Vinculado a'] === row.ID,
+          ).length;
+          return (
+            `Se retira ${row.Importe} EUR de ${row.Origen || row.Destino || 'su cuenta'} en ${row.Fecha}. Se anulan ${payrolls} nóminas, ${trades} operaciones de inversión y ${links} vínculos asociados.` +
+            (dependents
+              ? ` Hay ${dependents} cobros o devoluciones que lo utilizan: anúlalos o corrígelos primero.`
+              : ' El ID dejará de existir.')
+          );
+        }
+        if (tableName === 'tOperaciones')
+          return `Se retiran ${row.Participaciones || 0} participaciones de esta operación. ${row.Movimiento ? 'Se recalcula su caja agrupada; se retira el movimiento si no quedan operaciones enlazadas.' : 'No hay movimiento de caja asociado.'}`;
+        if (tableName === 'tNominas')
+          return 'Se retira únicamente el desglose de nómina. El ingreso y su ID se conservan.';
+        if (tableName === 'tObjetivos')
+          return `Se retira el objetivo y ${t.tAsignaciones.filter((a) => a.Objetivo === row.ID).length} asignaciones. No se mueve dinero.`;
+        if (tableName === 'tAsignaciones')
+          return 'Se libera esta asignación del objetivo. No se mueve dinero.';
+        if (['tCuentas', 'tCategorias', 'tDeudas'].includes(tableName)) {
+          const reference =
+            tableName === 'tCuentas'
+              ? row.Cuenta
+              : tableName === 'tCategorias'
+                ? row.Subcategoría
+                : row.ID;
+          const keys =
+            tableName === 'tCuentas'
+              ? ['account', 'from', 'to']
+              : tableName === 'tCategorias'
+                ? ['category']
+                : ['debt'];
+          const templates = (snapshot.templates || []).filter((template) =>
+            keys.some((key) => template.operation[key] === reference),
+          ).length;
+          const plans = (snapshot.planned || []).filter(
+            (plan) =>
+              (tableName === 'tCuentas'
+                ? plan.account
+                : tableName === 'tCategorias'
+                  ? plan.category
+                  : null) === reference,
+          ).length;
+          const archived = (
+            tableName === 'tCuentas'
+              ? snapshot.archives?.accounts
+              : tableName === 'tCategorias'
+                ? snapshot.archives?.categories
+                : []
+          )?.includes(reference);
+          return (
+            `Hay ${templates} plantillas activas y ${plans} obligaciones previstas que utilizan esta referencia.` +
+            (archived
+              ? ' La referencia está archivada: recupérala antes de anularla.'
+              : '') +
+            (templates || plans
+              ? ' Elimina o cambia esas referencias primero; la anulación se bloqueará mientras se utilicen.'
+              : ' Google comprueba además los movimientos y observaciones que la utilizan. Para conservar el historial de cuentas o subcategorías, utiliza Archivar.')
+          );
+        }
+        if (
+          tableName === 'tCuentas' ||
+          tableName === 'tCategorias' ||
+          tableName === 'tProductos' ||
+          tableName === 'tDeudas'
+        )
+          return 'Una referencia utilizada impide la anulación. Para conservar el historial de cuentas o subcategorías, utiliza Archivar.';
+        return 'Se retira este registro; las referencias y columnas calculadas se validan antes de guardar.';
+      })(),
     );
   }
   function showReview(operations, label, action, note) {
@@ -1426,14 +1788,39 @@
         if (['process', 'table', 'key'].includes(key)) continue;
         if (key === 'changes') {
           for (const [k, v] of Object.entries(value)) {
-            dl.append(el('dt', k), el('dd', displayValue(k, v, snapshot)));
+            const before = editing?.row?.[k];
+            dl.append(
+              el('dt', k),
+              el(
+                'dd',
+                `${displayValue(k, before, snapshot)} → ${displayValue(k, v, snapshot)}`,
+              ),
+            );
+          }
+          continue;
+        }
+        if (key === 'operation') {
+          for (const [k, v] of Object.entries(value)) {
+            if (k === 'process') continue;
+            const field = D.processes[value.process]?.fields.find(
+              (f) => f.key === k,
+            );
+            dl.append(
+              el('dt', field?.label || k),
+              el('dd', displayValue(k, v, snapshot)),
+            );
           }
           continue;
         }
         const f = D.processes[op.process]?.fields.find((f) => f.key === key);
         dl.append(
           el('dt', f?.label || key),
-          el('dd', displayValue(key, value, snapshot)),
+          el(
+            'dd',
+            editing && !['movement', 'kind'].includes(key)
+              ? `${displayValue(key, editing.row[key], snapshot)} → ${displayValue(key, value, snapshot)}`
+              : displayValue(key, value, snapshot),
+          ),
         );
       }
     }
@@ -1505,7 +1892,18 @@
       if (!snapshot || !queue) throw Error('READ_REQUIRED');
       const values = Object.fromEntries(new FormData(event.target));
       let op, label;
-      if (editing) {
+      if (editing?.payroll || editing?.contextual) {
+        const kind = editing.payroll ? 'nomina' : editing.kind;
+        op = D.operation(kind, values);
+        op = {
+          ...op,
+          process: editing.payroll ? 'corregir_nomina' : 'editar_movimiento',
+          movement: editing.payroll || editing.contextual,
+        };
+        if (editing.contextual) op.kind = kind;
+        label =
+          'Corregir ' + D.readable(editing.name, editing.sourceRow, snapshot);
+      } else if (editing) {
         const changes = {};
         for (const f of editing.fields) {
           const value = values[f.key] ?? '';
@@ -1534,6 +1932,13 @@
         label = 'Corregir ' + D.readable(editing.name, editing.row, snapshot);
       } else {
         const process = $('operation-kind').value;
+        if (
+          process === 'traspaso_fondo' &&
+          !snapshot.capabilities?.fundTransfers
+        )
+          throw Error(
+            'Actualiza el backend para registrar traspasos entre fondos.',
+          );
         if (
           ['gasto', 'ingreso', 'traspaso'].includes(process) &&
           !String(values.concept || '').trim()
@@ -1602,6 +2007,7 @@
       'compra',
       'venta',
       'rendimiento',
+      'traspaso_fondo',
       'producto',
       'precio',
       'vincular_isin',

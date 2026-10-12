@@ -51,4 +51,4 @@ Keep `TEST_SPREADSHEET_ID`, `OWNER_EMAIL`, credentials and private URLs outside 
 
 Before authorized cutover, resolve device queues, accept real tests, verify sources, back up workbook/code/configuration, prepare via `comprobarPaso4` and verify closure. Never transfer test requests. Archive XLSX after accepting Sheets.
 
-Recovery stops submissions, preserves workbook/queues/journal, restores into a new workbook, validates formulas and reconciles audit/receipts. Query uncertain requests in their original deployment. Native copies omit Apps Script properties/deployments; keep periodic and pre-change backups with private dates/revisions/cutoffs.
+Recovery stops submissions, preserves workbook/queues/journal, restores into a new workbook, validates formulas and reconciles audit/receipts. Query uncertain requests in their original deployment. Do not treat a native workbook copy as a verified backup of Script Properties or deployment settings; inspect any copied bound script and keep periodic and pre-change backups with private dates/revisions/cutoffs.

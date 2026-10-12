@@ -194,6 +194,60 @@ const INPUT_SCHEMA_ = {
   },
 };
 const PROCESS_FIELDS_ = {
+  restaurar_formulas_fondos: [],
+  traspaso_fondo: [
+    'date',
+    'concept',
+    'fromProduct',
+    'toProduct',
+    'outUnits',
+    'outPrice',
+    'inUnits',
+    'inPrice',
+  ],
+  anular_traspaso_fondo: ['id'],
+  editar_movimiento: [
+    'movement',
+    'kind',
+    'date',
+    'concept',
+    'account',
+    'from',
+    'to',
+    'category',
+    'amount',
+    'recoverable',
+    'original',
+    'debt',
+    'location',
+    'recurring',
+  ],
+  archivar: ['kind', 'reference', 'archived'],
+  plantilla: ['id', 'name', 'operation'],
+  quitar_plantilla: ['id'],
+  obligacion: [
+    'id',
+    'date',
+    'concept',
+    'account',
+    'category',
+    'amount',
+    'kind',
+  ],
+  quitar_obligacion: ['id'],
+  corregir_nomina: [
+    'movement',
+    'date',
+    'concept',
+    'account',
+    'category',
+    'amount',
+    'gross',
+    'contribution',
+    'tax',
+    'otherDeductions',
+    'location',
+  ],
   presupuesto: ['month', 'category', 'amount'],
   quitar_presupuesto: ['month', 'category'],
   gasto: [
@@ -587,6 +641,58 @@ const TECH_SCHEMA_ = {
       'Detalle',
     ],
   ],
+  transfers: [
+    '_Finanzas_TraspasosFondos',
+    [
+      'ID',
+      'Fecha',
+      'Origen',
+      'Destino',
+      'Venta',
+      'Compra',
+      'Aportado neto trasladado',
+      'Aportado bruto trasladado',
+      'Valor',
+      'Activo',
+      'Fecha registro',
+      'Concepto',
+    ],
+  ],
+  migrations: [
+    '_Finanzas_Migraciones',
+    [
+      'ID',
+      'Versión',
+      'Hoja',
+      'Fila',
+      'Columna',
+      'Fórmula original',
+      'Fecha registro',
+      'Fórmula canónica',
+    ],
+  ],
+  archives: [
+    '_Finanzas_Archivados',
+    ['ID', 'Tipo', 'Referencia', 'Archivado', 'Fecha registro'],
+  ],
+  templates: [
+    '_Finanzas_Plantillas',
+    ['ID', 'Nombre', 'Operación', 'Activo', 'Fecha registro'],
+  ],
+  planned: [
+    '_Finanzas_Obligaciones',
+    [
+      'ID',
+      'Fecha',
+      'Concepto',
+      'Cuenta',
+      'Subcategoría',
+      'Importe',
+      'Tipo',
+      'Activo',
+      'Fecha registro',
+    ],
+  ],
   budgets: [
     '_Finanzas_Presupuestos',
     ['ID', 'Mes', 'Subcategoría', 'Límite EUR', 'Activo', 'Fecha registro'],
@@ -728,7 +834,7 @@ function authorizedConfig_() {
     !id ||
     !owner ||
     !['test', 'production'].includes(environment) ||
-    (environment === 'production' && productionId === testId)
+    (!!productionId && productionId === testId)
   )
     fail_('NOT_CONFIGURED');
   const visitor = (Session.getActiveUser().getEmail() || '')
@@ -1032,6 +1138,11 @@ function revision_(s) {
   return hash_({
     tables,
     settings: s.settings,
+    ...Object.fromEntries(
+      ['archives', 'templates', 'planned', 'transfers', 'migrations']
+        .filter((k) => s.technical[k]?.length)
+        .map((k) => [k, s.technical[k]]),
+    ),
     observations: s.technical.observations,
     funds: s.technical.funds,
     ...(s.technical.budgets?.length ? { budgets: s.technical.budgets } : {}),
@@ -1046,6 +1157,354 @@ function tradeAmount_(r) {
     : r.Tipo === 'Venta'
       ? r.Participaciones * r.Precio - fee - tax
       : r.Precio - fee - tax;
+}
+function fundAdjustmentFormula_(product, date, kind) {
+  const ref = (c) => "'_Finanzas_TraspasosFondos'!$" + c + '$2:$' + c;
+  const sum = (value, side) =>
+    'SUMIFS(' +
+    ref(value) +
+    ';' +
+    ref(side) +
+    ';' +
+    product +
+    ';' +
+    ref('B') +
+    ';"<="&' +
+    date +
+    ';' +
+    ref('J') +
+    ';1)';
+  return kind === 'capital'
+    ? sum('I', 'C') +
+        '-' +
+        sum('G', 'C') +
+        '+' +
+        sum('G', 'D') +
+        '-' +
+        sum('I', 'D')
+    : '-' + sum('H', 'C') + '+' + sum('H', 'D') + '-' + sum('I', 'D');
+}
+function fundCapitalAdjustedFormula_(formula, product, date) {
+  return (
+    formula.slice(0, -1) +
+    '+' +
+    fundAdjustmentFormula_(product, date, 'capital') +
+    ')'
+  );
+}
+function fundProductFormulas_(s, row) {
+  const m = s.layout.tProductos,
+    cell = (h) =>
+      columnA1_(m.range.startColumnIndex + m.headers.indexOf(h)) + row;
+  const id = cell('ID'),
+    base = cell('Coste base'),
+    start = cell('Fecha base'),
+    gain = cell('Resultado'),
+    date = "'Configuración'!$C$8";
+  const sum = (type) =>
+    'SUMIFS(tOperaciones[Importe];tOperaciones[Producto];' +
+    id +
+    ';tOperaciones[Tipo];"' +
+    type +
+    '";tOperaciones[Fecha];">="&' +
+    start +
+    ';tOperaciones[Fecha];"<="&' +
+    date +
+    ')';
+  const capital =
+    '=IF(OR(' +
+    id +
+    '="";' +
+    date +
+    '<' +
+    start +
+    ');"";' +
+    base +
+    '+' +
+    sum('Compra') +
+    '-' +
+    sum('Venta') +
+    ')';
+  const invested =
+    base +
+    '+SUMIFS(tOperaciones[Importe];tOperaciones[Producto];' +
+    id +
+    ';tOperaciones[Tipo];"Compra";tOperaciones[Fecha];"<="&' +
+    date +
+    ')';
+  const rate =
+    '=IF(OR(' +
+    id +
+    '="";COUNT(' +
+    gain +
+    ')=0;' +
+    invested +
+    '=0);"";' +
+    gain +
+    '/(' +
+    invested +
+    '))';
+  const adjustedInvested =
+    '(' + invested + fundAdjustmentFormula_(id, date, 'invested') + ')';
+  return [
+    {
+      column: m.range.startColumnIndex + m.headers.indexOf('Aportado neto'),
+      original: capital,
+      updated: fundCapitalAdjustedFormula_(capital, id, date),
+    },
+    {
+      column: m.range.startColumnIndex + m.headers.indexOf('Rentabilidad'),
+      original: rate,
+      updated: rate.split(invested).join(adjustedInvested),
+    },
+  ];
+}
+function sameNativeFormula_(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  // Sheets removes optional quotes around ASCII sheet identifiers on readback.
+  // Preserve quoted string literals; do not relax operators, values or ranges.
+  const canonical = (formula) =>
+    formula
+      .split(/("(?:[^"]|"")*")/g)
+      .map((part, index) =>
+        index % 2 ? part : part.replace(/'([A-Za-z_][A-Za-z0-9_]*)'!/g, '$1!'),
+      )
+      .join('');
+  return canonical(a) === canonical(b);
+}
+function prepareFundFormulaMigration_(config, before, after, requestId, now) {
+  const activeMigration = (before.technical.migrations || []).some(
+    (r) => r[1] === 'fund-transfer-v1',
+  );
+  if (
+    !(after.technical.transfers || []).some((r) => r[9]) &&
+    !activeMigration &&
+    !after.restoreFundFormulas
+  )
+    return [];
+  const targets = [],
+    p = before.layout.tProductos;
+  for (let row = p.range.startRowIndex + 1; row < p.range.endRowIndex; row++)
+    fundProductFormulas_(before, row + 1).forEach((f) =>
+      targets.push({ ...f, sheetId: p.range.sheetId, row }),
+    );
+  const h = supportRanges_(before).history.range;
+  const originals = supportFormulaRequests_(before, true).find(
+    (r) =>
+      r.updateCells?.start?.sheetId === h.sheetId &&
+      r.updateCells.start.rowIndex === h.startRowIndex &&
+      r.updateCells.start.columnIndex === h.startColumnIndex,
+  );
+  check_(!!originals, 'Falta el histórico nativo de inversiones.');
+  originals.updateCells.rows.forEach((r, i) => {
+    const row = h.startRowIndex + i,
+      original = r.values[5].userEnteredValue.formulaValue;
+    targets.push({
+      sheetId: h.sheetId,
+      row,
+      column: h.startColumnIndex + 5,
+      original,
+      updated: fundCapitalAdjustedFormula_(
+        original,
+        'C' + (row + 1),
+        'D' + (row + 1),
+      ),
+    });
+  });
+  const ranges = targets.map((t) =>
+    rangeA1_(
+      before.book.sheets.find((s) => s.properties.sheetId === t.sheetId)
+        .properties.title,
+      {
+        sheetId: t.sheetId,
+        startRowIndex: t.row,
+        endRowIndex: t.row + 1,
+        startColumnIndex: t.column,
+        endColumnIndex: t.column + 1,
+      },
+    ),
+  );
+  const response = Sheets.Spreadsheets.Values.batchGet(config.id, {
+      ranges,
+      valueRenderOption: 'FORMULA',
+    }),
+    requests = [];
+  targets.forEach((t, i) => {
+    const current = response.valueRanges[i]?.values?.[0]?.[0],
+      id = 'FTR1-' + t.sheetId + '-' + t.row + '-' + t.column;
+    const originalNative = nativeFormula_(before, t.original),
+      updatedNative = nativeFormula_(before, t.updated);
+    const backup = after.technical.migrations.find((r) => r[0] === id);
+    if (after.restoreFundFormulas) {
+      if (!backup || backup[1] !== 'fund-transfer-v1') return;
+      check_(
+        sameNativeFormula_(current, t.updated) ||
+          sameNativeFormula_(current, updatedNative),
+        'La fórmula migrada cambió. No se restaurará sobre una edición manual.',
+      );
+      const original = nativeFormula_(before, backup[7] || t.original);
+      requests.push({
+        updateCells: {
+          start: { sheetId: t.sheetId, rowIndex: t.row, columnIndex: t.column },
+          rows: [
+            { values: [{ userEnteredValue: { formulaValue: original } }] },
+          ],
+          fields: 'userEnteredValue',
+        },
+      });
+      backup[1] = 'restored-fund-transfer-v1';
+      return;
+    }
+    if (backup && backup[1] === 'fund-transfer-v1') {
+      check_(
+        sameNativeFormula_(current, t.updated) ||
+          sameNativeFormula_(current, updatedNative),
+        'La fórmula migrada cambió. Revisa el libro antes de traspasar fondos.',
+      );
+      return;
+    }
+    if (
+      sameNativeFormula_(current, t.updated) ||
+      sameNativeFormula_(current, updatedNative)
+    ) {
+      after.technical.migrations.push([
+        id,
+        'fund-transfer-v1',
+        t.sheetId,
+        t.row,
+        t.column,
+        originalNative,
+        now,
+        t.original,
+      ]);
+      return;
+    }
+    check_(
+      sameNativeFormula_(current, t.original) ||
+        sameNativeFormula_(current, originalNative),
+      'La fórmula nativa no coincide con el modelo revisado. No se ha registrado el traspaso.',
+    );
+    if (backup) {
+      backup[1] = 'fund-transfer-v1';
+      backup[6] = now;
+    } else
+      after.technical.migrations.push([
+        id,
+        'fund-transfer-v1',
+        t.sheetId,
+        t.row,
+        t.column,
+        current,
+        now,
+        t.original,
+      ]);
+    requests.push({
+      updateCells: {
+        start: { sheetId: t.sheetId, rowIndex: t.row, columnIndex: t.column },
+        rows: [
+          { values: [{ userEnteredValue: { formulaValue: updatedNative } }] },
+        ],
+        fields: 'userEnteredValue',
+      },
+    });
+  });
+  after.revision = revision_(after);
+  return requests;
+}
+
+function refreshTransferBases_(s) {
+  const transfers = (s.technical.transfers || []).filter((r) => r[9]);
+  if (!transfers.length) return;
+  const holdings = new Map(
+    s.tables.tProductos.map((p) => [
+      p.ID,
+      { units: 0, capital: 0, invested: 0 },
+    ]),
+  );
+  const paired = new Set(transfers.flatMap((t) => [t[4], t[5]]));
+  const events = [
+    ...s.tables.tProductos.map((p) => ({
+      date: p['Fecha base'],
+      order: 0,
+      id: p.ID,
+      product: p,
+    })),
+    ...s.tables.tOperaciones
+      .filter((o) => !paired.has(o.ID))
+      .map((o) => ({
+        date: o.Fecha,
+        order: o.Tipo === 'Compra' ? 1 : 3,
+        id: o.ID,
+        trade: o,
+      })),
+    ...transfers.map((t) => ({ date: t[1], order: 2, id: t[0], transfer: t })),
+  ].sort(
+    (a, b) => a.date - b.date || a.order - b.order || a.id.localeCompare(b.id),
+  );
+  events.forEach((e) => {
+    if (e.product) {
+      const h = holdings.get(e.id);
+      h.units += e.product['Unidades base'];
+      h.capital += e.product['Coste base'];
+      h.invested += e.product['Coste base'];
+    } else if (e.trade) {
+      const o = e.trade,
+        h = holdings.get(o.Producto);
+      check_(!!h, 'Producto desconocido.');
+      if (o.Tipo === 'Compra') {
+        h.units += o.Participaciones;
+        h.capital += tradeAmount_(o);
+        h.invested += tradeAmount_(o);
+      } else if (o.Tipo === 'Venta') {
+        h.units -= o.Participaciones;
+        h.capital -= tradeAmount_(o);
+      }
+    } else {
+      const t = e.transfer,
+        out = s.tables.tOperaciones.find((o) => o.ID === t[4]),
+        incoming = s.tables.tOperaciones.find((o) => o.ID === t[5]),
+        from = holdings.get(t[2]),
+        to = holdings.get(t[3]);
+      check_(
+        from &&
+          to &&
+          out &&
+          incoming &&
+          out.Tipo === 'Venta' &&
+          incoming.Tipo === 'Compra' &&
+          out.Producto === t[2] &&
+          incoming.Producto === t[3] &&
+          out.Fecha === t[1] &&
+          incoming.Fecha === t[1] &&
+          blank_(out.Movimiento) &&
+          blank_(incoming.Movimiento) &&
+          !out.Comisión &&
+          !incoming.Comisión &&
+          !out.Retención &&
+          !incoming.Retención,
+        'Partes de traspaso incompatibles.',
+      );
+      check_(
+        from.units > 0 && out.Participaciones <= from.units + 1e-8,
+        'Traspaso superior a las participaciones disponibles.',
+      );
+      const amount = tradeAmount_(out);
+      check_(
+        Math.abs(amount - tradeAmount_(incoming)) <= 1e-8 &&
+          Math.abs(amount - t[8]) <= 1e-8,
+        'Valor de traspaso incompatible.',
+      );
+      const fraction = Math.min(1, out.Participaciones / from.units);
+      t[6] = from.capital * fraction;
+      t[7] = from.invested * fraction;
+      from.units -= out.Participaciones;
+      from.capital -= t[6];
+      from.invested -= t[7];
+      to.units += incoming.Participaciones;
+      to.capital += t[6];
+      to.invested += t[7];
+    }
+  });
 }
 function validateFinancialState_(s) {
   const t = s.tables,
@@ -1077,6 +1536,115 @@ function validateFinancialState_(s) {
     debts = by('tDeudas', 'ID'),
     goals = by('tObjetivos', 'ID'),
     links = by('tVinculos', 'Movimiento');
+  ['archives', 'templates', 'planned'].forEach((kind) => {
+    const rows = s.technical[kind] || [];
+    check_(
+      new Set(rows.map((r) => r[0])).size === rows.length,
+      'ID de metadatos duplicado.',
+    );
+    rows.forEach((r) => text_(r[0], 'ID de metadatos'));
+  });
+  (s.technical.archives || []).forEach((r) => {
+    check_(
+      ['account', 'category'].includes(r[1]) && [0, 1].includes(r[3]),
+      'Archivo inválido.',
+    );
+    if (r[3])
+      check_(
+        (r[1] === 'account' ? accounts : categories).has(r[2]),
+        'Una referencia archivada debe conservarse o recuperarse antes de anularla.',
+      );
+  });
+  (s.technical.templates || []).forEach((r) => {
+    text_(r[1], 'Plantilla');
+    check_([0, 1].includes(r[3]), 'Estado de plantilla inválido.');
+    let op;
+    try {
+      op = JSON.parse(r[2]);
+    } catch (_) {
+      check_(false, 'Plantilla inválida.');
+    }
+    check_(
+      object_(op) &&
+        [
+          'gasto',
+          'ingreso',
+          'nomina',
+          'traspaso',
+          'prestamo',
+          'pago_deuda',
+          'cobro_compartido',
+          'devolucion_gasto',
+        ].includes(op.process) &&
+        Object.keys(op).every(
+          (k) => k === 'process' || PROCESS_FIELDS_[op.process].includes(k),
+        ),
+      'Campos de plantilla inválidos.',
+    );
+    if (r[3]) {
+      ['account', 'from', 'to'].forEach((k) => {
+        if (!blank_(op[k]))
+          check_(
+            accounts.has(op[k]),
+            'Una cuenta utilizada por una plantilla activa debe conservarse.',
+          );
+      });
+      if (!blank_(op.category))
+        check_(
+          categories.has(op.category),
+          'Una subcategoría utilizada por una plantilla activa debe conservarse.',
+        );
+      if (!blank_(op.debt))
+        check_(
+          debts.has(op.debt),
+          'Una deuda utilizada por una plantilla activa debe conservarse.',
+        );
+      if (!blank_(op.original))
+        check_(
+          movements.get(op.original)?.Tipo === 'Gasto',
+          'Un gasto utilizado por una plantilla activa debe conservarse.',
+        );
+    }
+  });
+  (s.technical.planned || []).forEach((r) => {
+    serialDate_(r[1]);
+    text_(r[2], 'Concepto previsto');
+    moneyInput_(r[5], 'Importe previsto');
+    check_(
+      ['expense', 'income'].includes(r[6]) && [0, 1].includes(r[7]),
+      'Estado previsto inválido.',
+    );
+    if (r[7])
+      check_(
+        accounts.has(r[3]) &&
+          categories.get(r[4])?.Grupo ===
+            (r[6] === 'expense' ? 'Gastos' : 'Ingresos'),
+        'Referencia prevista desconocida.',
+      );
+  });
+  (s.technical.transfers || []).forEach((r) => {
+    text_(r[0], 'Traspaso');
+    check_([0, 1].includes(r[9]), 'Estado de traspaso inválido.');
+    if (r[9]) {
+      check_(
+        s.technical.funds.some((f) => f[0] === r[2]) &&
+          s.technical.funds.some((f) => f[0] === r[3]),
+        'Fondo sin ISIN.',
+      );
+      number_(r[6], 'Aportado neto trasladado', false, -1e12);
+      number_(r[7], 'Aportado bruto trasladado');
+      number_(r[8], 'Valor del traspaso', false, 0, true);
+    }
+  });
+  if ((s.technical.transfers || []).some((r) => r[9])) {
+    const recalculated = clone_(s);
+    refreshTransferBases_(recalculated);
+    check_(
+      canonical_(recalculated.technical.transfers) ===
+        canonical_(s.technical.transfers),
+      'Bases de traspaso incompatibles.',
+    );
+  }
   const budgetKeys = new Set();
   (s.technical.budgets || []).forEach((row) => {
     check_(
@@ -1284,7 +1852,13 @@ function validateFinancialState_(s) {
     check_(r.Tipo !== 'Compra' || !(r.Retención || 0), 'Compra con retención.');
     check_(tradeAmount_(r) > 0, 'Neto de inversión no positivo.');
     if (blank_(r.Movimiento))
-      check_(r.Fecha < cfg.start, 'Operación actual sin movimiento de caja.');
+      check_(
+        r.Fecha < cfg.start ||
+          (s.technical.transfers || []).some(
+            (t) => t[9] && [t[4], t[5]].includes(r.ID),
+          ),
+        'Operación actual sin movimiento de caja.',
+      );
     else {
       const m = movements.get(r.Movimiento);
       check_(!!m, 'Movimiento de caja inexistente.');
@@ -1443,7 +2017,13 @@ function synchronizeTradeCash_(s) {
     cash.Importe = money_(trades.reduce((sum, r) => sum + tradeAmount_(r), 0));
   });
 }
-function applyOperations_(initial, operations, requestId, now) {
+function applyOperations_(
+  initial,
+  operations,
+  requestId,
+  now,
+  deferValidation,
+) {
   const s = clone_(initial),
     results = [],
     aliases = {};
@@ -1489,6 +2069,52 @@ function applyOperations_(initial, operations, requestId, now) {
       Object.keys(o).every((k) => k === 'process' || allowed.indexOf(k) >= 0),
       'Campo desconocido, calculado o ID manual.',
     );
+    if (
+      !deferValidation &&
+      [
+        'gasto',
+        'ingreso',
+        'nomina',
+        'traspaso',
+        'prestamo',
+        'pago_deuda',
+        'cobro_compartido',
+        'devolucion_gasto',
+        'producto',
+      ].includes(p)
+    ) {
+      ['account', 'from', 'to', 'category'].forEach((k) => {
+        if (!blank_(o[k]))
+          check_(
+            !(s.technical.archives || []).some(
+              (r) =>
+                r[3] &&
+                r[1] === (k === 'category' ? 'category' : 'account') &&
+                r[2] === o[k],
+            ),
+            'Recupera la referencia archivada antes de crear una operación.',
+          );
+      });
+    }
+    if (
+      !deferValidation &&
+      ['compra', 'venta', 'rendimiento', 'traspaso_fondo'].includes(p)
+    ) {
+      const productReferences =
+        p === 'traspaso_fondo' ? [o.fromProduct, o.toProduct] : [o.product];
+      productReferences.forEach((ref) => {
+        const product = s.tables.tProductos.find(
+          (r) => r.ID === ref || r.Producto === ref,
+        );
+        if (product)
+          check_(
+            !(s.technical.archives || []).some(
+              (r) => r[3] && r[1] === 'account' && r[2] === product.Cuenta,
+            ),
+            'Recupera la cuenta archivada antes de registrar una inversión.',
+          );
+      });
+    }
     if (o.alias)
       check_(
         typeof o.alias === 'string' &&
@@ -1787,6 +2413,294 @@ function applyOperations_(initial, operations, requestId, now) {
         required(o, 'referenceName'),
         now,
       );
+    } else if (p === 'restaurar_formulas_fondos') {
+      check_(
+        !(s.technical.transfers || []).some((r) => r[9]),
+        'Anula todos los traspasos antes de restaurar sus fórmulas.',
+      );
+      s.restoreFundFormulas = true;
+    } else if (p === 'traspaso_fondo') {
+      const from = resolveReference_(
+          s,
+          'tProductos',
+          required(o, 'fromProduct'),
+          aliases,
+          'Fondo de origen',
+        ),
+        to = resolveReference_(
+          s,
+          'tProductos',
+          required(o, 'toProduct'),
+          aliases,
+          'Fondo de destino',
+        );
+      check_(from !== to, 'Elige fondos distintos.');
+      check_(
+        [from, to].every((id) => s.technical.funds.some((r) => r[0] === id)),
+        'Configura el ISIN de ambos fondos antes del traspaso.',
+      );
+      const date = serialDate_(required(o, 'date'));
+      ['outUnits', 'outPrice', 'inUnits', 'inPrice'].forEach((k) =>
+        number_(required(o, k), k, false, 0, true),
+      );
+      const value = o.outUnits * o.outPrice;
+      check_(
+        Math.abs(value - o.inUnits * o.inPrice) <= 1e-8,
+        'Los dos fondos deben cerrar el mismo valor en EUR.',
+      );
+      text_(required(o, 'concept'), 'Concepto');
+      const out = tradeId + '-OUT',
+        incoming = tradeId + '-IN';
+      putRow_(
+        s,
+        'tOperaciones',
+        {
+          ID: out,
+          Fecha: date,
+          Producto: from,
+          Tipo: 'Venta',
+          Participaciones: o.outUnits,
+          Precio: o.outPrice,
+          Comisión: 0,
+          Retención: 0,
+          Movimiento: null,
+        },
+        false,
+      );
+      putRow_(
+        s,
+        'tOperaciones',
+        {
+          ID: incoming,
+          Fecha: date,
+          Producto: to,
+          Tipo: 'Compra',
+          Participaciones: o.inUnits,
+          Precio: o.inPrice,
+          Comisión: 0,
+          Retención: 0,
+          Movimiento: null,
+        },
+        false,
+      );
+      primary = 'TRF-' + requestId + '-' + (index + 1);
+      s.technical.transfers.push([
+        primary,
+        date,
+        from,
+        to,
+        out,
+        incoming,
+        0,
+        0,
+        value,
+        1,
+        now,
+        o.concept,
+      ]);
+      s.settings.asof = Math.max(s.settings.asof, date);
+      s.settings.valuation = Math.max(s.settings.valuation, date);
+    } else if (p === 'anular_traspaso_fondo') {
+      const transfer = s.technical.transfers.find(
+        (r) => r[0] === required(o, 'id') && r[9],
+      );
+      check_(!!transfer, 'Traspaso desconocido.');
+      [transfer[4], transfer[5]].forEach((id) =>
+        dropRow_(s, 'tOperaciones', { ID: id }),
+      );
+      transfer[9] = 0;
+      transfer[10] = now;
+      primary = transfer[0];
+    } else if (p === 'editar_movimiento') {
+      const movement = required(o, 'movement');
+      const row = s.tables.tMovimientos.find((r) => r.ID === movement);
+      check_(
+        row &&
+          !s.tables.tNominas.some((r) => r.Movimiento === movement) &&
+          !s.tables.tOperaciones.some((r) => r.Movimiento === movement),
+        'Usa el editor de nómina o inversión correspondiente.',
+      );
+      check_(
+        [
+          'gasto',
+          'ingreso',
+          'traspaso',
+          'prestamo',
+          'pago_deuda',
+          'cobro_compartido',
+          'devolucion_gasto',
+        ].includes(o.kind),
+        'Tipo de movimiento inválido.',
+      );
+      // Remove the original only on the isolated state, then reuse the complete typed process validation.
+      dropRow_(s, 'tMovimientos', { ID: movement });
+      dropRow_(s, 'tVinculos', { Movimiento: movement });
+      const input = Object.fromEntries(
+        Object.entries(o).filter(([k]) => PROCESS_FIELDS_[o.kind].includes(k)),
+      );
+      const changed = applyOperations_(
+        s,
+        [{ process: o.kind, ...input }],
+        requestId + '-edit-' + index,
+        now,
+        true,
+      ).state;
+      const replacement = changed.tables.tMovimientos.at(-1),
+        temporary = replacement.ID;
+      replacement.ID = movement;
+      changed.tables.tVinculos.forEach((r) => {
+        if (r.Movimiento === temporary) r.Movimiento = movement;
+      });
+      s.tables = changed.tables;
+      s.settings = changed.settings;
+      primary = movement;
+    } else if (p === 'corregir_nomina') {
+      const movement = required(o, 'movement');
+      const row = s.tables.tMovimientos.find((r) => r.ID === movement);
+      const payroll = s.tables.tNominas.find((r) => r.Movimiento === movement);
+      check_(row && payroll, 'Nómina desconocida.');
+      Object.assign(row, {
+        Fecha: serialDate_(required(o, 'date')),
+        Concepto: required(o, 'concept'),
+        Destino: resolveReference_(
+          s,
+          'tCuentas',
+          required(o, 'account'),
+          aliases,
+          'Cuenta',
+        ),
+        Subcategoría: required(o, 'category'),
+        Importe: moneyInput_(required(o, 'amount'), 'Neto'),
+        Localización: blank_(o.location) ? null : o.location,
+      });
+      Object.assign(payroll, {
+        Bruto: blank_(o.gross) ? null : o.gross,
+        Cotización: blank_(o.contribution) ? null : o.contribution,
+        IRPF: blank_(o.tax) ? null : o.tax,
+        'Otras deducciones': blank_(o.otherDeductions)
+          ? null
+          : o.otherDeductions,
+      });
+      s.settings.asof = Math.max(s.settings.asof, row.Fecha);
+      primary = movement;
+    } else if (p === 'archivar') {
+      check_(
+        ['account', 'category'].includes(o.kind) &&
+          typeof o.archived === 'boolean',
+        'Archivo inválido.',
+      );
+      const reference = resolveReference_(
+        s,
+        o.kind === 'account' ? 'tCuentas' : 'tCategorias',
+        required(o, 'reference'),
+        aliases,
+        'Referencia',
+      );
+      const rows = s.technical.archives;
+      let row = rows.find((r) => r[1] === o.kind && r[2] === reference);
+      if (!row) {
+        row = [
+          'ARC-' + requestId + '-' + (index + 1),
+          o.kind,
+          reference,
+          0,
+          now,
+        ];
+        rows.push(row);
+      }
+      row[3] = o.archived ? 1 : 0;
+      row[4] = now;
+      primary = row[0];
+    } else if (p === 'plantilla' || p === 'quitar_plantilla') {
+      const rows = s.technical.templates;
+      let row = blank_(o.id) ? null : rows.find((r) => r[0] === o.id);
+      if (!blank_(o.id)) check_(!!row, 'Plantilla desconocida.');
+      if (p === 'quitar_plantilla') {
+        check_(row && row[3], 'Plantilla inexistente.');
+        row[3] = 0;
+      } else {
+        text_(required(o, 'name'), 'Nombre');
+        check_(
+          object_(o.operation) &&
+            [
+              'gasto',
+              'ingreso',
+              'nomina',
+              'traspaso',
+              'prestamo',
+              'pago_deuda',
+              'cobro_compartido',
+              'devolucion_gasto',
+            ].includes(o.operation.process),
+          'Proceso de plantilla inválido.',
+        );
+        // Validate the typed financial input on an isolated copy; saving never applies it.
+        applyOperations_(s, [o.operation], 'template-validation', now);
+        const value = JSON.stringify(o.operation);
+        check_(value.length <= 5000, 'Plantilla demasiado larga.');
+        if (!row) {
+          row = ['TPL-' + requestId + '-' + (index + 1), o.name, value, 1, now];
+          rows.push(row);
+        } else {
+          row[1] = o.name;
+          row[2] = value;
+          row[3] = 1;
+        }
+      }
+      row[4] = now;
+      primary = row[0];
+    } else if (p === 'obligacion' || p === 'quitar_obligacion') {
+      const rows = s.technical.planned;
+      let row = blank_(o.id) ? null : rows.find((r) => r[0] === o.id);
+      if (!blank_(o.id)) check_(!!row, 'Obligación desconocida.');
+      if (p === 'quitar_obligacion') {
+        check_(row && row[7], 'Obligación inexistente.');
+        row[7] = 0;
+      } else {
+        check_(
+          ['expense', 'income'].includes(o.kind),
+          'Tipo de obligación inválido.',
+        );
+        text_(required(o, 'concept'), 'Concepto');
+        const account = resolveReference_(
+          s,
+          'tCuentas',
+          required(o, 'account'),
+          aliases,
+          'Cuenta',
+        );
+        const category = resolveReference_(
+          s,
+          'tCategorias',
+          required(o, 'category'),
+          aliases,
+          'Subcategoría',
+        );
+        check_(
+          s.tables.tCategorias.some(
+            (c) =>
+              c.Subcategoría === category &&
+              c.Grupo === (o.kind === 'expense' ? 'Gastos' : 'Ingresos'),
+          ),
+          'Grupo de obligación incompatible.',
+        );
+        const values = [
+          serialDate_(required(o, 'date')),
+          o.concept,
+          account,
+          category,
+          moneyInput_(required(o, 'amount'), 'Importe'),
+          o.kind,
+          1,
+          now,
+        ];
+        if (!row) {
+          row = ['PLN-' + requestId + '-' + (index + 1), ...values];
+          rows.push(row);
+        } else row.splice(1, 8, ...values);
+      }
+      row[8] = now;
+      primary = row[0];
     } else if (p === 'presupuesto' || p === 'quitar_presupuesto') {
       const month = required(o, 'month');
       check_(
@@ -1898,6 +2812,13 @@ function applyOperations_(initial, operations, requestId, now) {
         );
       if (name === 'tOperaciones')
         check_(
+          !(s.technical.transfers || []).some(
+            (r) => r[9] && [r[4], r[5]].includes(row.ID),
+          ),
+          'Anula el traspaso completo antes de sustituirlo.',
+        );
+      if (name === 'tOperaciones')
+        check_(
           !Object.prototype.hasOwnProperty.call(o.changes, 'Movimiento'),
           'El movimiento enlazado lo administra el backend.',
         );
@@ -1966,6 +2887,26 @@ function applyOperations_(initial, operations, requestId, now) {
             r[5] = now;
           }
         });
+      (s.technical.archives || []).forEach((r) => {
+        if (
+          r[1] === (o.kind === 'cuenta' ? 'account' : 'category') &&
+          r[2] === old
+        )
+          r[2] = value;
+      });
+      (s.technical.planned || []).forEach((r) => {
+        const i = o.kind === 'cuenta' ? 3 : 4;
+        if (r[i] === old) r[i] = value;
+      });
+      (s.technical.templates || []).forEach((r) => {
+        const op = JSON.parse(r[2]);
+        const keys =
+          o.kind === 'cuenta' ? ['account', 'from', 'to'] : ['category'];
+        keys.forEach((k) => {
+          if (op[k] === old) op[k] = value;
+        });
+        r[2] = JSON.stringify(op);
+      });
       // Conserva los filtros existentes; el adaptador de escritura actualiza la selección si coincide.
       s.renames = (s.renames || []).concat([
         { kind: o.kind, from: old, to: value },
@@ -1978,8 +2919,15 @@ function applyOperations_(initial, operations, requestId, now) {
           object_(o.key),
         'Anulación incompleta.',
       );
-      const key = normalizeRow_(name, o.key),
-        row = dropRow_(s, name, key);
+      const key = normalizeRow_(name, o.key);
+      if (name === 'tOperaciones')
+        check_(
+          !(s.technical.transfers || []).some(
+            (r) => r[9] && [r[4], r[5]].includes(key.ID),
+          ),
+          'Anula las dos partes del traspaso juntas.',
+        );
+      const row = dropRow_(s, name, key);
       if (row && name === 'tMovimientos') {
         s.tables.tOperaciones = s.tables.tOperaciones.filter(
           (r) => r.Movimiento !== row.ID,
@@ -2011,7 +2959,10 @@ function applyOperations_(initial, operations, requestId, now) {
     }
     results.push(result);
   });
-  validateFinancialState_(s);
+  if (!deferValidation) {
+    refreshTransferBases_(s);
+    validateFinancialState_(s);
+  }
   s.revision = revision_(s);
   return { state: s, results };
 }
@@ -2244,6 +3195,46 @@ function mutationRequests_(before, after, requestId, now, result) {
       audit.push([requestId, now, kind, row[0], 'null', canonical_(row)]),
     );
   });
+  ['archives', 'templates', 'planned', 'transfers', 'migrations'].forEach(
+    (kind) => {
+      const oldRows = before.technical[kind] || [],
+        nextRows = after.technical[kind] || [];
+      nextRows.forEach((row, i) => {
+        if (canonical_(row) === canonical_(oldRows[i])) return;
+        check_(
+          !!before.tech[kind],
+          'Prepara los metadatos con la entrega vigente.',
+        );
+        if (i < oldRows.length)
+          requests.push({
+            updateCells: {
+              start: {
+                sheetId: before.tech[kind].id,
+                rowIndex: i + 1,
+                columnIndex: 0,
+              },
+              rows: [{ values: row.map(cellValue_) }],
+              fields: 'userEnteredValue',
+            },
+          });
+        audit.push([
+          requestId,
+          now,
+          kind,
+          row[0],
+          canonical_(oldRows[i] || null),
+          canonical_(row),
+        ]);
+      });
+      if (nextRows.length > oldRows.length)
+        appendTechnical_(
+          requests,
+          before.tech[kind],
+          oldRows,
+          nextRows.slice(oldRows.length),
+        );
+    },
+  );
   const previousBudgets = before.technical.budgets || [];
   const nextBudgets = after.technical.budgets || [];
   nextBudgets.forEach((row, i) => {
@@ -2481,6 +3472,52 @@ function publicSnapshot_(s) {
     observations,
     prices: priceSnapshot_(s),
     supportsBudgets: true,
+    supportsPlanning: !!s.tech.planned,
+    fundTransfers: (s.technical.transfers || [])
+      .filter((r) => r[9])
+      .map((r) => ({
+        id: r[0],
+        date: isoDate_(r[1]),
+        fromProduct: r[2],
+        toProduct: r[3],
+        outTradeID: r[4],
+        inTradeID: r[5],
+        costBasis: r[6],
+        investedBasis: r[7],
+        amount: r[8],
+        concept: r[11],
+      })),
+    capabilities: {
+      archives: true,
+      templates: true,
+      planned: true,
+      payrollCorrection: true,
+      contextualCorrection: true,
+      fundTransfers: true,
+    },
+    archives: {
+      accounts: (s.technical.archives || [])
+        .filter((r) => r[1] === 'account' && r[3])
+        .map((r) => r[2]),
+      categories: (s.technical.archives || [])
+        .filter((r) => r[1] === 'category' && r[3])
+        .map((r) => r[2]),
+    },
+    templates: (s.technical.templates || [])
+      .filter((r) => r[3])
+      .map((r) => ({ id: r[0], name: r[1], operation: JSON.parse(r[2]) })),
+    planned: (s.technical.planned || [])
+      .filter((r) => r[7])
+      .map((r) => ({
+        id: r[0],
+        date: isoDate_(r[1]),
+        concept: r[2],
+        account: r[3],
+        category: r[4],
+        amount: r[5],
+        kind: r[6],
+        active: true,
+      })),
     budgets: (s.technical.budgets || [])
       .filter((r) => r[4])
       .map((r) => ({ month: r[1], category: r[2], amount: r[3] })),
@@ -2733,7 +3770,16 @@ function financialApi(request) {
         requestId,
         now,
       );
-      if (applied.state.technical.budgets.length && !before.tech.budgets)
+      if (
+        [
+          'budgets',
+          'archives',
+          'templates',
+          'planned',
+          'transfers',
+          'migrations',
+        ].some((k) => applied.state.technical[k].length && !before.tech[k])
+      )
         before = initializeBackendUnlocked_(config);
       // La preparación de estructura no registra operaciones: las entradas, caja y solicitud
       // siguen en un único lote. Un fallo aquí permite reintentar el mismo sobre sin duplicar.
@@ -2744,6 +3790,13 @@ function financialApi(request) {
           'El libro cambió durante la preparación. Vuelve a leer.',
         );
       applied = applyOperations_(before, request.operations, requestId, now);
+      const formulaRequests = prepareFundFormulaMigration_(
+        config,
+        before,
+        applied.state,
+        requestId,
+        now,
+      );
       const response = {
         ok: true,
         apiVersion: API_VERSION_,
@@ -2762,6 +3815,7 @@ function financialApi(request) {
         now,
         { operations: request.operations, response },
       );
+      requests.push(...formulaRequests);
       try {
         Sheets.Spreadsheets.batchUpdate({ requests }, config.id);
       } catch (error) {
@@ -3274,14 +4328,28 @@ function nativeFormula_(state, formula) {
     );
   });
 }
-function supportFormulaRequests_(state) {
+function supportFormulaRequests_(state, originalOnly) {
   const blocks = supportRanges_(state),
     requests = [];
   const fill = (kind, make) => {
     const range = blocks[kind].range,
       rows = [];
-    for (let i = range.startRowIndex; i < range.endRowIndex; i++)
-      rows.push(make(i + 1, i - range.startRowIndex));
+    for (let i = range.startRowIndex; i < range.endRowIndex; i++) {
+      const row = make(i + 1, i - range.startRowIndex);
+      if (
+        kind === 'history' &&
+        !originalOnly &&
+        (state.technical.migrations || []).some(
+          (r) => r[1] === 'fund-transfer-v1',
+        )
+      )
+        row[5] = fundCapitalAdjustedFormula_(
+          row[5],
+          'C' + (i + 1),
+          'D' + (i + 1),
+        );
+      rows.push(row);
+    }
     requests.push(formulaBlock_(range, rows, state));
   };
   const mr = blocks.movements.range,
@@ -4667,6 +5735,16 @@ function priceHistory_(config, request) {
       const replay = replayPrices_(before, requestId, fingerprint);
       if (replay) return replay;
     }
+    if (
+      writing &&
+      !['requests', 'audit', 'observations', 'funds', 'quotes'].every(
+        (k) => before.tech[k],
+      )
+    )
+      fail_(
+        'NOT_INITIALIZED',
+        'Prepara los metadatos con la entrega vigente antes de importar.',
+      );
     if (before.revision !== request.expectedRevision)
       fail_('CONFLICT', 'El libro cambió; revisa el histórico de nuevo.');
     const rows = historyRows_(before, request),
@@ -4785,6 +5863,13 @@ function dailyPriceStored_(properties, key) {
     return null;
   }
 }
+function dailyPriceBooksSeparated_(properties) {
+  const test = (properties.getProperty('TEST_SPREADSHEET_ID') || '').trim(),
+    production = (
+      properties.getProperty('PRODUCTION_SPREADSHEET_ID') || ''
+    ).trim();
+  return !!test && (!production || test !== production);
+}
 function dailyPriceProperties_(environment) {
   const properties = PropertiesService.getScriptProperties();
   const key = (name) =>
@@ -4802,6 +5887,7 @@ function dailyPriceStatus_(s) {
     book = properties.getProperty('DAILY_PRICE_TEST_BOOK'),
     bound =
       book &&
+      dailyPriceBooksSeparated_(properties) &&
       hash_(book) === s.bookKey &&
       properties.getProperty('DAILY_PRICE_TEST_OWNER') ===
         (properties.getProperty('OWNER_EMAIL') || '').trim().toLowerCase() &&
@@ -4972,6 +6058,7 @@ function dailyPriceTriggerConfig_(event) {
     triggerId = properties.getProperty('DAILY_PRICE_TEST_TRIGGER');
   if (!owner || effective !== owner) fail_('ACCESS_DENIED');
   if (
+    !dailyPriceBooksSeparated_(properties) ||
     properties.getProperty('ENVIRONMENT') !== 'test' ||
     !id ||
     properties.getProperty('DAILY_PRICE_TEST_BOOK') !== id ||
@@ -5104,6 +6191,7 @@ function dailyPriceProductionTriggerConfig_(event) {
     triggerId = properties.getProperty('DAILY_PRICE_PRODUCTION_TRIGGER');
   if (!owner || effective !== owner) fail_('ACCESS_DENIED');
   if (
+    !dailyPriceBooksSeparated_(properties) ||
     properties.getProperty('ENVIRONMENT') !== 'production' ||
     !id ||
     properties.getProperty('DAILY_PRICE_PRODUCTION_BOOK') !== id ||
@@ -5151,7 +6239,8 @@ function assertDailyPriceBinding_(config) {
     );
   const properties = dailyPriceProperties_(config.environment);
   check_(
-    properties.getProperty('ENVIRONMENT') === config.environment &&
+    dailyPriceBooksSeparated_(properties) &&
+      properties.getProperty('ENVIRONMENT') === config.environment &&
       properties.getProperty(
         config.environment === 'production'
           ? 'PRODUCTION_SPREADSHEET_ID'

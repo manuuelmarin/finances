@@ -176,8 +176,11 @@ test.describe('public service worker upgrade', () => {
           if (worker.state === 'installed') resolve();
         });
       });
-      registration.waiting.postMessage({ type: 'ACTIVATE_UPDATE' });
     });
+    await expect(page.locator('#update-app')).toBeVisible();
+    const reloaded = page.waitForNavigation({ waitUntil: 'load' });
+    await page.locator('#update-app').click();
+    await reloaded;
     await expect
       .poll(() =>
         page.evaluate(

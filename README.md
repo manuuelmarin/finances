@@ -16,5 +16,6 @@ Follow the installer, restrict the Google deployment to the owner account, and c
 
 - [Development](docs/DEVELOPMENT.md) — setup, checks and generated files.
 - [Architecture](docs/ARCHITECTURE.md) — data flow, writes and recovery.
+- [Operations](docs/OPERATIONS.md) — backup, test restore and cutover.
 - [Prices](apps-script/PRICES.md) — NAV sources and daily updates.
 - [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Branch protection](docs/BRANCH_PROTECTION.md) · [Changelog](CHANGELOG.md)

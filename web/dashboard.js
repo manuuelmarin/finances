@@ -234,7 +234,7 @@ const FinanceDashboard = (() => {
     stat(
       $('spending-summary'),
       'Días con gasto',
-      String(daily.length),
+      a.coverage.observed ? String(daily.length) : 'Sin dato',
       'Hasta ' + current.settings.asof,
     );
     stat(
@@ -257,6 +257,10 @@ const FinanceDashboard = (() => {
           amount(a.excluded) +
           '. Los porcentajes usan el total restante.'
         : 'Importe menos parte recuperable y devoluciones. No incluye inversiones, transferencias ni pagos de deuda.');
+    if (!a.coverage.observed) {
+      target.append(el('p', coverageNote(a.coverage), 'empty-state'));
+      return;
+    }
     FinanceCharts.donut(target, {
       title: excluded
         ? 'Distribución sin ' + excluded
@@ -444,7 +448,11 @@ const FinanceDashboard = (() => {
       });
     const positions = (current.tables.tProductos || [])
       .filter((p) => !product || p.ID === product)
-      .map((p) => ({ label: p.Producto, value: p.Valor, group: p.Clase }));
+      .map((p) => ({
+        label: p.Producto,
+        value: FinanceAnalytics.investmentMetrics(current, p.ID).value,
+        group: p.Clase,
+      }));
     if (!product)
       FinanceCharts.donut(target, {
         title: 'Distribución de la cartera',
@@ -1031,10 +1039,13 @@ const FinanceDashboard = (() => {
     if (!current?.supportsBudgets) return;
     const select = $('budget-category');
     select.replaceChildren(new Option('Total del mes', ''));
-    for (const c of current.tables.tCategorias.filter(
-      (c) => c.Grupo === 'Gastos',
+    for (const [value, label] of FinanceDomain.options(
+      'categories',
+      current,
+      'gasto',
+      { _allowArchived: Boolean(record), category: record?.category },
     ))
-      select.append(new Option(c.Subcategoría, c.Subcategoría));
+      select.append(new Option(label, value));
     $('budget-edit-month').value = record?.month || month;
     select.value = record?.category || '';
     $('budget-amount').value = record?.amount ?? '';
@@ -1146,13 +1157,12 @@ const FinanceDashboard = (() => {
   function planCategories(selected = '') {
     selectOptions(
       'plan-category',
-      (current?.tables?.tCategorias || [])
-        .filter(
-          (r) =>
-            r.Grupo ===
-            ($('plan-kind').value === 'expense' ? 'Gastos' : 'Ingresos'),
-        )
-        .map((r) => [r.Subcategoría, r.Subcategoría]),
+      FinanceDomain.options(
+        'categories',
+        current,
+        $('plan-kind').value === 'expense' ? 'gasto' : 'ingreso',
+        { _allowArchived: Boolean(planEditing), category: selected },
+      ),
       selected,
     );
   }
@@ -1165,10 +1175,10 @@ const FinanceDashboard = (() => {
     $('plan-amount').value = record?.amount ?? '';
     selectOptions(
       'plan-account',
-      (current.tables.tCuentas || []).map((r) => [
-        r.Cuenta,
-        labelAccount(r.Cuenta),
-      ]),
+      FinanceDomain.options('accounts', current, 'obligacion', {
+        _allowArchived: Boolean(record),
+        account: record?.account,
+      }).map(([value]) => [value, labelAccount(value)]),
       record?.account || '',
     );
     planCategories(record?.category);

@@ -153,7 +153,7 @@ const FinanceSync = (() => {
         return data;
       });
     }
-    async claim(id) {
+    async claim(id, exclusive = false) {
       let claimed = null;
       await this.store.update(this.key, (data) => {
         claimed = null;
@@ -162,10 +162,20 @@ const FinanceSync = (() => {
           item.status = 'uncertain';
         if (!item || !['pending', 'uncertain'].includes(item.status))
           return data;
-        if (item.claim && item.claim.until > Date.now()) return data;
+        // An exclusive holder proves only an earlier lock-protected sender ended.
+        if (
+          item.claim &&
+          item.claim.until > Date.now() &&
+          !(exclusive && item.claim.protectedByLock === true)
+        )
+          return data;
         const originalStatus = item.status;
         item.status = 'uncertain';
-        item.claim = { owner: this.owner, until: Date.now() + 300000 };
+        item.claim = {
+          owner: this.owner,
+          until: Date.now() + 300000,
+          protectedByLock: exclusive,
+        };
         item.updatedAt = this.now();
         claimed = { ...clone(item), originalStatus };
         return data;
@@ -186,7 +196,13 @@ const FinanceSync = (() => {
           item.status = status;
           item.result = result ? clone(result) : null;
           item.updatedAt = this.now();
-          if (['confirmed', 'review'].includes(status)) delete item.claim;
+          if (
+            ['confirmed', 'review'].includes(status) ||
+            (status === 'uncertain' &&
+              result &&
+              item.claim?.owner === this.owner)
+          )
+            delete item.claim;
         }
         return data;
       });
@@ -219,7 +235,7 @@ const FinanceSync = (() => {
       });
     }
     async run(client, notify = () => {}) {
-      const work = async () => {
+      const work = async (exclusive = false) => {
         if (this.running) return { status: 'busy', reason: 'OTHER_WINDOW' };
         const outcome = { status: 'confirmed', reason: null, confirmed: 0 };
         let claimedId = null;
@@ -238,7 +254,7 @@ const FinanceSync = (() => {
             ['pending', 'uncertain'].includes(q.status),
           );
           for (const entry of items) {
-            const item = await this.claim(entry.envelope.requestId);
+            const item = await this.claim(entry.envelope.requestId, exclusive);
             if (!item) {
               outcome.status = 'busy';
               outcome.reason = 'OTHER_WINDOW';
@@ -357,7 +373,7 @@ const FinanceSync = (() => {
             'finances-sync-' + this.key,
             { ifAvailable: true },
             (lock) =>
-              lock ? work() : { status: 'busy', reason: 'OTHER_WINDOW' },
+              lock ? work(true) : { status: 'busy', reason: 'OTHER_WINDOW' },
           )
         : work();
     }

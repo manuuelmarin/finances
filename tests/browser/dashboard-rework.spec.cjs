@@ -716,3 +716,61 @@ test('planning capability permits first plan before its metadata sheet exists an
   await page.evaluate((seed) => FinanceDashboard.render(seed), seed);
   await expect(page.locator('#plan-new')).toBeDisabled();
 });
+
+test('future expense panels and missing-price portfolio composition never imply observed zero or known weight', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  seed.summary.missingPrices = ['Fondo Alfa ficticio'];
+  await setup(page, seed);
+  await navigate(page, 'investments');
+  const composition = page.locator('#investment-charts .chart-card').filter({
+    has: page.getByRole('heading', {
+      name: 'Distribución de la cartera',
+      exact: true,
+    }),
+  });
+  await expect(composition.locator('.distribution-legend')).toContainText(
+    'Fondo Alfa ficticio',
+  );
+  await expect(composition.locator('.distribution-legend')).toContainText(
+    'Sin dato',
+  );
+  await expect(composition).toContainText('subtotal positivo conocido');
+  await navigate(page, 'book');
+  await page.locator('#spending-month').fill('2026-04');
+  await expect(page.locator('#spending-summary')).toContainText('Sin dato');
+  await expect(page.locator('#spending-charts .chart-card')).toHaveCount(0);
+  await expect(page.locator('#spending-charts')).toContainText(
+    'Mes futuro planificado',
+  );
+});
+
+test('new planned payments and budget limits reuse archive-aware reference choices', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  seed.capabilities = { planned: true };
+  seed.archives = { accounts: ['Banco ficticio'], categories: ['Alquiler'] };
+  await setup(page, seed);
+  await navigate(page, 'accounts');
+  await page.locator('#plan-new').click();
+  await expect(
+    page.locator('#plan-account option[value="Banco ficticio"]'),
+  ).toHaveCount(0);
+  await expect(
+    page.locator('#plan-account option[value="EFECTIVO"]'),
+  ).toHaveCount(1);
+  await expect(
+    page.locator('#plan-category option[value="Alquiler"]'),
+  ).toHaveCount(0);
+  await page.locator('#plan-cancel').click();
+  await navigate(page, 'budgets');
+  await page.locator('#budget-new').click();
+  await expect(
+    page.locator('#budget-category option[value="Alquiler"]'),
+  ).toHaveCount(0);
+  await expect(
+    page.locator('#budget-category option[value="Compra"]'),
+  ).toHaveCount(1);
+});

@@ -509,7 +509,7 @@ test('migración desde tres hojas técnicas añade fondos, cotizaciones y presup
     JSON.stringify(r.state().technical.requests),
     JSON.stringify(before.technical.requests),
   );
-  assert.equal(r.book().sheets.length, 16);
+  assert.equal(r.book().sheets.length, 21);
 });
 test('ampliación de precios con tabla llena conserva los precios históricos y guarda el nuevo una sola vez', () => {
   const r = configured(),
@@ -1335,4 +1335,55 @@ test('newest historical NAV retains reviewed class provenance after a later fail
   assert.equal(latest.classCurrency, 'EUR');
   assert.equal(latest.evidence.verification, 'owner_reviewed_export');
   assert.equal(latest.evidence.effectiveDate, '2026-10-03');
+});
+
+test('private daily handlers reject identical environment book IDs after activation', () => {
+  const { r, properties } = dailyRuntime();
+  r.ctx.activarActualizacionDiariaPreciosTest();
+  properties.set('PRODUCTION_SPREADSHEET_ID', 'fixture-book');
+  r.options.visitor = '';
+  assert.throws(
+    () =>
+      r.ctx.actualizacionDiariaPreciosTest_({ triggerUid: 'test-trigger-uid' }),
+    /trigger/,
+  );
+  assert.equal(r.fetches.length, 0);
+  assert.throws(
+    () =>
+      r.ctx.ejecutarActualizacionDiariaPreciosTest_({
+        id: 'fixture-book',
+        owner: 'owner@example.test',
+        environment: 'test',
+      }),
+    /activación expresa/,
+  );
+  const production = dailyRuntime();
+  production.properties.set('ENVIRONMENT', 'production');
+  production.properties.set('TEST_SPREADSHEET_ID', 'other-test');
+  production.properties.set('PRODUCTION_SPREADSHEET_ID', 'fixture-book');
+  production.r.ctx.activarActualizacionDiariaPreciosProduction();
+  production.r.options.visitor = '';
+  production.properties.set('TEST_SPREADSHEET_ID', ' fixture-book ');
+  assert.throws(
+    () =>
+      production.r.ctx.actualizacionDiariaPreciosProduction_({
+        triggerUid: 'test-trigger-uid',
+      }),
+    /trigger/,
+  );
+  assert.equal(production.r.fetches.length, 0);
+});
+
+test('history import requires initialized price receipt metadata before capacity preparation', () => {
+  const r = configured(),
+    req = historyEnvelope(r, true),
+    before = r.writes.length,
+    read = r.ctx.readState_;
+  r.ctx.readState_ = (config) => {
+    const state = read(config);
+    delete state.tech.requests;
+    return state;
+  };
+  assert.equal(r.api(req).error, 'NOT_INITIALIZED');
+  assert.equal(r.writes.length, before);
 });
