@@ -1,11 +1,11 @@
 'use strict';
 
-// Proyecciones de solo lectura para gráficos. Nunca sustituyen las métricas
-// canónicas de Sheets, modifican tablas ni generan precios.
+// Read-only projections preserve canonical Sheets metrics and real prices.
 const FinanceAnalytics = (() => {
   const finite = (v) => typeof v === 'number' && Number.isFinite(v);
   const cents = (v) => Math.round(v * 100);
   function spending(snapshot, month, category = null) {
+    if (!monthCoverage(snapshot, month).observed) return null;
     let total = 0;
     for (const row of snapshot?.tables?.tMovimientos || []) {
       if (
@@ -31,6 +31,7 @@ const FinanceAnalytics = (() => {
     const spent = spending(snapshot, record.month, record.category);
     return {
       ...record,
+      coverage: monthCoverage(snapshot, record.month),
       spent,
       remaining:
         spent === null ? null : (cents(record.amount) - cents(spent)) / 100,
@@ -82,6 +83,123 @@ const FinanceAnalytics = (() => {
       snapshot.settings.asof < end ? snapshot.settings.asof : end,
     ];
   }
+  function monthCoverage(snapshot, month) {
+    const settings = snapshot?.settings;
+    if (!settings || !/^\d{4}-(0[1-9]|1[0-2])$/.test(month || ''))
+      return { status: 'unknown', observed: false, first: null, last: null };
+    const start = month + '-01';
+    const end = new Date(
+      Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)), 0),
+    )
+      .toISOString()
+      .slice(0, 10);
+    if (start > settings.asof)
+      return { status: 'future', observed: false, first: null, last: null };
+    if (end < settings.start)
+      return { status: 'prestart', observed: false, first: null, last: null };
+    const [first, last] = monthBounds(snapshot, month);
+    return {
+      status: first === start && last === end ? 'full' : 'partial',
+      observed: true,
+      first,
+      last,
+    };
+  }
+  function months(snapshot) {
+    const result = [];
+    if (
+      !validDate(snapshot?.settings?.start) ||
+      !validDate(snapshot?.settings?.asof)
+    )
+      return result;
+    let month = snapshot.settings.start.slice(0, 7);
+    const last = snapshot.settings.asof.slice(0, 7);
+    while (month <= last) {
+      result.push(month);
+      const date = new Date(month + '-01T00:00:00Z');
+      date.setUTCMonth(date.getUTCMonth() + 1);
+      month = date.toISOString().slice(0, 7);
+    }
+    return result;
+  }
+  function goalAvailability(snapshot) {
+    const origins = [
+      ...(snapshot?.tables?.tCuentas || []).map((r) => ({
+        origin: r.Cuenta,
+        available: r['Saldo calculado'],
+        kind: 'account',
+      })),
+      ...(snapshot?.tables?.tProductos || []).map((r) => ({
+        origin: r.ID,
+        label: r.Producto,
+        available: (snapshot.summary?.missingPrices || []).some(
+          (name) => name === r.ID || name === r.Producto,
+        )
+          ? null
+          : r.Valor,
+        kind: 'product',
+      })),
+    ];
+    for (const r of snapshot?.tables?.tAsignaciones || [])
+      if (!origins.some((o) => o.origin === r.Origen))
+        origins.push({ origin: r.Origen, available: null, kind: 'unknown' });
+    return origins.map((o) => {
+      const assigned = sumKnown(
+        (snapshot.tables.tAsignaciones || [])
+          .filter((r) => r.Origen === o.origin)
+          .map((r) => r.Importe),
+      );
+      const free =
+        finite(o.available) && finite(assigned)
+          ? (cents(o.available) - cents(assigned)) / 100
+          : null;
+      return { ...o, assigned, free, overallocated: finite(free) && free < 0 };
+    });
+  }
+  function goalProgress(snapshot, goal) {
+    const remaining =
+      finite(goal.Meta) && finite(goal.Asignado)
+        ? Math.max(0, (cents(goal.Meta) - cents(goal.Asignado)) / 100)
+        : null;
+    const dated = validDate(goal.Fecha);
+    const expired =
+      dated && goal.Fecha < snapshot.settings.asof && remaining !== 0;
+    const daysLeft = dated
+      ? Math.max(
+          0,
+          (Date.parse(goal.Fecha + 'T00:00:00Z') -
+            Date.parse(snapshot.settings.asof + 'T00:00:00Z')) /
+            86400000,
+        )
+      : null;
+    return {
+      remaining,
+      expired,
+      daysLeft,
+      monthlyPace:
+        finite(remaining) && daysLeft > 0
+          ? remaining / (daysLeft / 30.4375)
+          : null,
+    };
+  }
+  function budgetHistory(snapshot, category = null) {
+    return months(snapshot).map((month) => {
+      const records = (snapshot.budgets || []).filter(
+        (r) => r.month === month && (r.category || null) === category,
+      );
+      return {
+        month,
+        label: month,
+        date: month + '-01',
+        expense: spending(snapshot, month, category),
+        limit:
+          records.length === 1 && finite(records[0].amount)
+            ? records[0].amount
+            : null,
+        coverage: monthCoverage(snapshot, month),
+      };
+    });
+  }
   function cashTimeline(snapshot, month) {
     if (!snapshot?.settings) return [];
     const accounts = snapshot.tables?.tCuentas || [];
@@ -114,6 +232,7 @@ const FinanceAnalytics = (() => {
         date,
         label: date.slice(8),
         total: sumKnown(Object.values(balances)),
+        coverage: monthCoverage(snapshot, month),
         accounts: { ...balances },
       };
     });
@@ -148,21 +267,23 @@ const FinanceAnalytics = (() => {
         sumKnown([payroll.has(month) ? payroll.get(month) : 0, value]),
       );
     }
-    return [...payroll]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([month, payroll]) => {
-        const expense = spending(snapshot, month);
-        return {
-          label: month,
-          month,
-          payroll,
-          expense,
-          rate:
-            finite(payroll) && payroll > 0 && finite(expense)
-              ? (100 * (payroll - expense)) / payroll
-              : null,
-        };
-      });
+    return months(snapshot).map((month) => {
+      const registered = payroll.has(month);
+      const net = registered ? payroll.get(month) : null;
+      const expense = spending(snapshot, month);
+      return {
+        label: month,
+        month,
+        payroll: net,
+        registered,
+        coverage: monthCoverage(snapshot, month),
+        expense,
+        rate:
+          finite(net) && net > 0 && finite(expense)
+            ? (100 * (net - expense)) / net
+            : null,
+      };
+    });
   }
   function spendingAnalysis(snapshot, month, { excludeCategory = null } = {}) {
     const categories = new Map(),
@@ -231,9 +352,73 @@ const FinanceAnalytics = (() => {
       cities: pairs(cities),
       recurring: pairs(recurring),
       daily: daysRows,
-      total: sumKnown([...categories.values()]),
+      coverage: monthCoverage(snapshot, month),
+      total: monthCoverage(snapshot, month).observed
+        ? sumKnown([...categories.values()])
+        : null,
       excluded,
       excludeCategory,
+    };
+  }
+  function cashForecast(snapshot, selectedIds = null) {
+    const accounts = Object.fromEntries(
+      (snapshot?.tables?.tCuentas || []).map((r) => [
+        r.Cuenta,
+        finite(r['Saldo calculado']) ? r['Saldo calculado'] : null,
+      ]),
+    );
+    const asof = snapshot?.settings?.asof;
+    const selected = (snapshot?.planned || [])
+      .filter((p) => p.active && (!selectedIds || selectedIds.includes(p.id)))
+      .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+    const rows = [
+      {
+        date: asof,
+        label: asof,
+        projected: sumKnown(Object.values(accounts)),
+        accounts: { ...accounts },
+        assumption: 'Efectivo calculado al corte',
+      },
+    ];
+    const notices = [];
+    for (const p of selected) {
+      if (!validDate(p.date) || p.date <= asof) {
+        notices.push('Plan vencido o fuera del horizonte: ' + p.concept);
+        continue;
+      }
+      if (
+        !Object.hasOwn(accounts, p.account) ||
+        !finite(p.amount) ||
+        !['income', 'expense'].includes(p.kind)
+      ) {
+        notices.push('Plan incompleto: ' + p.concept);
+        rows.push({
+          date: p.date,
+          label: p.date,
+          projected: null,
+          accounts: { ...accounts },
+          assumption: p.concept + ' · incompleto',
+        });
+        for (const name of Object.keys(accounts)) accounts[name] = null;
+        continue;
+      }
+      accounts[p.account] = sumKnown([
+        accounts[p.account],
+        p.amount * (p.kind === 'income' ? 1 : -1),
+      ]);
+      rows.push({
+        date: p.date,
+        label: p.date,
+        projected: sumKnown(Object.values(accounts)),
+        accounts: { ...accounts },
+        assumption: p.concept + ' · ' + p.account,
+      });
+    }
+    return {
+      rows,
+      notices,
+      asof,
+      complete: rows.every((r) => finite(r.projected)) && !notices.length,
     };
   }
   function investmentMetrics(snapshot, productId = null) {
@@ -301,12 +486,14 @@ const FinanceAnalytics = (() => {
       supportedIntervals = 0,
       returnStartDate = null,
       priceAnchor = null,
+      navStartDate = null,
       missingDays = 0,
       carriedDays = 0;
     const rows = days(firstDate, lastDate).map((date) => {
       const values = [],
         capitals = [],
-        priceDates = {};
+        priceDates = {},
+        productValues = {};
       let carried = false,
         flow = 0,
         flowKnown = true;
@@ -338,6 +525,14 @@ const FinanceAnalytics = (() => {
                 : o.Participaciones * o.Precio +
                   (o.Tipo === 'Compra' ? fee : -fee - tax)
               : null;
+          const transfer = (snapshot.fundTransfers || []).find(
+            (t) => t.outTradeID === o.ID || t.inTradeID === o.ID,
+          );
+          const contribution = transfer
+            ? finite(transfer.costBasis)
+              ? transfer.costBasis
+              : null
+            : amount;
           if (o.Tipo === 'Compra' || o.Tipo === 'Venta') {
             units = sumKnown([
               units,
@@ -347,10 +542,12 @@ const FinanceAnalytics = (() => {
             ]);
             capital = sumKnown([
               capital,
-              finite(amount) ? amount * (o.Tipo === 'Compra' ? 1 : -1) : null,
+              finite(contribution)
+                ? contribution * (o.Tipo === 'Compra' ? 1 : -1)
+                : null,
             ]);
           }
-          if (o.Fecha === date) {
+          if (o.Fecha === date && (!transfer || productId)) {
             if (!finite(amount)) flowKnown = false;
             else flow += amount * (o.Tipo === 'Compra' ? 1 : -1);
           }
@@ -375,35 +572,18 @@ const FinanceAnalytics = (() => {
           flowKnown = false;
         }
         capitals.push(capital);
-        values.push(
+        productValues[p.ID] =
           units === 0
             ? 0
             : finite(units) && quote
               ? units * quote['VL EUR']
-              : null,
-        );
+              : null;
+        values.push(productValues[p.ID]);
       }
       const value = sumKnown(values),
         capital = sumKnown(capitals);
       let returnPct = null;
-      if (productId) {
-        const quote = prices
-          .filter(
-            (q) =>
-              q.Producto === productId &&
-              q.Fecha <= date &&
-              finite(q['VL EUR']),
-          )
-          .sort((a, b) => b.Fecha.localeCompare(a.Fecha))[0];
-        if (value !== null && value > 0 && quote) {
-          if (priceAnchor === null && quote.Fecha === date) {
-            priceAnchor = quote['VL EUR'];
-            returnStartDate = date;
-          }
-          if (priceAnchor > 0 && quote.Fecha === date)
-            returnPct = 100 * (quote['VL EUR'] / priceAnchor - 1);
-        } else priceAnchor = null;
-      } else if (value !== null && !carried && flowKnown) {
+      if (value !== null && !carried && flowKnown) {
         if (previousValuation?.value > 0 && linked !== null) {
           // Quotes need not exist every calendar day. Without an intervening
           // external flow, real endpoint valuations determine the whole return.
@@ -427,6 +607,25 @@ const FinanceAnalytics = (() => {
         // exactly. Do not silently restart a since-inception series afterwards.
         linked = null;
       }
+      const totalReturnPct = returnPct;
+      if (productId) {
+        const quote = prices
+          .filter(
+            (q) =>
+              q.Producto === productId &&
+              q.Fecha <= date &&
+              finite(q['VL EUR']),
+          )
+          .sort((a, b) => b.Fecha.localeCompare(a.Fecha))[0];
+        if (value !== null && value > 0 && quote) {
+          if (priceAnchor === null && quote.Fecha === date) {
+            priceAnchor = quote['VL EUR'];
+            navStartDate = date;
+          }
+          if (priceAnchor > 0 && quote.Fecha === date)
+            returnPct = 100 * (quote['VL EUR'] / priceAnchor - 1);
+        } else priceAnchor = null;
+      }
       if (value === null) missingDays++;
       if (carried) carriedDays++;
       const row = {
@@ -435,8 +634,10 @@ const FinanceAnalytics = (() => {
         capital,
         value,
         returnPct,
+        totalReturnPct,
         carried,
         priceDates,
+        productValues,
       };
       previous = row;
       return row;
@@ -463,17 +664,51 @@ const FinanceAnalytics = (() => {
         }
       }
     }
+    const selectedRows = rows.filter((r) => r.date >= cutoff);
+    const perProduct = products.map((p) => {
+      const dates = [
+        ...new Set(
+          prices
+            .filter(
+              (q) =>
+                q.Producto === p.ID &&
+                finite(q['VL EUR']) &&
+                q.Fecha >= cutoff &&
+                q.Fecha <= lastDate,
+            )
+            .map((q) => q.Fecha),
+        ),
+      ].sort();
+      return {
+        product: p.ID,
+        name: p.Producto,
+        firstQuote: dates[0] || null,
+        lastQuote: dates.at(-1) || null,
+        quoteCount: dates.length,
+        missingDays: selectedRows.filter((r) => r.productValues[p.ID] === null)
+          .length,
+        carriedDays: selectedRows.filter(
+          (r) => r.productValues[p.ID] > 0 && r.priceDates[p.ID] !== r.date,
+        ).length,
+      };
+    });
     return {
-      rows: rows.filter((r) => r.date >= cutoff),
+      rows: selectedRows,
       firstDate,
       lastDate,
       coverage: {
-        missingDays,
-        carriedDays,
+        missingDays: selectedRows.filter((r) => r.value === null).length,
+        carriedDays: selectedRows.filter((r) => r.carried).length,
+        inceptionMissingDays: missingDays,
+        inceptionCarriedDays: carriedDays,
+        selectedStartDate: selectedRows[0]?.date || null,
+        selectedEndDate: selectedRows.at(-1)?.date || null,
+        perProduct,
         invalidProducts: [...invalidProducts],
         method: productId ? 'navChange' : 'twrRealValuationIntervals',
         supportedIntervals,
         returnStartDate,
+        navStartDate,
         sinceInception:
           returnStartDate !== null && returnStartDate === firstDate,
         flowConvention: 'endOfDay',
@@ -493,6 +728,12 @@ const FinanceAnalytics = (() => {
   }
   return {
     finite,
+    monthCoverage,
+    months,
+    goalAvailability,
+    goalProgress,
+    budgetHistory,
+    cashForecast,
     spending,
     budget,
     groups,

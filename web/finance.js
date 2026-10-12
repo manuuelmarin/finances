@@ -1,3 +1,4 @@
+/* global currentDeployment */
 'use strict';
 
 (() => {
@@ -28,7 +29,12 @@
     editing = null,
     loading = false,
     configurationEpoch = 0,
-    limit = 50;
+    limit = 50,
+    activityLimit = 50,
+    activityFilter = 'all',
+    recoveryRequested = false,
+    recoveryAttempts = 0,
+    recoveryTimer = null;
   const store = new FinanceSync.BrowserStore();
   const el = (tag, text, cls) => {
     const e = document.createElement(tag);
@@ -53,10 +59,14 @@
       EMBEDDED_CONTEXT:
         'Abre Finanzas en su propia ventana para acceder a tu libro.',
       UPDATE_REQUIRED:
-        'Actualiza Code.gs, Bridge.html y appsscript.json desde el instalador 3.6.0 y publica Nueva versión de la implementación de pruebas. Guardar el editor no actualiza el enlace /exec.',
+        'Actualiza Code.gs, Bridge.html y appsscript.json desde el instalador 3.9.0 y publica Nueva versión de la implementación del entorno seleccionado (pruebas o principal). Guardar el editor no actualiza el enlace /exec.',
       POPUP_BLOCKED:
         'Permite abrir la ventana de Google y vuelve a pulsar Abrir mi libro.',
       NOT_CONNECTED: 'Abre Google para leer o enviar los pendientes.',
+      CANNOT_DISCARD_IN_FLIGHT:
+        'La solicitud ya está en curso o sin confirmar. Consulta su recibo; no se puede descartar.',
+      CANNOT_DISCARD:
+        'La solicitud ya no se puede descartar. Actualiza Actividad para ver su estado.',
       BOOK_BUSY:
         'Hay una lectura o un envío en curso. Espera a que termine y vuelve a comprobar.',
       CONNECTION_TIMEOUT:
@@ -73,6 +83,11 @@
         'Google no ha respondido a la comprobación del canal. Mantén abierta su ventana y vuelve a abrir el libro.',
       INVALID_RESPONSE:
         'Google no ha devuelto el formato vigente. Actualiza los tres archivos desde el instalador y publica Nueva versión.',
+      SUBMIT_FAILED:
+        'El canal falló durante el envío. Se conserva la solicitud para consultar su recibo.',
+      STATUS_FAILED:
+        'No se pudo consultar el recibo. La solicitud se conserva sin confirmar.',
+      REVIEW_REQUIRED: 'Hay solicitudes que requieren revisión en Actividad.',
       RESPONSE_UNCERTAIN:
         'Envío sin confirmar. La solicitud se conserva para consultar el recibo antes de reintentar.',
       STORAGE_UNAVAILABLE:
@@ -118,6 +133,7 @@
     }
   }
   function enabled() {
+    document.documentElement.dataset.bookBusy = String(loading);
     $('finance-new').disabled = loading;
     $('finance-prices').disabled = !snapshot || loading;
     const channelBlocked = client?.session?.rpcReady === false;
@@ -135,7 +151,7 @@
     return queue ? queue.get() : { queue: [], snapshot: null };
   }
   async function configure() {
-    const next = savedDeployment(window.localStorage);
+    const next = currentDeployment();
     if (openingClient && openingClient.url !== next) {
       openingClient.close();
       openingClient = null;
@@ -214,7 +230,7 @@
       client?.session &&
       client.session.rpcReady === true &&
       !client.session.popup?.closed &&
-      client.url === savedDeployment(window.localStorage) &&
+      client.url === currentDeployment() &&
       client.url === url,
     );
   }
@@ -224,7 +240,7 @@
       return false;
     }
     // Abrir la ventana en el clic, antes de esperar IndexedDB.
-    const next = savedDeployment(window.localStorage);
+    const next = currentDeployment();
     if (!next) {
       if (propagate) throw Error('NOT_CONFIGURED');
       location.hash = 'connection';
@@ -257,7 +273,7 @@
       await Promise.all([configuration, handshake]);
       if (
         epoch !== configurationEpoch ||
-        savedDeployment(window.localStorage) !== next ||
+        currentDeployment() !== next ||
         url !== next ||
         !queue ||
         !opening.session
@@ -282,6 +298,7 @@
       if (openingClient === opening) openingClient = null;
       loading = false;
       enabled();
+      scheduleRecovery();
     }
   }
   // Todas las comprobaciones usan el mismo canal que las operaciones del libro.
@@ -311,6 +328,7 @@
                 apiVersion: snapshot.apiVersion,
                 buildVersion: snapshot.buildVersion,
                 rpcReady: checkedClient.session.rpcReady,
+                bridgeVersion: checkedClient.session.bridgeVersion,
               }
             : await checkedClient[action]();
         if (
@@ -332,10 +350,38 @@
       } finally {
         loading = false;
         enabled();
+        scheduleRecovery();
       }
     },
   };
+  const priceHistory = globalThis.FinanceHistory?.bind({
+    getSnapshot: () => snapshot,
+    preview: async (payload) => {
+      if (!liveSession()) throw Error('NOT_CONNECTED');
+      return client.request(payload);
+    },
+    enqueue: async (label, action, payload) => {
+      if (!queue || !snapshot) throw Error('READ_REQUIRED');
+      if (action !== 'importPriceHistory') throw Error('INVALID_REQUEST');
+      const submittedQueue = queue;
+      const data = await submittedQueue.enqueue(null, label, action, payload);
+      const item = data.queue[data.queue.length - 1];
+      await render();
+      if (liveSession()) await sync();
+      if (queue !== submittedQueue) throw Error('CONFIGURATION_CHANGED');
+      return { requestId: item.envelope.requestId };
+    },
+    receipt: async (requestId) =>
+      (await saved()).queue.find(
+        (item) => item.envelope.requestId === requestId,
+      ) || null,
+    status,
+  });
   async function sync() {
+    if (loading) {
+      recoveryRequested = true;
+      return;
+    }
     if (!client?.session) {
       status('Abre Google para enviar los pendientes.');
       return;
@@ -344,19 +390,37 @@
     enabled();
     status('Consultando y enviando pendientes…');
     try {
-      await queue.run(client, () => {
+      const outcome = await queue.run(client, () => {
         void render();
       });
       snapshot = (await saved()).snapshot;
+      if (
+        recoveryAttempts > 0 &&
+        recoveryAttempts < 3 &&
+        ['unconfirmed', 'busy'].includes(outcome.status)
+      )
+        recoveryRequested = true;
       status(
-        'Sincronización terminada. Revisa el estado de cada operación.',
+        outcome.status === 'busy'
+          ? 'Otra ventana está comprobando o enviando los pendientes.'
+          : outcome.reason === 'POST_CONFIRM_READ_FAILED'
+            ? 'Google confirmó la operación. La lectura posterior falló; el recibo se conserva. Actualiza los datos.'
+            : outcome.status === 'unconfirmed'
+              ? 'Quedan envíos sin confirmar. ' +
+                errorText(Error(outcome.reason))
+              : outcome.status === 'review'
+                ? 'Hay operaciones que requieren revisión. Consulta Actividad.'
+                : 'Sincronización confirmada. Revisa el estado de cada operación.',
         snapshot ? 'loaded' : 'unread',
       );
     } catch (error) {
+      if (recoveryAttempts > 0 && recoveryAttempts < 3)
+        recoveryRequested = true;
       status(errorText(error), 'error');
     } finally {
       loading = false;
       await render();
+      scheduleRecovery();
     }
   }
   function presentation(value) {
@@ -882,6 +946,7 @@
     const data = await saved();
     if (epoch !== configurationEpoch || renderingQueue !== queue) return;
     snapshot = data.snapshot;
+    priceHistory?.refresh(snapshot);
     enabled();
     for (const label of document.querySelectorAll('[data-finance-environment]'))
       label.textContent = snapshot
@@ -942,19 +1007,48 @@
       review: 'Requiere revisión',
       discarded: 'Descartada sin enviar',
     };
-    const active = items
+    const filtered = items.filter(
+      (item) => activityFilter === 'all' || item.status === activityFilter,
+    );
+    const filter = el('select');
+    filter.setAttribute('aria-label', 'Filtrar actividad');
+    filter.append(new Option('Toda la actividad', 'all'));
+    for (const [value, label] of Object.entries(labels))
+      filter.append(new Option(label, value));
+    filter.value = activityFilter;
+    filter.addEventListener('change', () => {
+      activityFilter = filter.value;
+      activityLimit = 50;
+      void render();
+    });
+    parent.append(
+      filter,
+      el(
+        'p',
+        filtered.length +
+          ' solicitudes del filtro · ' +
+          items.length +
+          ' en este navegador.',
+      ),
+    );
+    const active = filtered
       .filter((q) => !['discarded', 'confirmed'].includes(q.status))
       .slice()
       .reverse();
-    const confirmed = items
+    const confirmed = filtered
       .filter((q) => q.status === 'confirmed')
       .slice()
       .reverse();
-    $('pending-total').textContent = String(active.length);
-    $('history-total').textContent = String(confirmed.length);
+    const pendingCount = items.filter(
+      (item) => !['confirmed', 'discarded'].includes(item.status),
+    ).length;
+    $('pending-total').textContent = String(pendingCount);
+    $('history-total').textContent = String(
+      items.filter((item) => item.status === 'confirmed').length,
+    );
     for (const badge of document.querySelectorAll('[data-pending-count]')) {
-      badge.textContent = String(active.length);
-      badge.hidden = !active.length;
+      badge.textContent = String(pendingCount);
+      badge.hidden = !pendingCount;
     }
     if (!active.length) {
       parent.append(el('p', 'No hay operaciones pendientes.', 'empty-state'));
@@ -967,12 +1061,36 @@
           'empty-state',
         ),
       );
-    for (const item of [...active.slice(0, 50), ...confirmed.slice(0, 50)]) {
+    if (
+      Math.max(
+        active.length,
+        confirmed.length,
+        filtered.filter((q) => q.status === 'discarded').length,
+      ) > activityLimit
+    )
+      parent.append(
+        button('Mostrar más actividad', () => {
+          activityLimit += 50;
+          void render();
+        }),
+      );
+    for (const item of [
+      ...active.slice(0, activityLimit),
+      ...confirmed.slice(0, activityLimit),
+      ...filtered
+        .filter((q) => q.status === 'discarded')
+        .slice()
+        .reverse()
+        .slice(0, activityLimit),
+    ]) {
       const card = el('article', undefined, 'queue-item');
       card.dataset.state = item.status;
       card.append(
         el('strong', item.label),
         el('span', labels[item.status]),
+        ...(item.claim?.until > Date.now()
+          ? [el('p', 'En curso en otra ventana; espera su confirmación.')]
+          : []),
         el(
           'small',
           new Date(item.createdAt).toLocaleString('es-ES', {
@@ -980,7 +1098,17 @@
           }),
         ),
       );
+      card.append(el('small', 'Solicitud: ' + item.envelope.requestId));
       if (item.result?.message) card.append(el('p', item.result.message));
+      else if (item.result?.error)
+        card.append(el('p', errorText(Error(item.result.error))));
+      if (item.status === 'confirmed')
+        card.append(
+          el(
+            'p',
+            'Recibo de Google confirmado y conservado en este navegador.',
+          ),
+        );
       if (item.result?.complete === false)
         card.append(
           el(
@@ -1317,6 +1445,22 @@
     $('review-dialog').showModal();
   }
   function reviewQueued(item) {
+    if (
+      item.envelope.action === 'importPriceHistory' &&
+      item.status === 'review'
+    ) {
+      showReview(
+        [],
+        item.label,
+        async () => {
+          status(
+            'Revisa de nuevo el archivo histórico con los datos actuales antes de preparar otra solicitud.',
+          );
+        },
+        'Google rechazó este lote histórico. El sobre se conserva. Descarta la solicitud rechazada y vuelve a previsualizar el archivo con la lectura actual; no se crea otro envío automáticamente.',
+      );
+      return;
+    }
     if (item.status === 'pending') {
       showReview(
         item.envelope.operations || [],
@@ -1414,7 +1558,7 @@
       if (
         current.epoch !== configurationEpoch ||
         current.queue !== queue ||
-        current.url !== savedDeployment(window.localStorage) ||
+        current.url !== currentDeployment() ||
         current.bookKey !== snapshot?.bookKey
       )
         throw Error('CONFIGURATION_CHANGED');
@@ -1517,6 +1661,7 @@
     } finally {
       loading = false;
       enabled();
+      scheduleRecovery();
     }
   });
   $('finance-sync').addEventListener('click', () => {
@@ -1545,6 +1690,139 @@
       },
       'Consulta los productos por ISIN y nombre. Solo guarda valores nuevos verificados. Cada lote incluye hasta veinte productos. Si falla un fondo, conserva su precio anterior y muestra el error.',
     );
+  });
+  const localSettings = $('local-settings');
+  localSettings.append(
+    el(
+      'p',
+      'Ocultar datos solo cambia la pantalla: la copia local contiene datos sin cifrado. Cerrar Google detiene el canal; desconectar elimina el enlace guardado; borrar elimina solo copias resueltas.',
+    ),
+  );
+  let hiddenData = false;
+  const hiddenBefore = new Map();
+  localSettings.append(
+    button('Ocultar / mostrar datos', () => {
+      hiddenData = !hiddenData;
+      for (const view of [
+        'home',
+        'book',
+        'investments',
+        'accounts',
+        'budgets',
+        'salary',
+        'goals',
+        'activity',
+      ]) {
+        for (const target of $('view-' + view)?.children || []) {
+          if (hiddenData) {
+            hiddenBefore.set(target, target.hidden);
+            target.hidden = true;
+          } else {
+            target.hidden = hiddenBefore.get(target) || false;
+          }
+        }
+      }
+      status(
+        hiddenData
+          ? 'Datos ocultos visualmente. La copia sigue guardada sin cifrado.'
+          : 'Datos visibles.',
+      );
+    }),
+  );
+  localSettings.append(
+    button('Cerrar ventana de Google', () => {
+      client?.close();
+      client = null;
+      status(
+        'Canal de Google cerrado. La copia y los pendientes se conservan.',
+        snapshot ? 'offline' : 'unread',
+      );
+      enabled();
+    }),
+  );
+  localSettings.append(
+    button('Desconectar enlace', () => $('setup-clear').click()),
+  );
+  const readiness = el(
+    'p',
+    'Preparación del entorno: sin comprobar. Las colas de otros dispositivos requieren revisión independiente.',
+  );
+  localSettings.append(
+    button('Comprobar preparación del entorno', async () => {
+      try {
+        const result = await globalThis.FinanceBook.check('diagnostics');
+        const unresolved = (await saved()).queue.filter((item) =>
+          ['pending', 'uncertain', 'review'].includes(item.status),
+        ).length;
+        readiness.textContent =
+          (result.environment === 'production'
+            ? 'Libro principal'
+            : 'Copia de pruebas') +
+          ' · API ' +
+          result.apiVersion +
+          ' · estructura ' +
+          (result.backendReady === true ? 'verificada' : 'requiere revisión') +
+          ' · cálculos ' +
+          (result.calculationReady === true
+            ? 'verificados'
+            : 'requieren revisión') +
+          ' · ' +
+          unresolved +
+          ' solicitudes locales sin resolver. Esto no confirma permisos, copias de seguridad ni colas de otros dispositivos; no autoriza el cambio de entorno.';
+      } catch (error) {
+        readiness.textContent = errorText(error);
+      }
+    }),
+    readiness,
+  );
+  const storedCopies = el('div');
+  storedCopies.id = 'stored-copies';
+  localSettings.append(storedCopies);
+  async function renderStoredCopies() {
+    const copies = await store.list();
+    storedCopies.replaceChildren(
+      el(
+        'p',
+        'Copias de este navegador; las colas de otros dispositivos no se conocen.',
+      ),
+    );
+    for (const [index, copy] of copies.entries()) {
+      const unresolved = copy.queue.filter((item) =>
+        ['pending', 'uncertain', 'review'].includes(item.status),
+      ).length;
+      const row = el(
+        'p',
+        (copy.label || 'Copia privada') +
+          ' · copia ' +
+          (index + 1) +
+          ' · ' +
+          unresolved +
+          ' sin resolver',
+      );
+      const erase = button('Borrar copia resuelta ' + (index + 1), () => {
+        showReview(
+          [],
+          'Borrar copia local resuelta',
+          async () => {
+            await new FinanceSync.Queue(store, copy.key).clear();
+            if (queue?.key === copy.key) {
+              client?.close();
+              client = null;
+              snapshot = null;
+            }
+            await renderStoredCopies();
+          },
+          'El libro de Google se conserva. Las solicitudes pendientes, inciertas o en revisión bloquean el borrado.',
+        );
+      });
+      erase.disabled = unresolved > 0;
+      row.append(erase);
+      storedCopies.append(row);
+    }
+  }
+  localSettings.addEventListener('toggle', () => {
+    if (localSettings.open)
+      void renderStoredCopies().catch((error) => status(errorText(error)));
   });
   $('finance-clear').addEventListener('click', () => {
     showReview(
@@ -1594,12 +1872,54 @@
       snapshot ? 'offline' : 'unread',
     ),
   );
-  window.addEventListener('online', () => {
-    if (client?.session && !loading) void sync();
-    else
-      status(
-        'Conexión recuperada. Abre Google para sincronizar los pendientes.',
-      );
+  function scheduleRecovery() {
+    if (!recoveryRequested || recoveryTimer || recoveryAttempts >= 3) return;
+    recoveryTimer = setTimeout(
+      () => {
+        recoveryTimer = null;
+        if (loading) return;
+        recoveryRequested = false;
+        if (liveSession() && navigator.onLine) {
+          recoveryAttempts++;
+          void sync();
+        } else status('Abre Google para recuperar los pendientes conservados.');
+      },
+      500 * 2 ** recoveryAttempts,
+    );
+  }
+  function requestRecovery() {
+    recoveryRequested = true;
+    recoveryAttempts = 0;
+    scheduleRecovery();
+  }
+  window.addEventListener('online', requestRecovery);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') requestRecovery();
   });
+  const changes =
+    typeof BroadcastChannel === 'function'
+      ? new BroadcastChannel('finances-queue-v1')
+      : null;
+  changes?.addEventListener('message', (event) => {
+    if (
+      queue &&
+      event.data?.key === queue.key &&
+      event.data?.bookKey === snapshot?.bookKey
+    ) {
+      const changedQueue = queue;
+      void changedQueue
+        .get()
+        .then((data) => {
+          if (queue !== changedQueue || data.bookKey !== snapshot?.bookKey)
+            return;
+          snapshot = data.snapshot;
+          void render();
+          if (localSettings.open) void renderStoredCopies();
+        })
+        .catch((error) => status(errorText(error)));
+    }
+  });
+  store.changed = (key, data) =>
+    changes?.postMessage({ key, bookKey: data.bookKey });
   void configure().catch((error) => status(errorText(error)));
 })();

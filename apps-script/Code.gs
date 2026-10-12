@@ -775,6 +775,7 @@ function apiError_(error) {
     'BUSY',
     'SCHEMA_CONFLICT',
     'WRITE_UNCERTAIN',
+    'PRICE_CONFLICT',
     'INVALID_ISIN',
     'READ_REQUIRED',
     'BOOK_CHANGED',
@@ -2643,6 +2644,9 @@ function financialApi(request) {
             'funds',
             'products',
             'bookKey',
+            'product',
+            'rows',
+            'sourceVerified',
           ].indexOf(k) < 0,
       )
     )
@@ -2658,6 +2662,8 @@ function financialApi(request) {
       };
     }
     if (request.action === 'quotePrices') return quotePrices_(request, config);
+    if (['previewPriceHistory', 'importPriceHistory'].includes(request.action))
+      return priceHistory_(config, request);
     if (request.action === 'refreshPrices')
       return refreshPrices_(config, request);
     if (
@@ -3899,6 +3905,18 @@ function verifyFundName_(reference, actual) {
       'El nombre de referencia no confirma el fondo del ISIN. Revisa el nombre, sin cambiar el ISIN por aproximación.',
     );
 }
+function verifyClassCurrency_(reference, actual, currency) {
+  const explicit = (name) =>
+    String(name)
+      .toUpperCase()
+      .match(/\b(EUR|USD|GBP|CHF|JPY|CAD|AUD)\b/g) || [];
+  const mentioned = explicit(reference).concat(explicit(actual));
+  if (mentioned.some((c) => c !== currency))
+    priceFailure_(
+      'NAME_MISMATCH',
+      'La moneda explícita de la clase contradice Divisa.',
+    );
+}
 function parseFundPage_(html, isin, fetchedAt, today) {
   const h1 =
       html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i) ||
@@ -4013,6 +4031,7 @@ function fetchFundQuote_(fund) {
         (quote.isin !== isin ||
           !Number.isFinite(quote.price) ||
           quote.price <= 0 ||
+          quote.price > 1e12 ||
           quote.quoteCurrency !== 'EUR' ||
           !/^[A-Z]{3}$/.test(quote.classCurrency || '') ||
           quote.provider !== PRICE_PROVIDER_ ||
@@ -4096,6 +4115,11 @@ function fetchFundQuote_(fund) {
           );
           quote.url = urls[index];
           verifyFundName_(fund.referenceName, quote.name);
+          verifyClassCurrency_(
+            fund.referenceName,
+            quote.name,
+            quote.classCurrency,
+          );
           break;
         } catch (error) {
           // Solo una variante de formato permite consultar la ficha móvil oficial.
@@ -4109,6 +4133,7 @@ function fetchFundQuote_(fund) {
       } catch (ignored) {}
     }
     verifyFundName_(fund.referenceName, quote.name);
+    verifyClassCurrency_(fund.referenceName, quote.name, quote.classCurrency);
     // La antigüedad se vuelve a calcular incluso al cruzar medianoche con caché.
     quote.ageDays =
       serialDate_(
@@ -4125,9 +4150,9 @@ function fetchFundQuote_(fund) {
         cached,
         responseInfo,
         historyAvailability: {
-          status: 'LATEST_ONLY',
+          status: 'EXPORT_IMPORT_SUPPORTED',
           message:
-            'Esta consulta verifica la última valoración. Los cortes mensuales del gráfico del proveedor no acreditan una serie diaria de fechas efectivas de NAV; no se importan como históricos.',
+            'La consulta automática verifica la última valoración. Importa un CSV diario exportado de la gestora y revisa clase, moneda y fechas; no se rellenan huecos.',
         },
       },
       quote,
@@ -4221,6 +4246,49 @@ function priceSnapshot_(s) {
       .slice()
       .reverse()
       .find((r) => r[2] === product.ID);
+    const matching =
+      latest &&
+      s.technical.quotes
+        .slice()
+        .reverse()
+        .find(
+          (r) =>
+            r[2] === product.ID &&
+            (!binding || r[3] === binding.isin) &&
+            r[4] === isoDate_(latest.Fecha) &&
+            r[5] === latest['VL EUR'] &&
+            [
+              'updated',
+              'unchanged',
+              'historical_new',
+              'historical_duplicate',
+            ].includes(r[10]),
+        );
+    let provenance = null;
+    try {
+      const detail = matching && JSON.parse(matching[11]);
+      if (
+        detail &&
+        detail.ok &&
+        detail.quoteCurrency === 'EUR' &&
+        /^[A-Z]{3}$/.test(detail.classCurrency || '')
+      )
+        provenance = {
+          classCurrency: detail.classCurrency,
+          quoteCurrency: 'EUR',
+          conversion:
+            detail.conversion ||
+            (detail.classCurrency === 'EUR' ? 'none' : 'owner_export_eur'),
+          evidence: {
+            verification: detail.verification || 'provider_quote',
+            isin: matching[3],
+            provider: matching[7],
+            url: matching[8],
+            checkedAt: matching[9],
+            effectiveDate: matching[4],
+          },
+        };
+    } catch (ignored) {}
     return {
       product: product.ID,
       name: product.Producto,
@@ -4231,6 +4299,10 @@ function priceSnapshot_(s) {
             date: isoDate_(latest.Fecha),
             price: latest['VL EUR'],
             source: latest.Fuente,
+            classCurrency: provenance ? provenance.classCurrency : null,
+            quoteCurrency: 'EUR',
+            conversion: provenance ? provenance.conversion : null,
+            evidence: provenance ? provenance.evidence : null,
             ageDays: today - latest.Fecha,
             freshness:
               today < latest.Fecha
@@ -4444,7 +4516,266 @@ function refreshPrices_(config, request) {
     return response;
   });
 }
-// Instalación expresa por el dueño, limitada al libro de pruebas.
+// Historical exports are owner-reviewed data, never HTML or arbitrary remote requests.
+function historyText_(value, label) {
+  text_(value, label);
+  check_(
+    !/^[\s]*[=+@-]/.test(value) && !/[\u0000-\u001f<>]/.test(value),
+    label + ': texto inseguro.',
+  );
+  return value.trim();
+}
+function historyRows_(state, request) {
+  check_(
+    Array.isArray(request.rows) &&
+      request.rows.length > 0 &&
+      request.rows.length <= PRICE_LIMIT_,
+    'Importa hasta veinte fechas por lote.',
+  );
+  check_(
+    request.sourceVerified === true,
+    'Confirma la clase y la fuente del archivo exportado.',
+  );
+  const product = resolveReference_(
+      state,
+      'tProductos',
+      request.product,
+      {},
+      'Producto',
+    ),
+    binding = fundBinding_(
+      state,
+      state.tables.tProductos.find((p) => p.ID === product),
+    );
+  check_(!!binding, 'Vincula el ISIN del producto antes de importar.');
+  const today = serialDate_(
+      Utilities.formatDate(new Date(), 'Europe/Madrid', 'yyyy-MM-dd'),
+    ),
+    seen = new Set();
+  return request.rows.map((row) => {
+    check_(
+      object_(row) &&
+        Object.keys(row).every((k) =>
+          [
+            'isin',
+            'referenceName',
+            'classCurrency',
+            'quoteCurrency',
+            'date',
+            'price',
+            'provider',
+            'sourceUrl',
+            'exportedAt',
+          ].includes(k),
+        ),
+      'Fila histórica no reconocida.',
+    );
+    const isin = normalizeIsin_(row.isin);
+    check_(isin === binding.isin, 'El archivo identifica otro ISIN.');
+    historyText_(row.referenceName, 'Clase');
+    verifyFundName_(binding.referenceName, row.referenceName);
+    check_(
+      /^[A-Z]{3}$/.test(row.classCurrency || '') && row.quoteCurrency === 'EUR',
+      'El histórico debe acreditar NAV EUR y moneda de clase.',
+    );
+    verifyClassCurrency_(
+      binding.referenceName,
+      row.referenceName,
+      row.classCurrency,
+    );
+    check_(
+      /^\d{4}-\d{2}-\d{2}$/.test(row.date || ''),
+      'Fecha ISO obligatoria.',
+    );
+    const date = serialDate_(row.date);
+    check_(
+      date < today,
+      'Importa fechas históricas anteriores a hoy, sin interpolar.',
+    );
+    check_(!seen.has(row.date), 'Fecha duplicada dentro del lote.');
+    seen.add(row.date);
+    number_(row.price, 'NAV', false, 0, true);
+    const provider = historyText_(row.provider, 'Procedencia');
+    check_(
+      row.sourceUrl === null ||
+        (typeof row.sourceUrl === 'string' &&
+          /^https:\/\/(?:www\.)?(?:fondosfidelity\.es|fidelity\.lu|fidelity\.pt|vanguard\.co\.uk|singularam\.es)\/[A-Za-z0-9/?=&%._~-]*$/.test(
+            row.sourceUrl,
+          ) &&
+          row.sourceUrl.length <= 500),
+      'La URL de procedencia debe pertenecer a una gestora permitida; para otro exportador usa procedencia documental sin URL.',
+    );
+    check_(
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(
+        row.exportedAt || '',
+      ) &&
+        Number.isFinite(Date.parse(row.exportedAt)) &&
+        new Date(row.exportedAt).toISOString().slice(0, 10) ===
+          row.exportedAt.slice(0, 10) &&
+        Date.parse(row.exportedAt) <= Date.now() + 60000,
+      'Fecha de exportación inválida.',
+    );
+    const existing = state.tables.tPrecios.find(
+      (p) => p.Producto === product && p.Fecha === date,
+    );
+    return Object.assign({}, row, {
+      ok: true,
+      product,
+      isin,
+      provider,
+      status: !existing
+        ? 'new'
+        : existing['VL EUR'] === row.price
+          ? 'duplicate'
+          : 'conflict',
+      verification: 'owner_reviewed_export',
+    });
+  });
+}
+function priceHistory_(config, request) {
+  const writing = request.action === 'importPriceHistory';
+  if (
+    Object.keys(request).some(
+      (k) =>
+        ![
+          'action',
+          'requestId',
+          'expectedRevision',
+          'bookKey',
+          'product',
+          'rows',
+          'sourceVerified',
+        ].includes(k),
+    ) ||
+    typeof request.expectedRevision !== 'string' ||
+    typeof request.bookKey !== 'string' ||
+    (writing && !uuid_(request.requestId)) ||
+    (!writing && request.requestId !== undefined)
+  )
+    fail_('INVALID_REQUEST');
+  const requestId = writing ? request.requestId.toLowerCase() : null,
+    fingerprint = hash_({
+      action: 'importPriceHistory',
+      product: request.product,
+      rows: request.rows,
+      sourceVerified: request.sourceVerified,
+    });
+  return locked_(() => {
+    let before = readState_(config);
+    checkRequestBook_(request, before);
+    if (writing) {
+      const replay = replayPrices_(before, requestId, fingerprint);
+      if (replay) return replay;
+    }
+    if (before.revision !== request.expectedRevision)
+      fail_('CONFLICT', 'El libro cambió; revisa el histórico de nuevo.');
+    const rows = historyRows_(before, request),
+      conflicts = rows.filter((r) => r.status === 'conflict');
+    if (!writing)
+      return {
+        ok: true,
+        apiVersion: API_VERSION_,
+        buildVersion: BUILD_VERSION_,
+        revision: before.revision,
+        bookKey: before.bookKey,
+        rows,
+        canImport: !conflicts.length,
+        coverage: {
+          from: rows.map((r) => r.date).sort()[0],
+          to: rows
+            .map((r) => r.date)
+            .sort()
+            .slice(-1)[0],
+          observations: rows.length,
+          interpolated: false,
+        },
+      };
+    if (conflicts.length)
+      fail_(
+        'PRICE_CONFLICT',
+        'Ya existe otro NAV para una fecha; el lote no se ha guardado.',
+      );
+    const now = new Date().toISOString(),
+      operations = rows
+        .filter((r) => r.status === 'new')
+        .map((r) => ({
+          process: 'precio',
+          product: r.product,
+          date: r.date,
+          price: r.price,
+          source:
+            'Export | ' +
+            r.provider +
+            ' | ' +
+            r.isin +
+            ' | ' +
+            r.classCurrency +
+            ' / EUR | ' +
+            (r.sourceUrl || 'owner document') +
+            ' | ' +
+            r.exportedAt,
+        }));
+    const apply = (state) => {
+      const applied = applyOperations_(state, operations, requestId, now);
+      rows.forEach((r, i) =>
+        applied.state.technical.quotes.push([
+          requestId + '-' + (i + 1),
+          requestId,
+          r.product,
+          r.isin,
+          r.date,
+          r.price,
+          r.classCurrency,
+          r.provider,
+          r.sourceUrl,
+          now,
+          'historical_' + r.status,
+          JSON.stringify(r),
+        ]),
+      );
+      return applied;
+    };
+    let applied = apply(before);
+    before = prepareCapacity_(config, before, applied.state);
+    if (before.revision !== request.expectedRevision) fail_('CONFLICT');
+    applied = apply(before);
+    const response = {
+      ok: true,
+      apiVersion: API_VERSION_,
+      buildVersion: BUILD_VERSION_,
+      environment: config.environment,
+      requestId,
+      revision: applied.state.revision,
+      complete: true,
+      results: rows,
+      replayed: false,
+    };
+    const requests = mutationRequests_(before, applied.state, requestId, now, {
+      operations,
+      fingerprint,
+      response,
+    });
+    try {
+      Sheets.Spreadsheets.batchUpdate({ requests }, config.id);
+    } catch (error) {
+      try {
+        const replay = replayPrices_(
+          readState_(config),
+          requestId,
+          fingerprint,
+        );
+        if (replay) return replay;
+      } catch (ignored) {}
+      fail_(
+        'WRITE_UNCERTAIN',
+        'Recupera exactamente la misma solicitud histórica.',
+      );
+    }
+    return response;
+  });
+}
+
+// Explicit owner activation; isolated test and production bindings.
 /* global ScriptApp */
 function dailyPriceStored_(properties, key) {
   try {
@@ -4454,10 +4785,29 @@ function dailyPriceStored_(properties, key) {
     return null;
   }
 }
+function dailyPriceProperties_(environment) {
+  const properties = PropertiesService.getScriptProperties();
+  const key = (name) =>
+    environment === 'production'
+      ? name.replace('DAILY_PRICE_TEST_', 'DAILY_PRICE_PRODUCTION_')
+      : name;
+  return {
+    getProperty: (name) => properties.getProperty(key(name)),
+    setProperty: (name, value) => properties.setProperty(key(name), value),
+    deleteProperty: (name) => properties.deleteProperty(key(name)),
+  };
+}
 function dailyPriceStatus_(s) {
-  const properties = PropertiesService.getScriptProperties(),
+  const properties = dailyPriceProperties_(s.environment),
     book = properties.getProperty('DAILY_PRICE_TEST_BOOK'),
-    bound = s.environment === 'test' && book && hash_(book) === s.bookKey,
+    bound =
+      book &&
+      hash_(book) === s.bookKey &&
+      properties.getProperty('DAILY_PRICE_TEST_OWNER') ===
+        (properties.getProperty('OWNER_EMAIL') || '').trim().toLowerCase() &&
+      (typeof ScriptApp.getScriptId !== 'function' ||
+        properties.getProperty('DAILY_PRICE_TEST_PROJECT') ===
+          ScriptApp.getScriptId()),
     triggerId = properties.getProperty('DAILY_PRICE_TEST_TRIGGER');
   let installed = false,
     inspection = 'available';
@@ -4466,7 +4816,10 @@ function dailyPriceStatus_(s) {
       !!triggerId &&
       ScriptApp.getProjectTriggers().some(
         (t) =>
-          t.getHandlerFunction() === 'actualizacionDiariaPreciosTest_' &&
+          t.getHandlerFunction() ===
+            (s.environment === 'production'
+              ? 'actualizacionDiariaPreciosProduction_'
+              : 'actualizacionDiariaPreciosTest_') &&
           String(t.getUniqueId()) === String(triggerId),
       );
   } catch (ignored) {
@@ -4475,7 +4828,14 @@ function dailyPriceStatus_(s) {
   const enabled = !!bound && installed,
     lastRun = bound
       ? dailyPriceStored_(properties, 'DAILY_PRICE_TEST_STATUS')
-      : null;
+      : null,
+    today = Utilities.formatDate(new Date(), 'Europe/Madrid', 'yyyy-MM-dd'),
+    hour = Number(Utilities.formatDate(new Date(), 'Europe/Madrid', 'HH')),
+    executionDue =
+      enabled &&
+      hour >= 20 &&
+      hour <= 22 &&
+      (!lastRun || lastRun.today !== today || lastRun.hour !== hour);
   return {
     enabled,
     status: !bound
@@ -4484,15 +4844,31 @@ function dailyPriceStatus_(s) {
         ? 'inspection_unavailable'
         : !installed
           ? 'trigger_missing'
-          : lastRun
-            ? lastRun.status
-            : 'scheduled',
+          : executionDue
+            ? 'execution_due'
+            : lastRun && lastRun.today === today
+              ? lastRun.status
+              : 'scheduled',
     schedule: {
       timezone: 'Europe/Madrid',
       hours: [20, 21, 22],
       maxAttemptsPerBatch: 3,
     },
     lastRun,
+    executionDue,
+    lastSuccessfulRunAgeDays:
+      lastRun && lastRun.lastSuccessfulAt
+        ? Math.max(
+            0,
+            serialDate_(
+              Utilities.formatDate(new Date(), 'Europe/Madrid', 'yyyy-MM-dd'),
+            ) -
+              serialDate_(
+                lastRun.lastSuccessfulDay ||
+                  lastRun.lastSuccessfulAt.slice(0, 10),
+              ),
+          )
+        : null,
   };
 }
 function activarActualizacionDiariaPreciosTest() {
@@ -4514,7 +4890,11 @@ function activarActualizacionDiariaPreciosTest() {
         current &&
         properties.getProperty('DAILY_PRICE_TEST_SCHEDULE') ===
           'hourly-20-22-v1' &&
-        properties.getProperty('DAILY_PRICE_TEST_BOOK') === config.id;
+        properties.getProperty('DAILY_PRICE_TEST_BOOK') === config.id &&
+        properties.getProperty('DAILY_PRICE_TEST_OWNER') === config.owner &&
+        (typeof ScriptApp.getScriptId !== 'function' ||
+          properties.getProperty('DAILY_PRICE_TEST_PROJECT') ===
+            ScriptApp.getScriptId());
     const trigger = reusable
       ? current
       : ScriptApp.newTrigger('actualizacionDiariaPreciosTest_')
@@ -4526,6 +4906,12 @@ function activarActualizacionDiariaPreciosTest() {
       .forEach((t) => ScriptApp.deleteTrigger(t));
     properties.setProperty('DAILY_PRICE_TEST_TRIGGER', trigger.getUniqueId());
     properties.setProperty('DAILY_PRICE_TEST_BOOK', config.id);
+    properties.setProperty('DAILY_PRICE_TEST_OWNER', config.owner);
+    if (typeof ScriptApp.getScriptId === 'function')
+      properties.setProperty(
+        'DAILY_PRICE_TEST_PROJECT',
+        ScriptApp.getScriptId(),
+      );
     properties.setProperty('DAILY_PRICE_TEST_SCHEDULE', 'hourly-20-22-v1');
     if (!reusable) {
       [
@@ -4556,6 +4942,8 @@ function desactivarActualizacionDiariaPreciosTest() {
       )
       .forEach((t) => ScriptApp.deleteTrigger(t));
     [
+      'DAILY_PRICE_TEST_OWNER',
+      'DAILY_PRICE_TEST_PROJECT',
       'DAILY_PRICE_TEST_TRIGGER',
       'DAILY_PRICE_TEST_SCHEDULE',
       'DAILY_PRICE_TEST_COMPLETE',
@@ -4587,6 +4975,10 @@ function dailyPriceTriggerConfig_(event) {
     properties.getProperty('ENVIRONMENT') !== 'test' ||
     !id ||
     properties.getProperty('DAILY_PRICE_TEST_BOOK') !== id ||
+    properties.getProperty('DAILY_PRICE_TEST_OWNER') !== owner ||
+    (typeof ScriptApp.getScriptId === 'function' &&
+      properties.getProperty('DAILY_PRICE_TEST_PROJECT') !==
+        ScriptApp.getScriptId()) ||
     !triggerId ||
     !event ||
     String(event.triggerUid) !== String(triggerId) ||
@@ -4602,21 +4994,179 @@ function dailyPriceTriggerConfig_(event) {
     );
   return { id, owner, environment: 'test' };
 }
+function activarActualizacionDiariaPreciosProduction() {
+  const config = authorizedConfig_();
+  check_(
+    config.environment === 'production',
+    'La rutina diaria solo está habilitada para el libro de producción.',
+  );
+  return locked_(() => {
+    const properties = PropertiesService.getScriptProperties(),
+      existing = ScriptApp.getProjectTriggers().filter(
+        (t) =>
+          t.getHandlerFunction() === 'actualizacionDiariaPreciosProduction_',
+      ),
+      currentId = properties.getProperty('DAILY_PRICE_PRODUCTION_TRIGGER'),
+      current = existing.find(
+        (t) => String(t.getUniqueId()) === String(currentId),
+      ),
+      reusable =
+        current &&
+        properties.getProperty('DAILY_PRICE_PRODUCTION_SCHEDULE') ===
+          'hourly-20-22-v1' &&
+        properties.getProperty('DAILY_PRICE_PRODUCTION_BOOK') === config.id &&
+        properties.getProperty('DAILY_PRICE_PRODUCTION_OWNER') ===
+          config.owner &&
+        (typeof ScriptApp.getScriptId !== 'function' ||
+          properties.getProperty('DAILY_PRICE_PRODUCTION_PROJECT') ===
+            ScriptApp.getScriptId());
+    const trigger = reusable
+      ? current
+      : ScriptApp.newTrigger('actualizacionDiariaPreciosProduction_')
+          .timeBased()
+          .everyHours(1)
+          .create();
+    existing
+      .filter((t) => t !== trigger)
+      .forEach((t) => ScriptApp.deleteTrigger(t));
+    properties.setProperty(
+      'DAILY_PRICE_PRODUCTION_TRIGGER',
+      trigger.getUniqueId(),
+    );
+    properties.setProperty('DAILY_PRICE_PRODUCTION_BOOK', config.id);
+    properties.setProperty('DAILY_PRICE_PRODUCTION_OWNER', config.owner);
+    if (typeof ScriptApp.getScriptId === 'function')
+      properties.setProperty(
+        'DAILY_PRICE_PRODUCTION_PROJECT',
+        ScriptApp.getScriptId(),
+      );
+    properties.setProperty(
+      'DAILY_PRICE_PRODUCTION_SCHEDULE',
+      'hourly-20-22-v1',
+    );
+    if (!reusable) {
+      [
+        'DAILY_PRICE_PRODUCTION_COMPLETE',
+        'DAILY_PRICE_PRODUCTION_STATE',
+        'DAILY_PRICE_PRODUCTION_STATUS',
+        'DAILY_PRICE_PRODUCTION_LEASE',
+      ].forEach((key) => properties.deleteProperty(key));
+    }
+    return {
+      ok: true,
+      environment: 'production',
+      enabled: true,
+      installed: true,
+      schedule: { timezone: 'Europe/Madrid', hours: [20, 21, 22] },
+    };
+  });
+}
+function desactivarActualizacionDiariaPreciosProduction() {
+  authorizedConfig_();
+  return locked_(() => {
+    const properties = PropertiesService.getScriptProperties();
+    // Desvincular primero hace que cualquier ejecución pendiente se detenga.
+    properties.deleteProperty('DAILY_PRICE_PRODUCTION_BOOK');
+    ScriptApp.getProjectTriggers()
+      .filter(
+        (t) =>
+          t.getHandlerFunction() === 'actualizacionDiariaPreciosProduction_',
+      )
+      .forEach((t) => ScriptApp.deleteTrigger(t));
+    [
+      'DAILY_PRICE_PRODUCTION_OWNER',
+      'DAILY_PRICE_PRODUCTION_PROJECT',
+      'DAILY_PRICE_PRODUCTION_TRIGGER',
+      'DAILY_PRICE_PRODUCTION_SCHEDULE',
+      'DAILY_PRICE_PRODUCTION_COMPLETE',
+      'DAILY_PRICE_PRODUCTION_STATE',
+      'DAILY_PRICE_PRODUCTION_STATUS',
+      'DAILY_PRICE_PRODUCTION_LEASE',
+    ].forEach((key) => properties.deleteProperty(key));
+    return { ok: true, enabled: false };
+  });
+}
+// El sufijo _ impide llamadas desde google.script.run.
+function actualizacionDiariaPreciosProduction_(event) {
+  const config = dailyPriceProductionTriggerConfig_(event),
+    hour = Number(Utilities.formatDate(new Date(), 'Europe/Madrid', 'HH'));
+  if (hour < 20 || hour > 22)
+    return { ok: true, skipped: true, reason: 'OUTSIDE_SCHEDULE' };
+  return ejecutarActualizacionDiariaPreciosTest_(config);
+}
+function dailyPriceProductionTriggerConfig_(event) {
+  const properties = PropertiesService.getScriptProperties(),
+    owner = (properties.getProperty('OWNER_EMAIL') || '').trim().toLowerCase(),
+    effective = (Session.getEffectiveUser().getEmail() || '')
+      .trim()
+      .toLowerCase(),
+    id = properties.getProperty('PRODUCTION_SPREADSHEET_ID'),
+    triggerId = properties.getProperty('DAILY_PRICE_PRODUCTION_TRIGGER');
+  if (!owner || effective !== owner) fail_('ACCESS_DENIED');
+  if (
+    properties.getProperty('ENVIRONMENT') !== 'production' ||
+    !id ||
+    properties.getProperty('DAILY_PRICE_PRODUCTION_BOOK') !== id ||
+    properties.getProperty('DAILY_PRICE_PRODUCTION_OWNER') !== owner ||
+    (typeof ScriptApp.getScriptId === 'function' &&
+      properties.getProperty('DAILY_PRICE_PRODUCTION_PROJECT') !==
+        ScriptApp.getScriptId()) ||
+    !triggerId ||
+    !event ||
+    String(event.triggerUid) !== String(triggerId) ||
+    !ScriptApp.getProjectTriggers().some(
+      (t) =>
+        t.getHandlerFunction() === 'actualizacionDiariaPreciosProduction_' &&
+        String(t.getUniqueId()) === String(triggerId),
+    )
+  )
+    fail_(
+      'ACCESS_DENIED',
+      'El trigger no corresponde al libro de producción activado.',
+    );
+  return { id, owner, environment: 'production' };
+}
 function actualizacionDiariaPreciosTest() {
-  return ejecutarActualizacionDiariaPreciosTest_(authorizedConfig_());
+  const config = authorizedConfig_();
+  check_(config.environment === 'test', 'Requiere el libro de pruebas.');
+  return ejecutarActualizacionDiariaPreciosTest_(config);
+}
+function actualizacionDiariaPreciosProduction() {
+  const config = authorizedConfig_();
+  check_(
+    config.environment === 'production',
+    'Requiere el libro de producción.',
+  );
+  return ejecutarActualizacionDiariaPreciosTest_(config);
 }
 function assertDailyPriceBinding_(config) {
-  const properties = PropertiesService.getScriptProperties();
+  if (
+    config.dailyPriceDate &&
+    config.dailyPriceDate !==
+      Utilities.formatDate(new Date(), 'Europe/Madrid', 'yyyy-MM-dd')
+  )
+    fail_(
+      'DAILY_DAY_CHANGED',
+      'Ha cambiado el día de Madrid; se retomará en la siguiente ejecución.',
+    );
+  const properties = dailyPriceProperties_(config.environment);
   check_(
-    config.environment === 'test' &&
-      properties.getProperty('ENVIRONMENT') === 'test' &&
-      properties.getProperty('TEST_SPREADSHEET_ID') === config.id &&
-      properties.getProperty('DAILY_PRICE_TEST_BOOK') === config.id,
-    'La rutina diaria requiere activación expresa para este libro de pruebas.',
+    properties.getProperty('ENVIRONMENT') === config.environment &&
+      properties.getProperty(
+        config.environment === 'production'
+          ? 'PRODUCTION_SPREADSHEET_ID'
+          : 'TEST_SPREADSHEET_ID',
+      ) === config.id &&
+      properties.getProperty('DAILY_PRICE_TEST_BOOK') === config.id &&
+      properties.getProperty('DAILY_PRICE_TEST_OWNER') === config.owner &&
+      (typeof ScriptApp.getScriptId !== 'function' ||
+        properties.getProperty('DAILY_PRICE_TEST_PROJECT') ===
+          ScriptApp.getScriptId()),
+    'La rutina diaria requiere activación expresa para este libro de pruebas o producción.',
   );
 }
 function ejecutarActualizacionDiariaPreciosTest_(config) {
-  const properties = PropertiesService.getScriptProperties(),
+  const properties = dailyPriceProperties_(config.environment),
     assertBound = () => assertDailyPriceBinding_(config);
   assertBound();
   const today = Utilities.formatDate(new Date(), 'Europe/Madrid', 'yyyy-MM-dd'),
@@ -4651,7 +5201,10 @@ function ejecutarActualizacionDiariaPreciosTest_(config) {
           ? saved
           : { today, bookKey: state.bookKey, selection, batches: {} },
       batches = [];
-    if (ledger.complete)
+    const hour = Number(
+      Utilities.formatDate(new Date(), 'Europe/Madrid', 'HH'),
+    );
+    if (ledger.lastHour === hour && ledger.complete)
       return { ok: true, skipped: true, reason: 'ALREADY_COMPLETE' };
     for (let i = 0; i < ids.length; i += PRICE_LIMIT_) {
       if (Date.now() - start > 180000) break;
@@ -4659,7 +5212,7 @@ function ejecutarActualizacionDiariaPreciosTest_(config) {
       const products = ids.slice(i, i + PRICE_LIMIT_),
         key = String(i / PRICE_LIMIT_),
         batch = ledger.batches[key] || { attempt: 0 };
-      if (batch.complete) {
+      if (batch.complete && batch.lastHour === hour) {
         batches.push({ complete: true, skipped: true, products });
         continue;
       }
@@ -4692,7 +5245,10 @@ function ejecutarActualizacionDiariaPreciosTest_(config) {
       let response;
       try {
         response = refreshPrices_(
-          Object.assign({}, config, { dailyPriceTest: true }),
+          Object.assign({}, config, {
+            dailyPriceTest: true,
+            dailyPriceDate: today,
+          }),
           {
             action: 'refreshPrices',
             requestId,
@@ -4721,6 +5277,7 @@ function ejecutarActualizacionDiariaPreciosTest_(config) {
             r.ageDays >= 0 &&
             r.ageDays <= 4,
         );
+      batch.lastHour = hour;
       batch.attempt += 1;
       ledger.batches[key] = batch;
       properties.setProperty('DAILY_PRICE_TEST_STATE', JSON.stringify(ledger));
@@ -4735,6 +5292,7 @@ function ejecutarActualizacionDiariaPreciosTest_(config) {
         reason: 'DISABLED_DURING_RUN',
         batches,
       };
+    ledger.lastHour = hour;
     ledger.complete =
       ids.length > 0 &&
       batches.length === Math.ceil(ids.length / PRICE_LIMIT_) &&
@@ -4752,7 +5310,21 @@ function ejecutarActualizacionDiariaPreciosTest_(config) {
             ? 'retry_limit'
             : 'partial',
       today,
+      hour,
       checkedAt: new Date().toISOString(),
+      lastSuccessfulDay: ledger.complete
+        ? today
+        : (dailyPriceStored_(properties, 'DAILY_PRICE_TEST_STATUS') || {})
+            .lastSuccessfulDay || null,
+      lastSuccessfulAt: ledger.complete
+        ? new Date().toISOString()
+        : (dailyPriceStored_(properties, 'DAILY_PRICE_TEST_STATUS') || {})
+            .lastSuccessfulAt || null,
+      publicationStatus: batches.some((b) =>
+        (b.results || []).some((r) => r.status === 'updated'),
+      )
+        ? 'new_publication'
+        : 'publication_pending',
       complete: ledger.complete,
       remaining: Math.max(0, ids.length - batches.length * PRICE_LIMIT_),
       counts: batches.reduce((counts, b) => {
@@ -4766,7 +5338,7 @@ function ejecutarActualizacionDiariaPreciosTest_(config) {
     };
     properties.setProperty('DAILY_PRICE_TEST_STATUS', JSON.stringify(lastRun));
     const result = Object.assign(
-      { ok: true, environment: 'test', batches },
+      { ok: true, environment: config.environment, batches },
       lastRun,
     );
     console.log(JSON.stringify(result));

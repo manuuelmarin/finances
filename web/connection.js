@@ -59,6 +59,15 @@ function acceptsConnectionMessage(event, pending) {
   );
 }
 
+let sessionDeployment;
+function currentDeployment() {
+  if (sessionDeployment !== undefined) return sessionDeployment;
+  try {
+    return savedDeployment(globalThis.localStorage);
+  } catch {
+    return null;
+  }
+}
 function savedDeployment(storage) {
   try {
     const value = storage.getItem(DEPLOYMENT_STORAGE_KEY);
@@ -73,6 +82,7 @@ if (typeof module !== 'undefined' && module.exports) {
     acceptsConnectionMessage,
     validDeploymentUrl,
     savedDeployment,
+    currentDeployment,
   };
 }
 
@@ -189,6 +199,7 @@ if (typeof document !== 'undefined') {
       }
       urlInput.removeAttribute('aria-invalid');
       deploymentUrl = value;
+      sessionDeployment = undefined;
       configuredLocally = true;
       finish();
       let stored = false;
@@ -196,6 +207,7 @@ if (typeof document !== 'undefined') {
         storage().setItem(DEPLOYMENT_STORAGE_KEY, value);
         stored = true;
       } catch {
+        sessionDeployment = value;
         /* Sesión privada sin almacenamiento. */
       }
       ready();
@@ -206,9 +218,11 @@ if (typeof document !== 'undefined') {
         : 'URL preparada para esta sesión. El navegador no permite guardarla; vuelve a pegarla al abrir la app de nuevo.';
     });
     document.getElementById('setup-clear').addEventListener('click', () => {
+      sessionDeployment = undefined;
       try {
         storage().removeItem(DEPLOYMENT_STORAGE_KEY);
       } catch {
+        sessionDeployment = null;
         /* No hay almacenamiento disponible. */
       }
       configuredLocally = true;
@@ -264,6 +278,24 @@ if (typeof document !== 'undefined') {
       document.getElementById('checked-at').textContent =
         'Última comprobación: ' +
         new Date(data.checkedAt).toLocaleString('es-ES');
+      const versionDetail = document.createElement('p');
+      versionDetail.textContent =
+        'App 3.9.0 · Google ' +
+        (data.buildVersion || 'Sin dato') +
+        ' · API ' +
+        (data.apiVersion || 'Sin dato') +
+        ' · Bridge ' +
+        (data.bridgeVersion || 'Sin dato') +
+        ' · ' +
+        (data.environment === 'production'
+          ? 'Libro principal'
+          : 'Copia de pruebas') +
+        ' · Lectura confirmada · RPC ' +
+        (data.rpcReady ? 'disponible' : 'no disponible') +
+        '. App y API tienen versiones independientes (API compatible: 3.3.0).';
+      results.querySelector('[data-version-detail]')?.remove();
+      versionDetail.dataset.versionDetail = '';
+      results.append(versionDetail);
       show(
         'success',
         data.rpcReady ? 'Conexión verificada' : 'Conexión de solo lectura',

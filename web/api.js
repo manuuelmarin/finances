@@ -118,6 +118,8 @@ class FinanceApiClient {
         this.session.origin = event.origin;
         this.session.initialSnapshot = event.data.snapshot || null;
         this.session.rpcReady = event.data.rpcReady === true;
+        this.session.bridgeVersion =
+          event.data.bridgeVersion || event.data.apiVersion || null;
         this.session.transportError = event.data.transportError || null;
         resolve(event.data);
       };

@@ -678,7 +678,10 @@ test('la serie de cortes mensuales del proveedor no se importa como fechas diari
   });
   const before = r.state().tables.tPrecios.length,
     result = r.api(envelope(r));
-  assert.equal(result.results[0].historyAvailability.status, 'LATEST_ONLY');
+  assert.equal(
+    result.results[0].historyAvailability.status,
+    'EXPORT_IMPORT_SUPPORTED',
+  );
   assert.equal(r.state().tables.tPrecios.length, before + 1);
   assert.equal(
     r.state().tables.tPrecios.some((p) => p.Fecha === serial('2025-08-31')),
@@ -746,7 +749,7 @@ test('rutina diaria requiere activación expresa, se instala una vez y guarda re
   const { r, triggers } = dailyRuntime();
   assert.throws(
     () => r.ctx.actualizacionDiariaPreciosTest(),
-    /activación expresa/,
+    /activación expresa|libro de pruebas/,
   );
   const writes = r.writes.length;
   assert.equal(r.ctx.activarActualizacionDiariaPreciosTest().installed, true);
@@ -764,7 +767,7 @@ test('rutina diaria requiere activación expresa, se instala una vez y guarda re
   assert.equal(triggers.length, 0);
   assert.throws(
     () => r.ctx.actualizacionDiariaPreciosTest(),
-    /activación expresa/,
+    /activación expresa|libro de pruebas/,
   );
 });
 
@@ -779,13 +782,13 @@ test('trigger vinculado al libro de pruebas se detiene al cambiar entorno o libr
   );
   assert.throws(
     () => r.ctx.actualizacionDiariaPreciosTest(),
-    /activación expresa/,
+    /activación expresa|libro de pruebas/,
   );
   properties.set('ENVIRONMENT', 'test');
   properties.set('TEST_SPREADSHEET_ID', 'otro-test');
   assert.throws(
     () => r.ctx.actualizacionDiariaPreciosTest(),
-    /activación expresa/,
+    /activación expresa|libro de pruebas/,
   );
   assert.equal(r.fetches.length, 0);
 });
@@ -999,4 +1002,337 @@ test('NAV atrasado e igual no marca completo y reconsulta con otro receipt', () 
   const second = r.ctx.actualizacionDiariaPreciosTest();
   assert.notEqual(first.batches[0].requestId, second.batches[0].requestId);
   assert.equal(r.state().tables.tPrecios.length, 1);
+});
+
+function historicalRow(overrides = {}) {
+  return {
+    isin: ISIN,
+    referenceName: TITLE,
+    classCurrency: 'EUR',
+    quoteCurrency: 'EUR',
+    date: '2026-09-15',
+    price: 301.123456,
+    provider: 'Synthetic owner-reviewed manager export',
+    sourceUrl: null,
+    exportedAt: '2026-10-01T12:00:00Z',
+    ...overrides,
+  };
+}
+function historyEnvelope(r, writing = false, rows = [historicalRow()]) {
+  const s = r.api({ action: 'read' });
+  return {
+    action: writing ? 'importPriceHistory' : 'previewPriceHistory',
+    ...(writing ? { requestId: crypto.randomUUID() } : {}),
+    expectedRevision: s.revision,
+    bookKey: s.bookKey,
+    product: 'PRODUCT-A',
+    sourceVerified: true,
+    rows,
+  };
+}
+test('historical preview is read-only; older NAV import is atomic, bound and receipt recoverable', () => {
+  const r = configured(),
+    before = r.state(),
+    writes = r.writes.length,
+    req = historyEnvelope(r);
+  const preview = r.api(req);
+  assert.equal(preview.ok, true);
+  assert.equal(preview.rows[0].status, 'new');
+  assert.equal(r.writes.length, writes);
+  const envelope = historyEnvelope(r, true),
+    imported = r.api(envelope);
+  assert.equal(imported.ok, true);
+  assert.equal(imported.results[0].date, '2026-09-15');
+  assert.equal(r.state().tables.tPrecios.at(-1).Fecha, serial('2026-09-15'));
+  for (const name of ['tProductos', 'tMovimientos', 'tOperaciones'])
+    assert.deepEqual(r.state().tables[name], before.tables[name]);
+  const after = r.writes.length;
+  assert.equal(r.api(envelope).replayed, true);
+  assert.equal(r.writes.length, after);
+  assert.equal(
+    r.api({ ...envelope, rows: [historicalRow({ price: 302 })] }).error,
+    'REQUEST_CONFLICT',
+  );
+});
+test('historical duplicates never replace NAV and conflicts reject entire chunk', () => {
+  const r = configured();
+  assert.equal(r.api(historyEnvelope(r, true)).ok, true);
+  const dup = r.api(historyEnvelope(r));
+  assert.equal(dup.rows[0].status, 'duplicate');
+  const rows = [
+      historicalRow({ price: 999 }),
+      historicalRow({ date: '2026-09-16' }),
+    ],
+    writes = r.writes.length;
+  assert.equal(r.api(historyEnvelope(r, false, rows)).canImport, false);
+  assert.equal(r.api(historyEnvelope(r, true, rows)).error, 'PRICE_CONFLICT');
+  assert.equal(r.writes.length, writes);
+  assert.equal(
+    r.api(historyEnvelope(r, true, [historicalRow(), historicalRow()])).ok,
+    false,
+  );
+});
+test('historical validation rejects mismatched class, financial payload, arbitrary URL, unsafe provenance and future dates', () => {
+  for (const override of [
+    { isin: SECOND },
+    { referenceName: 'Azvalor Internacional USD' },
+    { quoteCurrency: 'USD' },
+    { sourceUrl: 'https://evil.test/prices' },
+    { provider: '=IMPORTXML("secret")' },
+    { date: '2099-01-01' },
+    { date: '2026-02-30' },
+    { price: 0 },
+  ]) {
+    const r = configured(),
+      writes = r.writes.length;
+    assert.equal(
+      r.api(historyEnvelope(r, true, [historicalRow(override)])).ok,
+      false,
+    );
+    assert.equal(r.writes.length, writes);
+    assert.equal(r.fetches.length, 0);
+  }
+  const r = configured(),
+    req = historyEnvelope(r, true);
+  assert.equal(r.api({ ...req, bookKey: 'wrong' }).ok, false);
+  assert.equal(r.api({ ...req, expectedRevision: 'old' }).error, 'CONFLICT');
+  assert.equal(r.api({ ...req, operations: [] }).error, 'INVALID_REQUEST');
+});
+test('explicit class currency must agree with Divisa on fetched and cached quotes', () => {
+  const name = 'FIDELITY MSCI WORLD INDEX FUND P-ACC-USD';
+  const r = runtime({
+    fetch: () => ({ body: page({ isin: SECOND, name, currency: 'EUR' }) }),
+  });
+  assert.equal(
+    quote(r, SECOND, 'Fidelity MSCI World P Acc USD').error,
+    'NAME_MISMATCH',
+  );
+  const cached = runtime({
+    fetch: () => ({ body: page({ isin: SECOND, name, currency: 'USD' }) }),
+  });
+  assert.equal(quote(cached, SECOND, 'Fidelity MSCI World P Acc USD').ok, true);
+  const key = [...cached.cache.keys()][0],
+    stored = JSON.parse(cached.cache.get(key));
+  stored.classCurrency = 'EUR';
+  cached.cache.set(key, JSON.stringify(stored));
+  assert.equal(
+    quote(cached, SECOND, 'Fidelity MSCI World P Acc USD').error,
+    'NAME_MISMATCH',
+  );
+  assert.equal(cached.fetches.length, 1);
+});
+test('daily window fetches again at 21 and 22 after early fresh success, never fabricates NAV today', () => {
+  const options = { hour: 20 },
+    { r } = dailyRuntime(options);
+  r.ctx.activarActualizacionDiariaPreciosTest();
+  let hour = 20;
+  const format = r.ctx.Utilities.formatDate;
+  r.ctx.Utilities.formatDate = (date, zone, f) =>
+    f === 'HH' ? String(hour) : format(date, zone, f);
+  const first = r.ctx.actualizacionDiariaPreciosTest();
+  assert.equal(first.complete, true);
+  const before = r.fetches.length;
+  r.cache.clear();
+  hour = 21;
+  const second = r.ctx.actualizacionDiariaPreciosTest();
+  assert.equal(second.complete, true);
+  assert.ok(r.fetches.length > before);
+  assert.equal(second.publicationStatus, 'publication_pending');
+  assert.notEqual(second.batches[0].requestId, first.batches[0].requestId);
+  hour = 22;
+  r.cache.clear();
+  assert.equal(r.ctx.actualizacionDiariaPreciosTest().complete, true);
+  assert.equal(r.state().tables.tPrecios.length, 2);
+});
+test('production activation is independent and test environment never installs it implicitly', () => {
+  const { r, properties, triggers } = dailyRuntime();
+  r.ctx.activarActualizacionDiariaPreciosTest();
+  assert.throws(
+    () => r.ctx.activarActualizacionDiariaPreciosProduction(),
+    /producción/,
+  );
+  assert.equal(properties.has('DAILY_PRICE_PRODUCTION_BOOK'), false);
+  properties.set('ENVIRONMENT', 'production');
+  properties.set('PRODUCTION_SPREADSHEET_ID', 'fixture-book');
+  properties.set('TEST_SPREADSHEET_ID', 'other-test');
+  r.ctx.activarActualizacionDiariaPreciosProduction();
+  assert.equal(triggers.length, 2);
+  assert.equal(properties.get('DAILY_PRICE_PRODUCTION_BOOK'), 'fixture-book');
+  r.options.visitor = '';
+  const production = triggers.find(
+    (t) => t.getHandlerFunction() === 'actualizacionDiariaPreciosProduction_',
+  );
+  assert.equal(
+    r.ctx.actualizacionDiariaPreciosProduction_({
+      triggerUid: production.getUniqueId(),
+    }).complete,
+    true,
+  );
+  assert.throws(
+    () =>
+      r.ctx.actualizacionDiariaPreciosTest_({ triggerUid: 'test-trigger-uid' }),
+    /trigger/,
+  );
+});
+
+test('historical uncertain writes retain exact UUID and recover one atomic receipt', () => {
+  const r = configured(),
+    req = historyEnvelope(r, true);
+  r.options.failBeforeWrite = true;
+  assert.equal(r.api(req).error, 'WRITE_UNCERTAIN');
+  r.options.failBeforeWrite = false;
+  assert.equal(r.api(req).ok, true);
+  const writes = r.writes.length;
+  assert.equal(r.api(req).replayed, true);
+  assert.equal(r.writes.length, writes);
+});
+test('installed daily binding rejects project and owner changes before requests', () => {
+  const { r, properties } = dailyRuntime();
+  let project = 'synthetic-test-project';
+  r.ctx.ScriptApp.getScriptId = () => project;
+  r.ctx.activarActualizacionDiariaPreciosTest();
+  project = 'copied-project';
+  assert.throws(
+    () =>
+      r.ctx.actualizacionDiariaPreciosTest_({ triggerUid: 'test-trigger-uid' }),
+    /trigger/,
+  );
+  project = 'synthetic-test-project';
+  properties.set('OWNER_EMAIL', 'new-owner@example.test');
+  r.ctx.Session.getEffectiveUser = () => ({
+    getEmail: () => 'new-owner@example.test',
+  });
+  assert.throws(
+    () =>
+      r.ctx.actualizacionDiariaPreciosTest_({ triggerUid: 'test-trigger-uid' }),
+    /trigger/,
+  );
+  assert.equal(r.fetches.length, 0);
+});
+test('Madrid rollover during fetch aborts old-day mutation and next run uses new-day ledger', () => {
+  const { r } = dailyRuntime();
+  let day = '2026-10-10';
+  const formatter = r.ctx.Utilities.formatDate;
+  r.ctx.Utilities.formatDate = (date, zone, f) =>
+    f === 'yyyy-MM-dd' ? day : formatter(date, zone, f);
+  r.ctx.activarActualizacionDiariaPreciosTest();
+  const writes = r.writes.length;
+  r.options.fetch = () => {
+    day = '2026-10-11';
+    return { body: page({ date: '09/10/2026' }) };
+  };
+  const old = r.ctx.actualizacionDiariaPreciosTest();
+  assert.equal(old.batches[0].error, 'DAILY_DAY_CHANGED');
+  assert.equal(r.writes.length, writes);
+  const next = r.ctx.actualizacionDiariaPreciosTest();
+  assert.equal(next.today, '2026-10-11');
+  assert.equal(next.complete, true);
+});
+test('daily health marks current window due after yesterday and reports success age', () => {
+  const { r, properties } = dailyRuntime();
+  r.ctx.activarActualizacionDiariaPreciosTest();
+  const today = r.ctx.Utilities.formatDate(
+      new Date(),
+      'Europe/Madrid',
+      'yyyy-MM-dd',
+    ),
+    yesterday = new Date(Date.parse(today + 'T00:00:00Z') - 86400000)
+      .toISOString()
+      .slice(0, 10);
+  properties.set(
+    'DAILY_PRICE_TEST_STATUS',
+    JSON.stringify({
+      today: yesterday,
+      hour: 22,
+      status: 'complete',
+      lastSuccessfulAt: yesterday + 'T20:00:00Z',
+      lastSuccessfulDay: yesterday,
+    }),
+  );
+  const health = r.api({ action: 'diagnostics' }).dailyPrices;
+  assert.equal(health.executionDue, true);
+  assert.equal(health.status, 'execution_due');
+  assert.equal(health.lastSuccessfulRunAgeDays, 1);
+});
+
+test('latest NAV provenance matches exact product date and value, not a later historical attempt', () => {
+  const r = configured();
+  assert.equal(r.api(envelope(r)).ok, true);
+  let latest = r.api({ action: 'read' }).prices[0].lastValid;
+  assert.equal(latest.classCurrency, 'EUR');
+  assert.equal(latest.evidence.effectiveDate, '2026-10-02');
+  assert.equal(latest.evidence.verification, 'provider_quote');
+  assert.equal(r.api(historyEnvelope(r, true)).ok, true);
+  latest = r.api({ action: 'read' }).prices[0].lastValid;
+  assert.equal(latest.evidence.effectiveDate, '2026-10-02');
+  assert.equal(latest.evidence.verification, 'provider_quote');
+  r.transact([
+    {
+      process: 'precio',
+      product: 'Fondo A',
+      date: '2026-10-03',
+      price: 350,
+      source: 'Synthetic manual observation',
+    },
+  ]);
+  latest = r.api({ action: 'read' }).prices[0].lastValid;
+  assert.equal(latest.date, '2026-10-03');
+  assert.equal(latest.classCurrency, null);
+  assert.equal(latest.evidence, null);
+});
+
+test('late publication after an early previous-day success is collected exactly once', () => {
+  const { r } = dailyRuntime();
+  let hour = 20;
+  const formatter = r.ctx.Utilities.formatDate;
+  r.ctx.Utilities.formatDate = (date, zone, f) =>
+    f === 'HH' ? String(hour) : formatter(date, zone, f);
+  const today = formatter(new Date(), 'Europe/Madrid', 'yyyy-MM-dd'),
+    previous = new Date(Date.parse(today + 'T00:00:00Z') - 86400000)
+      .toISOString()
+      .slice(0, 10),
+    display = (d) => d.slice(8) + '/' + d.slice(5, 7) + '/' + d.slice(0, 4);
+  let published = previous;
+  r.options.fetch = () => ({ body: page({ date: display(published) }) });
+  r.ctx.activarActualizacionDiariaPreciosTest();
+  const early = r.ctx.actualizacionDiariaPreciosTest();
+  assert.equal(early.complete, true);
+  assert.equal(early.batches[0].results[0].date, previous);
+  published = today;
+  hour = 21;
+  r.cache.clear();
+  const late = r.ctx.actualizacionDiariaPreciosTest();
+  assert.equal(late.publicationStatus, 'new_publication');
+  assert.equal(late.batches[0].results[0].date, today);
+  hour = 22;
+  r.cache.clear();
+  assert.equal(
+    r.ctx.actualizacionDiariaPreciosTest().publicationStatus,
+    'publication_pending',
+  );
+  assert.equal(
+    r.state().tables.tPrecios.filter((p) => p.Fecha === serial(today)).length,
+    1,
+  );
+});
+
+test('newest historical NAV retains reviewed class provenance after a later failed live refresh', () => {
+  const r = configured();
+  const result = r.api(
+    historyEnvelope(r, true, [
+      historicalRow({ date: '2026-10-03', price: 380.123456 }),
+    ]),
+  );
+  assert.equal(result.ok, true);
+  let latest = r.api({ action: 'read' }).prices[0].lastValid;
+  assert.equal(latest.date, '2026-10-03');
+  assert.equal(latest.classCurrency, 'EUR');
+  assert.equal(latest.evidence.verification, 'owner_reviewed_export');
+  assert.equal(latest.evidence.effectiveDate, '2026-10-03');
+  r.options.fetch = () => ({ status: 503, body: '' });
+  assert.equal(r.api(envelope(r)).complete, false);
+  latest = r.api({ action: 'read' }).prices[0].lastValid;
+  assert.equal(latest.classCurrency, 'EUR');
+  assert.equal(latest.evidence.verification, 'owner_reviewed_export');
+  assert.equal(latest.evidence.effectiveDate, '2026-10-03');
 });

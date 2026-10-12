@@ -20,6 +20,23 @@ const FinanceSync = (() => {
       });
       return this.db;
     }
+    async list() {
+      const db = await this.open();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('books', 'readonly');
+        const rows = [];
+        const request = tx.objectStore('books').openCursor();
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (cursor) {
+            rows.push({ key: cursor.key, ...cursor.value });
+            cursor.continue();
+          }
+        };
+        tx.oncomplete = () => resolve(rows);
+        tx.onerror = () => reject(Error('STORAGE_UNAVAILABLE'));
+      });
+    }
     async get(key) {
       const db = await this.open();
       return new Promise((resolve, reject) => {
@@ -48,7 +65,10 @@ const FinanceSync = (() => {
             reject(error);
           }
         };
-        tx.oncomplete = () => resolve(result);
+        tx.oncomplete = () => {
+          this.changed?.(key, result);
+          resolve(result);
+        };
         tx.onerror = () => reject(Error('STORAGE_UNAVAILABLE'));
       });
     }
@@ -78,6 +98,7 @@ const FinanceSync = (() => {
       this.now = now;
       this.locks = locks;
       this.running = false;
+      this.owner = uuid();
     }
     async get() {
       const data = await this.store.get(this.key);
@@ -96,6 +117,10 @@ const FinanceSync = (() => {
           ...data,
           bookKey: snapshot.bookKey,
           snapshot: clone(snapshot),
+          label:
+            snapshot.environment === 'production'
+              ? 'Libro principal'
+              : 'Copia de pruebas',
         };
       });
     }
@@ -112,7 +137,11 @@ const FinanceSync = (() => {
             : {}),
         };
         if (action === 'transact') envelope.operations = clone(operations);
-        else if (products) envelope.products = clone(products);
+        else if (action === 'importPriceHistory') {
+          envelope.product = products.product;
+          envelope.rows = clone(products.rows);
+          envelope.sourceVerified = products.sourceVerified === true;
+        } else if (products) envelope.products = clone(products);
         data.queue.push({
           envelope,
           label,
@@ -124,6 +153,32 @@ const FinanceSync = (() => {
         return data;
       });
     }
+    async claim(id) {
+      let claimed = null;
+      await this.store.update(this.key, (data) => {
+        claimed = null;
+        const item = data.queue.find((q) => q.envelope.requestId === id);
+        if (item?.status === 'review' && uncertainResult(item.result))
+          item.status = 'uncertain';
+        if (!item || !['pending', 'uncertain'].includes(item.status))
+          return data;
+        if (item.claim && item.claim.until > Date.now()) return data;
+        const originalStatus = item.status;
+        item.status = 'uncertain';
+        item.claim = { owner: this.owner, until: Date.now() + 300000 };
+        item.updatedAt = this.now();
+        claimed = { ...clone(item), originalStatus };
+        return data;
+      });
+      return claimed;
+    }
+    async release(id) {
+      return this.store.update(this.key, (data) => {
+        const item = data.queue.find((q) => q.envelope.requestId === id);
+        if (item?.claim?.owner === this.owner) delete item.claim;
+        return data;
+      });
+    }
     async status(id, status, result) {
       return this.store.update(this.key, (data) => {
         const item = data.queue.find((q) => q.envelope.requestId === id);
@@ -131,6 +186,7 @@ const FinanceSync = (() => {
           item.status = status;
           item.result = result ? clone(result) : null;
           item.updatedAt = this.now();
+          if (['confirmed', 'review'].includes(status)) delete item.claim;
         }
         return data;
       });
@@ -143,7 +199,11 @@ const FinanceSync = (() => {
           !['pending', 'review'].includes(item.status) ||
           uncertainResult(item.result)
         )
-          throw Error('CANNOT_DISCARD');
+          throw Error(
+            item?.status === 'uncertain'
+              ? 'CANNOT_DISCARD_IN_FLIGHT'
+              : 'CANNOT_DISCARD',
+          );
         item.status = 'discarded';
         item.updatedAt = this.now();
         return data;
@@ -152,9 +212,7 @@ const FinanceSync = (() => {
     async clear() {
       return this.store.update(this.key, (data) => {
         if (
-          data.queue.some((q) =>
-            ['pending', 'uncertain', 'review'].includes(q.status),
-          )
+          data.queue.some((q) => !['confirmed', 'discarded'].includes(q.status))
         )
           throw Error('PENDING_OPERATIONS');
         return { queue: [], snapshot: null, bookKey: null };
@@ -162,32 +220,51 @@ const FinanceSync = (() => {
     }
     async run(client, notify = () => {}) {
       const work = async () => {
-        if (this.running) return;
+        if (this.running) return { status: 'busy', reason: 'OTHER_WINDOW' };
+        const outcome = { status: 'confirmed', reason: null, confirmed: 0 };
+        let claimedId = null;
         this.running = true;
         try {
           const fresh = await client.read();
           if (!fresh.ok) throw Error(fresh.error || 'READ_FAILED');
           await this.saveSnapshot(fresh);
           notify();
-          const items = (await this.get()).queue.filter((q) =>
+          const stored = await this.get();
+          if (stored.queue.some((item) => item.status === 'review')) {
+            outcome.status = 'review';
+            outcome.reason = 'REVIEW_REQUIRED';
+          }
+          const items = stored.queue.filter((q) =>
             ['pending', 'uncertain'].includes(q.status),
           );
           for (const entry of items) {
-            const item = (await this.get()).queue.find(
-              (q) => q.envelope.requestId === entry.envelope.requestId,
-            );
-            if (!['pending', 'uncertain'].includes(item.status)) continue;
+            const item = await this.claim(entry.envelope.requestId);
+            if (!item) {
+              outcome.status = 'busy';
+              outcome.reason = 'OTHER_WINDOW';
+              continue;
+            }
+            claimedId = item.envelope.requestId;
             const current = (await this.get()).snapshot;
             if (item.bookKey !== current.bookKey) throw Error('BOOK_CHANGED');
             let result;
-            if (item.status === 'uncertain') {
+            if (item.originalStatus === 'uncertain') {
               try {
                 result = await client.requestStatus(item.envelope);
-              } catch {
+              } catch (error) {
+                outcome.status = 'unconfirmed';
+                outcome.reason = error.message || 'STATUS_FAILED';
+                await this.status(claimedId, 'uncertain', {
+                  ok: false,
+                  error: outcome.reason,
+                });
                 notify();
                 break;
               }
               if (!result.ok) {
+                outcome.status = 'unconfirmed';
+                outcome.reason = result.error || 'STATUS_FAILED';
+                await this.status(claimedId, 'uncertain', result);
                 notify();
                 break;
               }
@@ -195,7 +272,7 @@ const FinanceSync = (() => {
             }
             if (!result) {
               if (
-                item.status === 'pending' &&
+                item.originalStatus === 'pending' &&
                 item.envelope.expectedRevision !== current.revision
               ) {
                 await this.status(item.envelope.requestId, 'review', {
@@ -204,6 +281,8 @@ const FinanceSync = (() => {
                   message:
                     'El libro cambió. Revisa la operación con los datos actuales.',
                 });
+                outcome.status = 'review';
+                outcome.reason = 'CONFLICT';
                 notify();
                 continue;
               }
@@ -212,7 +291,13 @@ const FinanceSync = (() => {
               notify();
               try {
                 result = await client.submit(clone(item.envelope));
-              } catch {
+              } catch (error) {
+                outcome.status = 'unconfirmed';
+                outcome.reason = error.message || 'SUBMIT_FAILED';
+                await this.status(claimedId, 'uncertain', {
+                  ok: false,
+                  error: outcome.reason,
+                });
                 notify();
                 break;
               }
@@ -225,13 +310,23 @@ const FinanceSync = (() => {
                 result,
               );
               notify();
+              outcome.status = uncertain ? 'unconfirmed' : 'review';
+              outcome.reason = result.error;
               if (uncertain) break;
               continue;
             }
             await this.status(item.envelope.requestId, 'confirmed', result);
+            outcome.confirmed++;
             notify();
-            const after = await client.read();
-            if (!after.ok) throw Error(after.error || 'READ_FAILED');
+            let after;
+            try {
+              after = await client.read();
+              if (!after.ok) throw Error(after.error || 'READ_FAILED');
+            } catch (error) {
+              outcome.reason = 'POST_CONFIRM_READ_FAILED';
+              outcome.readError = error.message;
+              return outcome;
+            }
             await this.saveSnapshot(after);
             // Solo avanzar sobres NUNCA enviados si la revisión procede de nuestro propio lote.
             if (after.revision === result.revision)
@@ -250,7 +345,9 @@ const FinanceSync = (() => {
               });
             notify();
           }
+          return outcome;
         } finally {
+          if (claimedId) await this.release(claimedId);
           this.running = false;
           notify();
         }
@@ -259,7 +356,8 @@ const FinanceSync = (() => {
         ? this.locks.request(
             'finances-sync-' + this.key,
             { ifAvailable: true },
-            (lock) => (lock ? work() : undefined),
+            (lock) =>
+              lock ? work() : { status: 'busy', reason: 'OTHER_WINDOW' },
           )
         : work();
     }

@@ -238,3 +238,59 @@ test('respuesta ambigua heredada como revisión se recupera sin permitir descart
   assert.equal(calls.length, 1);
   assert.equal(r.state().tables.tMovimientos.length, 1);
 });
+
+test('explicit outcomes preserve confirmation and transport causes', async () => {
+  const { q, client } = setup();
+  await q.saveSnapshot(await client.read());
+  await q.enqueue([expense(1)], 'Fixture');
+  const envelope = (await q.get()).queue[0].envelope;
+  const read = client.read;
+  let reads = 0;
+  client.read = async () => {
+    if (reads++) throw Error('READ_TIMEOUT');
+    return read();
+  };
+  const result = await q.run(client);
+  assert.equal(result.status, 'confirmed');
+  assert.equal(result.reason, 'POST_CONFIRM_READ_FAILED');
+  assert.equal(result.readError, 'READ_TIMEOUT');
+  assert.deepEqual((await q.get()).queue[0].envelope, envelope);
+  assert.equal((await q.get()).queue[0].status, 'confirmed');
+});
+
+test('missing and discarded items cannot be claimed and failures remain recoverable', async () => {
+  const { q, client } = setup();
+  assert.equal(await q.claim('missing'), null);
+  await q.saveSnapshot(await client.read());
+  await q.enqueue([expense(1)], 'Fixture');
+  const id = (await q.get()).queue[0].envelope.requestId;
+  await q.discard(id);
+  assert.equal(await q.claim(id), null);
+  await q.enqueue([expense(2)], 'Uncertain');
+  client.submit = async () => {
+    throw Error('GOOGLE_WINDOW_CLOSED');
+  };
+  const outcome = await q.run(client);
+  assert.equal(outcome.status, 'unconfirmed');
+  assert.equal(outcome.reason, 'GOOGLE_WINDOW_CLOSED');
+  assert.equal((await q.get()).queue[1].result.error, 'GOOGLE_WINDOW_CLOSED');
+});
+
+test('historical payload cannot replace the queue-generated envelope identity', async () => {
+  const { q, client } = setup();
+  await q.saveSnapshot(await client.read());
+  await q.enqueue(null, 'History', 'importPriceHistory', {
+    product: 'fictional-product',
+    rows: [{ date: '2026-01-02', price: 1 }],
+    sourceVerified: true,
+    requestId: 'replacement',
+    action: 'transact',
+    expectedRevision: 'replacement',
+    bookKey: 'replacement',
+  });
+  const item = (await q.get()).queue[0];
+  assert.notEqual(item.envelope.requestId, 'replacement');
+  assert.equal(item.envelope.action, 'importPriceHistory');
+  assert.notEqual(item.envelope.expectedRevision, 'replacement');
+  assert.notEqual(item.envelope.bookKey, 'replacement');
+});
