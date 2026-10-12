@@ -65,6 +65,15 @@ test('las versiones del instalador y todos los módulos de backend coinciden con
   assert.deepEqual([...new Set(versions)], [version]);
 });
 
+test('la actualización conserva la implementación privada y exige publicar nueva versión', () => {
+  const page = fs.readFileSync(path.join(root, 'web/install.html'), 'utf8');
+  assert.match(page, /Gestionar implementaciones[\s\S]*?Nueva versión/);
+  assert.match(page, /Conserva esa implementación y su[\s\S]*?URL/);
+  assert.match(page, /ejecuta como <strong>Yo<\/strong>[\s\S]*?Solo yo/);
+  assert.match(page, /ENVIRONMENT=test/);
+  assert.match(page, /recarga Finanzas[\s\S]*?API y el bridge vigentes/);
+});
+
 test('el constructor rechaza manifiestos duplicados, inseguros o incompletos', () => {
   const manifestPath = path.join(
     os.tmpdir(),

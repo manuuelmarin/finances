@@ -223,7 +223,7 @@
       <p class="eyebrow">GOOGLE SHEETS · CONEXIÓN PRIVADA</p>
       <h1>Instalación de Apps Script</h1>
       <p class="intro">
-        Archivos de Apps Script · Entrega 3.9.2. Instala los módulos
+        Archivos de Apps Script · Entrega 3.9.3. Instala los módulos
         del backend privado en el proyecto que ya está conectado.
       </p>
       <p class="notice">
@@ -428,7 +428,7 @@ const TABLE_SCHEMA_ = [
 ];
 
 const API_VERSION_ = &#x27;3.3.0&#x27;;
-const BUILD_VERSION_ = &#x27;3.9.2&#x27;;
+const BUILD_VERSION_ = &#x27;3.9.3&#x27;;
 const DAILY_HISTORY_MARKER_ = &#x27;Finanzas · Histórico generado&#x27;;
 const DAILY_HISTORY_MAX_DAYS_ = 36525;
 const API_TRANSPORT_ = &#x27;finances.rpc.json.v1&#x27;;
@@ -2517,6 +2517,20 @@ function dailyPriceTriggerConfig_(event) {
     );
   return { id, owner, environment: &#x27;test&#x27; };
 }
+function assertDailyPriceActivationReady_(config) {
+  // Activation is read-only and verifies every technical table refreshPrices_ requires.
+  const state = readState_(config);
+  if (
+    ![&#x27;requests&#x27;, &#x27;audit&#x27;, &#x27;observations&#x27;, &#x27;funds&#x27;, &#x27;quotes&#x27;].every(
+      (kind) =&gt; state.tech[kind],
+    )
+  )
+    fail_(
+      &#x27;NOT_INITIALIZED&#x27;,
+      &#x27;Ejecuta prepareApplication desde el editor antes de activar la rutina diaria.&#x27;,
+    );
+  return state;
+}
 function activateDailyPricesProduction_() {
   const config = authorizedConfig_();
   check_(
@@ -2524,6 +2538,7 @@ function activateDailyPricesProduction_() {
     &#x27;La rutina diaria solo está habilitada para el libro de producción.&#x27;,
   );
   return locked_(() =&gt; {
+    assertDailyPriceActivationReady_(config);
     const properties = PropertiesService.getScriptProperties(),
       existing = ScriptApp.getProjectTriggers().filter(
         (t) =&gt;
@@ -3001,6 +3016,7 @@ function activateDailyPricesTest_() {
     &#x27;La rutina diaria solo está habilitada para el libro de pruebas.&#x27;,
   );
   return locked_(() =&gt; {
+    assertDailyPriceActivationReady_(config);
     const properties = PropertiesService.getScriptProperties(),
       existing = ScriptApp.getProjectTriggers().filter(
         (t) =&gt; t.getHandlerFunction() === &#x27;actualizacionDiariaPreciosTest_&#x27;,
@@ -7483,7 +7499,7 @@ function initializeBackend_(config) {
       const appOrigin = document.getElementById(&#x27;origin&#x27;).textContent;
       const status = document.getElementById(&#x27;status&#x27;);
       const detail = document.getElementById(&#x27;detail&#x27;);
-      const BRIDGE_VERSION = &#x27;3.9.2&#x27;;
+      const BRIDGE_VERSION = &#x27;3.9.3&#x27;;
       const API_TRANSPORT = &#x27;finances.rpc.json.v1&#x27;;
       const errors = {
         INVALID_REQUEST:
@@ -7738,7 +7754,7 @@ function initializeBackend_(config) {
   </details>
 </section>
       <section class="configuration">
-        <p class="eyebrow">INSTALACIÓN · ENTREGA 3.9.2</p>
+        <p class="eyebrow">INSTALACIÓN · ENTREGA 3.9.3</p>
         <h2>Actualizar el proyecto conectado</h2>
         <ol>
           <li>
@@ -7757,6 +7773,20 @@ function initializeBackend_(config) {
             Guarda todos los archivos. En Apps Script ejecuta
             <code>prepareApplication</code> y luego
             <code>checkApplication</code> para preparar y comprobar el backend.
+          </li>
+          <li>
+            Cuando las comprobaciones estén listas, abre
+            <strong>Implementar → Gestionar implementaciones</strong>, pulsa el
+            lápiz de la implementación web existente y elige
+            <strong>Nueva versión</strong>. Conserva esa implementación y su
+            URL; ejecuta como <strong>Yo</strong> y limita el acceso a
+            <strong>Solo yo</strong>. Mantén <code>ENVIRONMENT=test</code> y
+            confirma que las propiedades privadas no hayan cambiado.
+          </li>
+          <li>
+            Tras implementar, recarga Finanzas y comprueba que la conexión
+            informa la API y el bridge vigentes. No crees otra implementación:
+            la app debe seguir usando la misma URL privada.
           </li>
           <li>
             Para guardar cotizaciones verificadas, ejecuta

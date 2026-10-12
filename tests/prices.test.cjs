@@ -805,6 +805,51 @@ test('la fachada pública prepara, activa, actualiza y desactiva precios vincula
   assert.equal(JSON.parse(r.logs.at(-1)).enabled, false);
 });
 
+test('la activación rechaza libros inaccesibles o con modelo inválido sin mutar triggers ni propiedades', () => {
+  for (const corrupt of ['inaccessible', 'malformed']) {
+    const { r, properties, triggers } = dailyRuntime(),
+      get = r.ctx.Sheets.Spreadsheets.get;
+    if (corrupt === 'inaccessible') {
+      r.ctx.Sheets.Spreadsheets.get = () => {
+        throw Error('Spreadsheet unavailable');
+      };
+    } else {
+      r.ctx.Sheets.Spreadsheets.get = (...args) => {
+        const book = get(...args);
+        book.sheets.find(
+          (sheet) => sheet.properties.title === 'Movimientos',
+        ).tables = [];
+        return book;
+      };
+    }
+    const before = [...properties.entries()];
+    const result = r.ctx.enableDailyPrices();
+    assert.equal(result.ok, false, corrupt);
+    assert.equal(
+      result.error,
+      corrupt === 'inaccessible' ? 'API_FAILED' : 'INVALID_MODEL',
+      corrupt,
+    );
+    assert.equal(triggers.length, 0, corrupt);
+    assert.deepEqual([...properties.entries()], before, corrupt);
+    assert.equal(JSON.parse(r.logs.at(-1)).error, result.error, corrupt);
+  }
+});
+
+test('la activación requiere el backend técnico usado por refreshPrices y conserva un binding existente ante error', () => {
+  const { r, properties, triggers } = dailyRuntime();
+  assert.equal(r.ctx.enableDailyPrices().enabled, true);
+  const before = [...properties.entries()];
+  r.removeTechnical('_Finanzas_Cotizaciones');
+  const result = r.ctx.enableDailyPrices();
+  assert.equal(result.ok, false);
+  assert.equal(result.error, 'NOT_INITIALIZED');
+  assert.match(result.message, /prepareApplication/);
+  assert.equal(triggers.length, 1);
+  assert.deepEqual([...properties.entries()], before);
+  assert.equal(JSON.parse(r.logs.at(-1)).error, 'NOT_INITIALIZED');
+});
+
 test('rutina diaria requiere activación expresa, se instala una vez y guarda receipts sin duplicados', () => {
   const { r, triggers } = dailyRuntime();
   assert.throws(

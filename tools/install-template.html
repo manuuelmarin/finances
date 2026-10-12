@@ -255,6 +255,20 @@
             <code>checkApplication</code> para preparar y comprobar el backend.
           </li>
           <li>
+            Cuando las comprobaciones estén listas, abre
+            <strong>Implementar → Gestionar implementaciones</strong>, pulsa el
+            lápiz de la implementación web existente y elige
+            <strong>Nueva versión</strong>. Conserva esa implementación y su
+            URL; ejecuta como <strong>Yo</strong> y limita el acceso a
+            <strong>Solo yo</strong>. Mantén <code>ENVIRONMENT=test</code> y
+            confirma que las propiedades privadas no hayan cambiado.
+          </li>
+          <li>
+            Tras implementar, recarga Finanzas y comprueba que la conexión
+            informa la API y el bridge vigentes. No crees otra implementación:
+            la app debe seguir usando la misma URL privada.
+          </li>
+          <li>
             Para guardar cotizaciones verificadas, ejecuta
             <code>enableDailyPrices</code> una vez y después
             <code>updatePrices</code>. Ejecuta <code>checkApplication</code>
