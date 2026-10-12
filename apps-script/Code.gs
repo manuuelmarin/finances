@@ -4923,19 +4923,30 @@ function refreshDailyHistory_(config, s) {
   );
   let firstHeldOverrides = {};
   if (existing) {
+    const columnCount = existing.properties.gridProperties.columnCount || 1,
+      ranges = ["'Histórico'!A1:A1"];
+    let headerRangeIndex = -1;
+    if (columnCount > 1) {
+      headerRangeIndex = ranges.length;
+      ranges.push("'Histórico'!B2:" + columnA1_(columnCount - 1) + '3');
+    }
+    const rowRangeIndex = ranges.length;
+    ranges.push(
+      "'Histórico'!A1:A" + existing.properties.gridProperties.rowCount,
+    );
     const read = Sheets.Spreadsheets.Values.batchGet(config.id, {
-      ranges: [
-        "'Histórico'!A1:A1",
-        "'Histórico'!B2:ZZ3",
-        "'Histórico'!A1:A" + existing.properties.gridProperties.rowCount,
-      ],
+      ranges,
       valueRenderOption: 'UNFORMATTED_VALUE',
     });
     const marker = read.valueRanges?.[0]?.values?.[0]?.[0];
     if (marker !== DAILY_HISTORY_MARKER_)
       return { status: 'preserved_existing_sheet' };
-    const oldHeaders = read.valueRanges?.[1]?.values?.[0] || [],
-      oldStarts = read.valueRanges?.[1]?.values?.[1] || [];
+    const headerValues =
+      headerRangeIndex >= 0
+        ? read.valueRanges?.[headerRangeIndex]?.values || []
+        : [];
+    const oldHeaders = headerValues[0] || [],
+      oldStarts = headerValues[1] || [];
     const currentProducts = new Map(
       s.tables.tProductos.map((p) => [dailyHistoryHeader_(s, p), p]),
     );
@@ -4971,7 +4982,7 @@ function refreshDailyHistory_(config, s) {
       firstHeldOverrides[dailyHistoryProductKey_(currentProducts.get(id).ID)] =
         date;
     });
-    const oldRows = read.valueRanges?.[2]?.values?.length || 0,
+    const oldRows = read.valueRanges?.[rowRangeIndex]?.values?.length || 0,
       oldColumns = Math.min(
         1 + oldHeaders.length,
         existing.properties.gridProperties.columnCount,

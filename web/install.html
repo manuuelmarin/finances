@@ -5177,19 +5177,30 @@ function refreshDailyHistory_(config, s) {
   );
   let firstHeldOverrides = {};
   if (existing) {
+    const columnCount = existing.properties.gridProperties.columnCount || 1,
+      ranges = [&quot;&#x27;Histórico&#x27;!A1:A1&quot;];
+    let headerRangeIndex = -1;
+    if (columnCount &gt; 1) {
+      headerRangeIndex = ranges.length;
+      ranges.push(&quot;&#x27;Histórico&#x27;!B2:&quot; + columnA1_(columnCount - 1) + &#x27;3&#x27;);
+    }
+    const rowRangeIndex = ranges.length;
+    ranges.push(
+      &quot;&#x27;Histórico&#x27;!A1:A&quot; + existing.properties.gridProperties.rowCount,
+    );
     const read = Sheets.Spreadsheets.Values.batchGet(config.id, {
-      ranges: [
-        &quot;&#x27;Histórico&#x27;!A1:A1&quot;,
-        &quot;&#x27;Histórico&#x27;!B2:ZZ3&quot;,
-        &quot;&#x27;Histórico&#x27;!A1:A&quot; + existing.properties.gridProperties.rowCount,
-      ],
+      ranges,
       valueRenderOption: &#x27;UNFORMATTED_VALUE&#x27;,
     });
     const marker = read.valueRanges?.[0]?.values?.[0]?.[0];
     if (marker !== DAILY_HISTORY_MARKER_)
       return { status: &#x27;preserved_existing_sheet&#x27; };
-    const oldHeaders = read.valueRanges?.[1]?.values?.[0] || [],
-      oldStarts = read.valueRanges?.[1]?.values?.[1] || [];
+    const headerValues =
+      headerRangeIndex &gt;= 0
+        ? read.valueRanges?.[headerRangeIndex]?.values || []
+        : [];
+    const oldHeaders = headerValues[0] || [],
+      oldStarts = headerValues[1] || [];
     const currentProducts = new Map(
       s.tables.tProductos.map((p) =&gt; [dailyHistoryHeader_(s, p), p]),
     );
@@ -5225,7 +5236,7 @@ function refreshDailyHistory_(config, s) {
       firstHeldOverrides[dailyHistoryProductKey_(currentProducts.get(id).ID)] =
         date;
     });
-    const oldRows = read.valueRanges?.[2]?.values?.length || 0,
+    const oldRows = read.valueRanges?.[rowRangeIndex]?.values?.length || 0,
       oldColumns = Math.min(
         1 + oldHeaders.length,
         existing.properties.gridProperties.columnCount,
@@ -7585,12 +7596,15 @@ function comprobarCierre() {
         <p class="eyebrow">COTIZACIONES · SOLO PRUEBAS</p>
         <h2>Acumular precios cada día</h2>
         <p>
-          Tras instalar esta entrega, ejecuta
+          Tras instalar esta entrega, selecciona y ejecuta exactamente
           <strong>activarActualizacionDiariaPreciosTest</strong> desde el editor
           con la cuenta propietaria y concede el permiso para administrar esta
-          rutina. La función instala un único trigger horario que consulta entre
-          las 20 y las 22 h de Madrid, con hasta tres intentos por lote y día,
-          vinculado al libro de pruebas. Publicar el código no activa la rutina.
+          rutina. Si los diagnósticos muestran enabled: false, ejecútala en ese
+          mismo proyecto autorizado. La función instala un único trigger horario
+          que consulta entre las 20 y las 22 h de Madrid, con hasta tres
+          intentos por lote y día, vinculado al libro de pruebas. Actualizar el
+          código no activa el programador. La activación de producción
+          corresponde solo al principal de producción ya activado.
         </p>
         <p>
           Ejecuta <strong>actualizacionDiariaPreciosTest</strong> para comprobar

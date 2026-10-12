@@ -154,11 +154,86 @@ test('an unowned existing Histórico sheet is preserved during preparation', () 
   );
   const writes = r.writes.length;
   const result = r.evaluate(
-    'JSON.stringify(refreshDailyHistorySafely_({id:"fixture-book",environment:"test"}))',
+    'JSON.stringify(refreshDailyHistory_({id:"fixture-book",environment:"test"},readState_({id:"fixture-book",environment:"test"})))',
   );
   assert.equal(JSON.parse(result).status, 'preserved_existing_sheet');
   assert.equal(r.writes.length, writes);
   assert.equal(r.cell(900, 0, 0).userEnteredValue.stringValue, 'Datos propios');
+});
+
+test('owned history reads stay within the current sheet grid', () => {
+  const r = runtime();
+  r.init();
+  r.ctx.Sheets.Spreadsheets.batchUpdate(
+    {
+      requests: [
+        {
+          addSheet: {
+            properties: {
+              sheetId: 900,
+              title: 'Histórico',
+              gridProperties: { rowCount: 1000, columnCount: 4 },
+            },
+          },
+        },
+        {
+          updateCells: {
+            start: { sheetId: 900, rowIndex: 0, columnIndex: 0 },
+            rows: [
+              {
+                values: [
+                  {
+                    userEnteredValue: {
+                      stringValue: 'Finanzas · Histórico generado',
+                    },
+                  },
+                ],
+              },
+              {
+                values: [
+                  { userEnteredValue: { stringValue: 'Fecha' } },
+                  { userEnteredValue: { stringValue: 'ES0175902008' } },
+                  { userEnteredValue: { stringValue: 'IE00B03HCZ61' } },
+                  { userEnteredValue: { stringValue: 'IE0031786696' } },
+                ],
+              },
+            ],
+            fields: 'userEnteredValue',
+          },
+        },
+      ],
+    },
+    'fixture-book',
+  );
+  const values = r.ctx.Sheets.Spreadsheets.Values,
+    originalBatchGet = values.batchGet,
+    seenRanges = [];
+  values.batchGet = (id, request) => {
+    for (const range of request.ranges) {
+      seenRanges.push(range);
+      const match = range.match(/!([A-Z]+)\d+:([A-Z]+)\d+$/);
+      if (match && range.startsWith("'Histórico'!")) {
+        const index = (column) =>
+          [...column].reduce(
+            (value, letter) => value * 26 + letter.charCodeAt(0) - 64,
+            0,
+          );
+        assert.ok(
+          index(match[2]) <= 4,
+          `range exceeds four-column grid: ${range}`,
+        );
+      }
+    }
+    return originalBatchGet(id, request);
+  };
+  const result = JSON.parse(
+    r.evaluate(
+      'JSON.stringify(refreshDailyHistorySafely_({id:"fixture-book",environment:"test"}))',
+    ),
+  );
+  assert.equal(result.status, 'updated');
+  assert.ok(seenRanges.includes("'Histórico'!B2:D3"));
+  assert.ok(seenRanges.every((range) => !range.includes('ZZ')));
 });
 
 test('a failed owned-view batch leaves the previous marker, hint, and NAV intact', () => {
