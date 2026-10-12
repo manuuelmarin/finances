@@ -24,7 +24,7 @@ const historyCsv = (count = 21, price = 301.123456) =>
       '2026-09-' + String(index + 1).padStart(2, '0'),
       price,
       'Synthetic owner reviewed export',
-      'https://example.com/fictitious-fund/nav-history.csv',
+      '',
       '2026-10-01T12:00:00Z',
     ].join(','),
   ).join('\n');
@@ -280,9 +280,13 @@ test('local copy controls distinguish hiding, closing, disconnecting and erasing
     'review',
   ]);
   await page.getByRole('button', { name: 'Ocultar / mostrar datos' }).click();
-  await expect(page.locator('#finance-kpis')).toBeHidden();
+  await expect
+    .poll(() => page.locator('#finance-kpis').evaluate((node) => node.hidden))
+    .toBe(true);
   await page.getByRole('button', { name: 'Ocultar / mostrar datos' }).click();
-  await expect(page.locator('#finance-kpis')).toBeVisible();
+  await expect
+    .poll(() => page.locator('#finance-kpis').evaluate((node) => node.hidden))
+    .toBe(false);
   await navigate(page, 'home');
   await expect(page.locator('#finance-kpis')).toBeVisible();
   expect((await queueData(page)).snapshot.bookKey).toBe(

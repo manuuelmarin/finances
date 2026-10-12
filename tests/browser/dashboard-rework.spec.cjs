@@ -496,7 +496,9 @@ test('TWR insuficiente explica los cortes que faltan y no muestra resultado sobr
   await setup(page, sparse);
   await navigate(page, 'investments');
   const performance = page.locator('#investment-charts .chart-card').nth(1);
-  await expect(performance).toContainText('TWR entre valoraciones reales');
+  await expect(performance).toContainText(
+    'TWR ajustado entre valoraciones reales',
+  );
   await expect(performance).toContainText('no puede calcularse');
   const rowValues = await performance.locator('tbody tr').allTextContents();
   expect(rowValues.at(-1)).toContain('Sin dato');
@@ -555,7 +557,7 @@ test('TWR identifica la primera valoración real cuando falta el rendimiento ant
   const performance = page.locator('#investment-charts .chart-card').nth(1);
   await expect(
     performance.getByRole('button', {
-      name: 'TWR desde 2026-02-02',
+      name: 'TWR ajustado desde 2026-02-02',
       exact: true,
     }),
   ).toBeVisible();

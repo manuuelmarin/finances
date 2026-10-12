@@ -759,6 +759,7 @@
       ['Producto'],
       ['ISIN'],
       ['Tipo'],
+      ['Concepto'],
       ['Participaciones'],
       ['Precio'],
       ['Comisión'],
@@ -913,6 +914,19 @@
               price.product === (name === 'tProductos' ? row.ID : row.Producto),
           )?.isin || null,
       }));
+    if (name === 'tOperaciones') {
+      const transferConcepts = new Map();
+      for (const transfer of snapshot?.fundTransfers || []) {
+        if (transfer.outTradeID)
+          transferConcepts.set(transfer.outTradeID, transfer.concept);
+        if (transfer.inTradeID)
+          transferConcepts.set(transfer.inTradeID, transfer.concept);
+      }
+      rows = rows.map((row) => ({
+        ...row,
+        Concepto: transferConcepts.get(row.ID) || null,
+      }));
+    }
     rows = rows.filter((row) => {
       const date = row.Fecha || row['Fecha cobro'] || row.date;
       return (
