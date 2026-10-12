@@ -89,6 +89,18 @@ function runtime(options = {}) {
           return clone(book);
         },
         Values: {
+          clear: (_resource, id, range) => {
+            if (id !== bookId) throw Error('Wrong fixture id');
+            const match = range.match(/^'((?:[^']|'')+)'!/);
+            if (!match) throw Error('Unsupported fixture clear ' + range);
+            const sheet = book.sheets.find(
+              (s) => s.properties.title === match[1].replace(/''/g, "'"),
+            );
+            for (const key of grid.keys())
+              if (Number(key.split(':')[0]) === sheet.properties.sheetId)
+                grid.delete(key);
+            return {};
+          },
           batchGet: (id, request) => ({
             valueRanges: request.ranges.map((range) => ({
               values: values(range, request.valueRenderOption),
@@ -261,6 +273,21 @@ function runtime(options = {}) {
                   nextGrid.set(key, result);
                 }),
               );
+            } else if (request.repeatCell) {
+              const q = request.repeatCell,
+                r = q.range;
+              for (let row = r.startRowIndex; row < r.endRowIndex; row++)
+                for (
+                  let col = r.startColumnIndex;
+                  col < r.endColumnIndex;
+                  col++
+                ) {
+                  const key = [r.sheetId, row, col].join(':');
+                  nextGrid.set(key, {
+                    ...nextGrid.get(key),
+                    userEnteredFormat: clone(q.cell.userEnteredFormat),
+                  });
+                }
             } else if (request.findReplace) {
               const r = request.findReplace;
               for (
@@ -533,6 +560,7 @@ function runtime(options = {}) {
     return rows;
   }
   return {
+    evaluate: (source) => vm.runInContext(source, ctx),
     ctx,
     writes,
     logs,

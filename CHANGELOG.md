@@ -2,6 +2,10 @@
 
 Build numbers identify the app and Apps Script code, not necessarily GitHub tags or releases. The API remains **3.3.0**. This history does not establish the installed Google version or environment; publishing Pages changes neither.
 
+## 3.9.1
+
+Add an automatically refreshed daily NAV view in the extra `Histórico` sheet, derived from verified `tPrecios` records and held units. Existing unowned sheets with that name are preserved.
+
 ## Repository maintenance · no new app version
 
 Simplified documentation, issue and PR templates, and editing conventions. Build 3.8.1 runtime files, dependencies and deployment configuration are preserved.

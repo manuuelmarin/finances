@@ -1,6 +1,6 @@
 # Security
 
-Applies to app 3.9.0, API 3.3.0 and model 3. Tests use simulated services and fictional data; they do not establish that a private installation is correct or free of unknown vulnerabilities.
+Applies to app 3.9.1, API 3.3.0 and model 3. Tests use simulated services and fictional data; they do not establish that a private installation is correct or free of unknown vulnerabilities.
 
 ## Reporting
 
