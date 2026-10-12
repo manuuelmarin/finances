@@ -455,15 +455,15 @@ test('selección acotada y distinta: no admite más de veinte fondos, duplicados
 test('lectura expone fecha del último VL y estado del último intento; comprobar y probar no guardan VL', () => {
   const r = configured(),
     prices = JSON.stringify(r.state().tables.tPrecios);
-  assert.equal(r.ctx.comprobarPaso4().priceReady, true);
-  assert.equal(r.ctx.probarFuentesPaso4().complete, true);
+  assert.equal(r.ctx.prepareApplication_().priceReady, true);
+  assert.equal(r.ctx.probePriceSources_().complete, true);
   assert.equal(JSON.stringify(r.state().tables.tPrecios), prices);
   r.api(envelope(r));
   const snapshot = r.api({ action: 'read' }).prices[0];
   assert.equal(snapshot.isin, ISIN);
   assert.equal(snapshot.lastValid.date, '2026-10-02');
   assert.equal(snapshot.lastAttempt.status, 'updated');
-  assert.equal(r.ctx.actualizarPreciosPaso4().complete, true);
+  assert.equal(r.ctx.updatePricesLegacy_().complete, true);
   assert.equal(r.state().tables.tPrecios.length, 2);
 });
 test('parser genérico funciona con otros ISIN válidos sin catálogo o identificadores hardcodeados', () => {
@@ -508,7 +508,7 @@ test('migración desde tres hojas técnicas añade fondos, cotizaciones y presup
   r.removeTechnical('_Finanzas_Cotizaciones');
   assert.equal(r.api({ action: 'diagnostics' }).backendReady, true);
   assert.equal(r.api({ action: 'diagnostics' }).priceReady, false);
-  assert.equal(r.ctx.comprobarPaso4().priceReady, true);
+  assert.equal(r.ctx.prepareApplication_().priceReady, true);
   assert.equal(JSON.stringify(r.state().tables), JSON.stringify(before.tables));
   assert.equal(
     JSON.stringify(r.state().technical.requests),
@@ -750,49 +750,101 @@ function dailyRuntime(options = {}) {
   return { r, properties, triggers };
 }
 
+test('la fachada pública prepara, activa, actualiza y desactiva precios vinculados al libro de pruebas', () => {
+  const { r, properties, triggers } = dailyRuntime();
+  const unrelated = {
+    getHandlerFunction: () => 'unrelatedTrigger',
+    getUniqueId: () => 'unrelated-trigger-uid',
+  };
+  triggers.push(unrelated);
+
+  const prepared = r.ctx.prepareApplication();
+  assert.equal(prepared.ok, true);
+  assert.equal(prepared.environment, 'test');
+  assert.equal(prepared.historyView.status, 'updated');
+
+  const enabled = r.ctx.enableDailyPrices();
+  assert.equal(enabled.enabled, true);
+  assert.equal(triggers.length, 2);
+  assert.equal(properties.get('DAILY_PRICE_TEST_BOOK'), 'fixture-book');
+  assert.equal(
+    triggers.filter(
+      (trigger) =>
+        trigger.getHandlerFunction() === 'actualizacionDiariaPreciosTest_',
+    ).length,
+    1,
+  );
+
+  const diagnostics = r.ctx.checkApplication();
+  assert.equal(diagnostics.ok, true);
+  assert.equal(diagnostics.dailyPrices.enabled, true);
+  assert.equal(diagnostics.dailyPrices.status, 'execution_due');
+
+  const updated = r.ctx.updatePrices();
+  assert.equal(updated.complete, true);
+  assert.equal(updated.counts.updated, 1);
+  assert.equal(updated.batches[0].complete, true);
+  assert.equal(
+    r
+      .state()
+      .tables.tPrecios.some((price) => price.Fecha === serial(updated.today)),
+    true,
+  );
+
+  const disabled = r.ctx.disableDailyPrices();
+  assert.equal(disabled.enabled, false);
+  assert.deepEqual(
+    triggers.map((trigger) => trigger.getUniqueId()),
+    ['unrelated-trigger-uid'],
+  );
+  assert.equal(properties.has('DAILY_PRICE_TEST_BOOK'), false);
+  assert.deepEqual(
+    r.logs.slice(-5).map((entry) => JSON.parse(entry).ok),
+    [true, true, true, true, true],
+  );
+  assert.equal(JSON.parse(r.logs.at(-1)).enabled, false);
+});
+
 test('rutina diaria requiere activación expresa, se instala una vez y guarda receipts sin duplicados', () => {
   const { r, triggers } = dailyRuntime();
   assert.throws(
-    () => r.ctx.actualizacionDiariaPreciosTest(),
+    () => r.ctx.updatePricesTest_(),
     /activación expresa|libro de pruebas/,
   );
   const writes = r.writes.length;
-  assert.equal(r.ctx.activarActualizacionDiariaPreciosTest().installed, true);
-  assert.equal(r.ctx.activarActualizacionDiariaPreciosTest().enabled, true);
+  assert.equal(r.ctx.activateDailyPricesTest_().installed, true);
+  assert.equal(r.ctx.activateDailyPricesTest_().enabled, true);
   assert.equal(triggers.length, 1);
   assert.equal(r.writes.length, writes);
-  const result = r.ctx.actualizacionDiariaPreciosTest();
+  const result = r.ctx.updatePricesTest_();
   assert.equal(result.complete, true);
   assert.equal(result.batches.length, 1);
   assert.match(result.batches[0].requestId, /^[\da-f-]{36}$/);
   const after = r.writes.length;
-  assert.equal(r.ctx.actualizacionDiariaPreciosTest().skipped, true);
+  assert.equal(r.ctx.updatePricesTest_().skipped, true);
   assert.equal(r.writes.length, after);
-  assert.equal(r.ctx.desactivarActualizacionDiariaPreciosTest().enabled, false);
+  assert.equal(r.ctx.deactivateDailyPricesTest_().enabled, false);
   assert.equal(triggers.length, 0);
   assert.throws(
-    () => r.ctx.actualizacionDiariaPreciosTest(),
+    () => r.ctx.updatePricesTest_(),
     /activación expresa|libro de pruebas/,
   );
 });
 
 test('trigger vinculado al libro de pruebas se detiene al cambiar entorno o libro, antes de consultar', () => {
   const { r, properties } = dailyRuntime();
-  r.ctx.activarActualizacionDiariaPreciosTest();
+  r.ctx.activateDailyPricesTest_();
   properties.set('ENVIRONMENT', 'production');
   properties.set('PRODUCTION_SPREADSHEET_ID', 'principal-distinto');
+  assert.throws(() => r.ctx.activateDailyPricesTest_(), /libro de pruebas/);
   assert.throws(
-    () => r.ctx.activarActualizacionDiariaPreciosTest(),
-    /libro de pruebas/,
-  );
-  assert.throws(
-    () => r.ctx.actualizacionDiariaPreciosTest(),
+    () => r.ctx.updatePricesTest_(),
     /activación expresa|libro de pruebas/,
   );
   properties.set('ENVIRONMENT', 'test');
   properties.set('TEST_SPREADSHEET_ID', 'otro-test');
   assert.throws(
-    () => r.ctx.actualizacionDiariaPreciosTest(),
+    () => r.ctx.updatePricesTest_(),
     /activación expresa|libro de pruebas/,
   );
   assert.equal(r.fetches.length, 0);
@@ -800,10 +852,10 @@ test('trigger vinculado al libro de pruebas se detiene al cambiar entorno o libr
 
 test('rutina diaria reconsulta fallos con otro receipt y limita a tres intentos por lote y día', () => {
   const { r } = dailyRuntime({ fetch: () => ({ status: 503, body: '' }) });
-  r.ctx.activarActualizacionDiariaPreciosTest();
+  r.ctx.activateDailyPricesTest_();
   const ids = [];
   for (let i = 0; i < 3; i++) {
-    const res = r.ctx.actualizacionDiariaPreciosTest();
+    const res = r.ctx.updatePricesTest_();
     assert.equal(res.complete, false);
     ids.push(res.batches[0].requestId);
     if (i === 2) assert.equal(res.status, 'retry_limit');
@@ -811,25 +863,22 @@ test('rutina diaria reconsulta fallos con otro receipt y limita a tres intentos 
   assert.equal(new Set(ids).size, 3);
   const fetches = r.fetches.length,
     writes = r.writes.length;
-  assert.equal(
-    r.ctx.actualizacionDiariaPreciosTest().batches[0].error,
-    'DAILY_RETRY_LIMIT',
-  );
+  assert.equal(r.ctx.updatePricesTest_().batches[0].error, 'DAILY_RETRY_LIMIT');
   assert.equal(r.fetches.length, fetches);
   assert.equal(r.writes.length, writes);
 });
 
 test('handler privado de trigger valida dueño efectivo, UID instalado y libro; funciones públicas conservan usuario activo', () => {
   const { r, properties, triggers } = dailyRuntime();
-  r.ctx.activarActualizacionDiariaPreciosTest();
+  r.ctx.activateDailyPricesTest_();
   const event = { triggerUid: 'test-trigger-uid' };
   r.options.visitor = '';
   assert.throws(
-    () => r.ctx.actualizacionDiariaPreciosTest(),
+    () => r.ctx.updatePricesTest_(),
     /ACCESS_DENIED|Acceso|acceso/i,
   );
   assert.throws(
-    () => r.ctx.activarActualizacionDiariaPreciosTest(),
+    () => r.ctx.activateDailyPricesTest_(),
     /ACCESS_DENIED|Acceso|acceso/i,
   );
   assert.throws(() => r.ctx.actualizacionDiariaPreciosTest_(), /trigger/);
@@ -858,7 +907,7 @@ test('handler privado de trigger valida dueño efectivo, UID instalado y libro; 
 
 test('trigger instalado usa dueño efectivo con usuario activo vacío y conserva el contrato financiero protegido', () => {
   const { r } = dailyRuntime();
-  r.ctx.activarActualizacionDiariaPreciosTest();
+  r.ctx.activateDailyPricesTest_();
   r.options.visitor = '';
   const result = r.ctx.actualizacionDiariaPreciosTest_({
     triggerUid: 'test-trigger-uid',
@@ -869,7 +918,7 @@ test('trigger instalado usa dueño efectivo con usuario activo vacío y conserva
 
 test('trigger horario permite reintentos automáticos en ventana Madrid y omite las demás horas sin red', () => {
   const { r } = dailyRuntime({ hour: 19 });
-  r.ctx.activarActualizacionDiariaPreciosTest();
+  r.ctx.activateDailyPricesTest_();
   const result = r.ctx.actualizacionDiariaPreciosTest_({
     triggerUid: 'test-trigger-uid',
   });
@@ -881,12 +930,12 @@ test('NAV atrasado o anterior no completa el día aunque refresh tenga receipt v
   const { r } = dailyRuntime({
     fetch: () => ({ body: page({ date: '01/01/2026' }) }),
   });
-  r.ctx.activarActualizacionDiariaPreciosTest();
+  r.ctx.activateDailyPricesTest_();
   r.setInput('tPrecios', 0, 'Fecha', serial('2026-10-05'));
-  const first = r.ctx.actualizacionDiariaPreciosTest();
+  const first = r.ctx.updatePricesTest_();
   assert.equal(first.complete, false);
   assert.equal(first.batches[0].results[0].status, 'older');
-  const next = r.ctx.actualizacionDiariaPreciosTest();
+  const next = r.ctx.updatePricesTest_();
   assert.notEqual(first.batches[0].requestId, next.batches[0].requestId);
   assert.equal(r.api({ action: 'diagnostics' }).dailyPrices.status, 'partial');
   assert.equal(
@@ -897,33 +946,30 @@ test('NAV atrasado o anterior no completa el día aunque refresh tenga receipt v
 
 test('reactivación conserva día e intento, elimina duplicados y desactivación borra estado', () => {
   const { r, properties, triggers } = dailyRuntime();
-  r.ctx.activarActualizacionDiariaPreciosTest();
-  r.ctx.actualizacionDiariaPreciosTest();
+  r.ctx.activateDailyPricesTest_();
+  r.ctx.updatePricesTest_();
   const ledger = properties.get('DAILY_PRICE_TEST_STATE');
   triggers.push({
     getHandlerFunction: () => 'actualizacionDiariaPreciosTest_',
     getUniqueId: () => 'duplicate',
   });
-  r.ctx.activarActualizacionDiariaPreciosTest();
+  r.ctx.activateDailyPricesTest_();
   assert.equal(triggers.length, 1);
   assert.equal(properties.get('DAILY_PRICE_TEST_STATE'), ledger);
-  assert.equal(
-    r.ctx.actualizacionDiariaPreciosTest().reason,
-    'ALREADY_COMPLETE',
-  );
+  assert.equal(r.ctx.updatePricesTest_().reason, 'ALREADY_COMPLETE');
   const status = r.api({ action: 'read' }).dailyPrices;
   assert.equal(status.enabled, true);
   assert.equal(status.lastRun.status, 'complete');
   assert.deepEqual(Array.from(status.schedule.hours), [20, 21, 22]);
-  r.ctx.desactivarActualizacionDiariaPreciosTest();
+  r.ctx.deactivateDailyPricesTest_();
   assert.equal(properties.has('DAILY_PRICE_TEST_STATE'), false);
   assert.equal(r.api({ action: 'read' }).dailyPrices.status, 'disabled');
 });
 
 test('un fondo añadido tras completar el día entra en una selección nueva y no se duplica el NAV previo', () => {
   const { r } = dailyRuntime();
-  r.ctx.activarActualizacionDiariaPreciosTest();
-  r.ctx.actualizacionDiariaPreciosTest();
+  r.ctx.activateDailyPricesTest_();
+  r.ctx.updatePricesTest_();
   const before = r.state().tables.tPrecios.length;
   r.transact([
     {
@@ -934,7 +980,7 @@ test('un fondo añadido tras completar el día entra en una selección nueva y n
       date: '2026-01-01',
     },
   ]);
-  const result = r.ctx.actualizacionDiariaPreciosTest();
+  const result = r.ctx.updatePricesTest_();
   assert.equal(result.skipped, undefined);
   assert.equal(result.complete, false);
   assert.equal(result.batches[0].results[0].status, 'unchanged');
@@ -944,27 +990,27 @@ test('un fondo añadido tras completar el día entra en una selección nueva y n
 
 test('lease impide ejecuciones concurrentes y un fallo incierto recupera UUID sin consumir intento', () => {
   const { r, properties } = dailyRuntime();
-  r.ctx.activarActualizacionDiariaPreciosTest();
+  r.ctx.activateDailyPricesTest_();
   properties.set(
     'DAILY_PRICE_TEST_LEASE',
     JSON.stringify({ started: Date.now(), token: 'another' }),
   );
-  assert.equal(r.ctx.actualizacionDiariaPreciosTest().reason, 'RUNNING');
+  assert.equal(r.ctx.updatePricesTest_().reason, 'RUNNING');
   assert.equal(r.fetches.length, 0);
   properties.delete('DAILY_PRICE_TEST_LEASE');
   r.options.failBeforeWrite = true;
-  const first = r.ctx.actualizacionDiariaPreciosTest();
+  const first = r.ctx.updatePricesTest_();
   assert.equal(first.batches[0].error, 'WRITE_UNCERTAIN');
   assert.equal(properties.has('DAILY_PRICE_TEST_LEASE'), false);
   r.options.failBeforeWrite = false;
-  const second = r.ctx.actualizacionDiariaPreciosTest();
+  const second = r.ctx.updatePricesTest_();
   assert.equal(second.complete, true);
   assert.equal(r.state().technical.quotes.length, 1);
 });
 
 test('diagnóstico detecta trigger perdido sin escribir ni exponer IDs del libro', () => {
   const { r, triggers } = dailyRuntime();
-  r.ctx.activarActualizacionDiariaPreciosTest();
+  r.ctx.activateDailyPricesTest_();
   triggers.pop();
   const writes = r.writes.length;
   const status = r.api({ action: 'diagnostics' }).dailyPrices;
@@ -976,10 +1022,10 @@ test('diagnóstico detecta trigger perdido sin escribir ni exponer IDs del libro
 
 test('desactivar la rutina durante la consulta impide incluso la escritura del lote ya iniciado', () => {
   const { r } = dailyRuntime();
-  r.ctx.activarActualizacionDiariaPreciosTest();
+  r.ctx.activateDailyPricesTest_();
   const writes = r.writes.length;
   r.options.fetch = () => {
-    r.ctx.desactivarActualizacionDiariaPreciosTest();
+    r.ctx.deactivateDailyPricesTest_();
     return {
       body: page({
         date: new Intl.DateTimeFormat('en-GB', {
@@ -988,7 +1034,7 @@ test('desactivar la rutina durante la consulta impide incluso la escritura del l
       }),
     };
   };
-  const result = r.ctx.actualizacionDiariaPreciosTest();
+  const result = r.ctx.updatePricesTest_();
   assert.equal(result.complete, false);
   assert.equal(r.writes.length, writes);
   assert.equal(r.state().technical.quotes.length, 0);
@@ -1000,11 +1046,11 @@ test('NAV atrasado e igual no marca completo y reconsulta con otro receipt', () 
   });
   r.setInput('tPrecios', 0, 'Fecha', serial('2026-09-01'));
   r.setInput('tPrecios', 0, 'VL EUR', 345.19706);
-  r.ctx.activarActualizacionDiariaPreciosTest();
-  const first = r.ctx.actualizacionDiariaPreciosTest();
+  r.ctx.activateDailyPricesTest_();
+  const first = r.ctx.updatePricesTest_();
   assert.equal(first.batches[0].results[0].status, 'unchanged');
   assert.equal(first.complete, false);
-  const second = r.ctx.actualizacionDiariaPreciosTest();
+  const second = r.ctx.updatePricesTest_();
   assert.notEqual(first.batches[0].requestId, second.batches[0].requestId);
   assert.equal(r.state().tables.tPrecios.length, 1);
 });
@@ -1129,38 +1175,35 @@ test('explicit class currency must agree with Divisa on fetched and cached quote
 test('daily window fetches again at 21 and 22 after early fresh success, never fabricates NAV today', () => {
   const options = { hour: 20 },
     { r } = dailyRuntime(options);
-  r.ctx.activarActualizacionDiariaPreciosTest();
+  r.ctx.activateDailyPricesTest_();
   let hour = 20;
   const format = r.ctx.Utilities.formatDate;
   r.ctx.Utilities.formatDate = (date, zone, f) =>
     f === 'HH' ? String(hour) : format(date, zone, f);
-  const first = r.ctx.actualizacionDiariaPreciosTest();
+  const first = r.ctx.updatePricesTest_();
   assert.equal(first.complete, true);
   const before = r.fetches.length;
   r.cache.clear();
   hour = 21;
-  const second = r.ctx.actualizacionDiariaPreciosTest();
+  const second = r.ctx.updatePricesTest_();
   assert.equal(second.complete, true);
   assert.ok(r.fetches.length > before);
   assert.equal(second.publicationStatus, 'publication_pending');
   assert.notEqual(second.batches[0].requestId, first.batches[0].requestId);
   hour = 22;
   r.cache.clear();
-  assert.equal(r.ctx.actualizacionDiariaPreciosTest().complete, true);
+  assert.equal(r.ctx.updatePricesTest_().complete, true);
   assert.equal(r.state().tables.tPrecios.length, 2);
 });
 test('production activation is independent and test environment never installs it implicitly', () => {
   const { r, properties, triggers } = dailyRuntime();
-  r.ctx.activarActualizacionDiariaPreciosTest();
-  assert.throws(
-    () => r.ctx.activarActualizacionDiariaPreciosProduction(),
-    /producción/,
-  );
+  r.ctx.activateDailyPricesTest_();
+  assert.throws(() => r.ctx.activateDailyPricesProduction_(), /producción/);
   assert.equal(properties.has('DAILY_PRICE_PRODUCTION_BOOK'), false);
   properties.set('ENVIRONMENT', 'production');
   properties.set('PRODUCTION_SPREADSHEET_ID', 'fixture-book');
   properties.set('TEST_SPREADSHEET_ID', 'other-test');
-  r.ctx.activarActualizacionDiariaPreciosProduction();
+  r.ctx.activateDailyPricesProduction_();
   assert.equal(triggers.length, 2);
   assert.equal(properties.get('DAILY_PRICE_PRODUCTION_BOOK'), 'fixture-book');
   r.options.visitor = '';
@@ -1195,7 +1238,7 @@ test('installed daily binding rejects project and owner changes before requests'
   const { r, properties } = dailyRuntime();
   let project = 'synthetic-test-project';
   r.ctx.ScriptApp.getScriptId = () => project;
-  r.ctx.activarActualizacionDiariaPreciosTest();
+  r.ctx.activateDailyPricesTest_();
   project = 'copied-project';
   assert.throws(
     () =>
@@ -1220,22 +1263,22 @@ test('Madrid rollover during fetch aborts old-day mutation and next run uses new
   const formatter = r.ctx.Utilities.formatDate;
   r.ctx.Utilities.formatDate = (date, zone, f) =>
     f === 'yyyy-MM-dd' ? day : formatter(date, zone, f);
-  r.ctx.activarActualizacionDiariaPreciosTest();
+  r.ctx.activateDailyPricesTest_();
   const writes = r.writes.length;
   r.options.fetch = () => {
     day = '2026-10-11';
     return { body: page({ date: '09/10/2026' }) };
   };
-  const old = r.ctx.actualizacionDiariaPreciosTest();
+  const old = r.ctx.updatePricesTest_();
   assert.equal(old.batches[0].error, 'DAILY_DAY_CHANGED');
   assert.equal(r.writes.length, writes);
-  const next = r.ctx.actualizacionDiariaPreciosTest();
+  const next = r.ctx.updatePricesTest_();
   assert.equal(next.today, '2026-10-11');
   assert.equal(next.complete, true);
 });
 test('daily health marks current window due after yesterday and reports success age', () => {
   const { r, properties } = dailyRuntime();
-  r.ctx.activarActualizacionDiariaPreciosTest();
+  r.ctx.activateDailyPricesTest_();
   const today = r.ctx.Utilities.formatDate(
       new Date(),
       'Europe/Madrid',
@@ -1299,20 +1342,20 @@ test('late publication after an early previous-day success is collected exactly 
     display = (d) => d.slice(8) + '/' + d.slice(5, 7) + '/' + d.slice(0, 4);
   let published = previous;
   r.options.fetch = () => ({ body: page({ date: display(published) }) });
-  r.ctx.activarActualizacionDiariaPreciosTest();
-  const early = r.ctx.actualizacionDiariaPreciosTest();
+  r.ctx.activateDailyPricesTest_();
+  const early = r.ctx.updatePricesTest_();
   assert.equal(early.complete, true);
   assert.equal(early.batches[0].results[0].date, previous);
   published = today;
   hour = 21;
   r.cache.clear();
-  const late = r.ctx.actualizacionDiariaPreciosTest();
+  const late = r.ctx.updatePricesTest_();
   assert.equal(late.publicationStatus, 'new_publication');
   assert.equal(late.batches[0].results[0].date, today);
   hour = 22;
   r.cache.clear();
   assert.equal(
-    r.ctx.actualizacionDiariaPreciosTest().publicationStatus,
+    r.ctx.updatePricesTest_().publicationStatus,
     'publication_pending',
   );
   assert.equal(
@@ -1344,7 +1387,7 @@ test('newest historical NAV retains reviewed class provenance after a later fail
 
 test('private daily handlers reject identical environment book IDs after activation', () => {
   const { r, properties } = dailyRuntime();
-  r.ctx.activarActualizacionDiariaPreciosTest();
+  r.ctx.activateDailyPricesTest_();
   properties.set('PRODUCTION_SPREADSHEET_ID', 'fixture-book');
   r.options.visitor = '';
   assert.throws(
@@ -1366,7 +1409,7 @@ test('private daily handlers reject identical environment book IDs after activat
   production.properties.set('ENVIRONMENT', 'production');
   production.properties.set('TEST_SPREADSHEET_ID', 'other-test');
   production.properties.set('PRODUCTION_SPREADSHEET_ID', 'fixture-book');
-  production.r.ctx.activarActualizacionDiariaPreciosProduction();
+  production.r.ctx.activateDailyPricesProduction_();
   production.r.options.visitor = '';
   production.properties.set('TEST_SPREADSHEET_ID', ' fixture-book ');
   assert.throws(

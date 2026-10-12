@@ -4,13 +4,13 @@
 
 Personal finance PWA backed by private Google Sheets and Apps Script. Track cash, investments, budgets, salary and savings goals with interactive charts, sortable tables and an offline operation queue.
 
-**App 3.9.1 · API 3.3.0 · model 3 · test environment · Spanish interface.**
+**App 3.9.2 · API 3.3.0 · model 3 · test environment · Spanish interface.**
 
 [Open app](https://manuuelmarin.github.io/finances/) · [Install Google backend](https://manuuelmarin.github.io/finances/install.html)
 
 ## Getting started
 
-Follow the installer, restrict the Google deployment to the owner account, and connect it in the app. GitHub Pages publishes the interface; Google installation and daily price scheduling are separate steps.
+Follow the installer to add the listed Apps Script modules to the existing private project. Keep its URL and properties, then run `prepareApplication` and `checkApplication`. Run `enableDailyPrices` only when daily updates are wanted. GitHub Pages does not update the Google project.
 
 ## Documentation
 

@@ -1,4 +1,51 @@
 const globals = require('globals');
+const fs = require('node:fs');
+const path = require('node:path');
+const espree = require('espree');
+
+const root = __dirname;
+const moduleManifest = JSON.parse(
+  fs.readFileSync(path.join(root, 'apps-script/modules.json'), 'utf8'),
+);
+const appsScriptGlobals = {};
+const declarePatternNames = (pattern) => {
+  if (!pattern) return;
+  if (pattern.type === 'Identifier')
+    appsScriptGlobals[pattern.name] = 'readonly';
+  else if (pattern.type === 'RestElement')
+    declarePatternNames(pattern.argument);
+  else if (pattern.type === 'AssignmentPattern')
+    declarePatternNames(pattern.left);
+  else if (pattern.type === 'ArrayPattern')
+    pattern.elements.forEach(declarePatternNames);
+  else if (pattern.type === 'ObjectPattern')
+    pattern.properties.forEach((property) =>
+      declarePatternNames(
+        property.type === 'RestElement' ? property.argument : property.value,
+      ),
+    );
+};
+for (const filename of moduleManifest.scripts) {
+  const source = fs.readFileSync(
+    path.join(root, 'apps-script', filename),
+    'utf8',
+  );
+  const ast = espree.parse(source, {
+    ecmaVersion: 'latest',
+    sourceType: 'script',
+  });
+  for (const statement of ast.body) {
+    if (
+      statement.type === 'FunctionDeclaration' ||
+      statement.type === 'ClassDeclaration'
+    )
+      declarePatternNames(statement.id);
+    else if (statement.type === 'VariableDeclaration')
+      statement.declarations.forEach((declaration) =>
+        declarePatternNames(declaration.id),
+      );
+  }
+}
 module.exports = [
   {
     ignores: [
@@ -26,6 +73,7 @@ module.exports = [
         HtmlService: 'readonly',
         CacheService: 'readonly',
         UrlFetchApp: 'readonly',
+        ScriptApp: 'readonly',
         FinanceDomain: 'readonly',
         FinanceAnalytics: 'readonly',
         FinanceCharts: 'readonly',
@@ -53,5 +101,9 @@ module.exports = [
       'no-new-func': 'error',
       'valid-typeof': 'error',
     },
+  },
+  {
+    files: ['apps-script/**/*.gs'],
+    languageOptions: { globals: appsScriptGlobals },
   },
 ];

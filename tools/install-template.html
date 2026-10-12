@@ -77,9 +77,9 @@
         font-size: 17px;
       }
       .code-section {
-        margin: 28px 0;
+        margin: 14px 0;
         border: 1px solid var(--line);
-        padding: 25px;
+        padding: 16px 20px;
         background: var(--panel);
         border-radius: 12px;
       }
@@ -92,6 +92,9 @@
       .code-section > p {
         color: var(--muted);
         font-size: 14px;
+      }
+      .code-section pre {
+        max-height: 320px;
       }
       button {
         border: 0;
@@ -220,235 +223,63 @@
       <p class="eyebrow">GOOGLE SHEETS · CONEXIÓN PRIVADA</p>
       <h1>Instalación de Apps Script</h1>
       <p class="intro">
-        Archivos de Apps Script · Entrega {{BUILD_VERSION}} · API 3.3.0. Para
-        instalar o actualizar el backend privado de Google.
+        Archivos de Apps Script · Entrega {{BUILD_VERSION}}. Instala los módulos
+        del backend privado en el proyecto que ya está conectado.
       </p>
       <p class="notice">
-        Antes de actualizar, resuelve las solicitudes pendientes en su
-        implementación original y conserva una copia nativa completa del libro y
-        de Code.gs, Bridge.html y appsscript.json. Guarda por separado y en
-        privado las propiedades del script y los datos de la implementación: la
-        copia de Sheets no confirma su conservación. Revisa cualquier script
-        vinculado, sus propiedades y triggers en la copia. Mantén
-        ENVIRONMENT=test y la implementación Solo yo; la publicación no activa
-        el libro principal. Ensaya la restauración en otro libro y proyecto de
-        pruebas.
-        <a
-          href="https://github.com/manuuelmarin/finances/blob/main/docs/OPERATIONS.md"
-          target="_blank"
-          rel="noopener noreferrer"
-          >Guía de respaldo y recuperación</a
-        >.
+        Antes de actualizar, conserva una copia del libro, del proyecto y de sus
+        propiedades privadas. Los archivos de código no incluyen datos
+        financieros ni sustituyen una copia de seguridad.
       </p>
       <p id="copy-status" role="status" aria-live="polite"></p>
-      <section class="code-section" aria-labelledby="file-0">
-        <header>
-          <div>
-            <p class="eyebrow">ARCHIVO 1 DE 3</p>
-            <h2 id="file-0">Code.gs</h2>
-          </div>
-          <button type="button" data-copy="code-0">Copiar Code.gs</button>
-        </header>
-        <p>Sustituye todo el contenido de Code.gs por este código.</p>
-        <details>
-          <summary>Ver código completo</summary>
-          <pre id="code-0" tabindex="0"></pre>
-        </details>
-      </section>
-      <section class="code-section" aria-labelledby="file-1">
-        <header>
-          <div>
-            <p class="eyebrow">ARCHIVO 2 DE 3</p>
-            <h2 id="file-1">Bridge.html</h2>
-          </div>
-          <button type="button" data-copy="code-1">Copiar Bridge.html</button>
-        </header>
-        <p>
-          Sustituye el contenido del archivo HTML llamado Bridge por este
-          bloque, que comienza por &lt;!doctype html&gt;.
-        </p>
-        <details>
-          <summary>Ver código completo</summary>
-          <pre id="code-1" tabindex="0"></pre>
-        </details>
-      </section>
-      <section class="code-section" aria-labelledby="file-2">
-        <header>
-          <div>
-            <p class="eyebrow">ARCHIVO 3 DE 3</p>
-            <h2 id="file-2">appsscript.json</h2>
-          </div>
-          <button type="button" data-copy="code-2">
-            Copiar appsscript.json
-          </button>
-        </header>
-        <p>
-          En Configuración del proyecto, activa Mostrar archivo de manifiesto
-          appsscript.json en el editor. Sustituye su contenido por este bloque.
-        </p>
-        <details>
-          <summary>Ver código completo</summary>
-          <pre id="code-2" tabindex="0"></pre>
-        </details>
-      </section>
+      {{INSTALL_FILES}}
       <section class="configuration">
-        <p class="eyebrow">PASO 5 · ENTREGA {{BUILD_VERSION}} · API 3.3.0</p>
-        <h2>Leer el libro y registrar operaciones</h2>
+        <p class="eyebrow">INSTALACIÓN · ENTREGA {{BUILD_VERSION}}</p>
+        <h2>Actualizar el proyecto conectado</h2>
         <ol>
           <li>
-            Sustituye los tres archivos del proyecto existente por estos bloques
-            y guarda. Conserva TEST_SPREADSHEET_ID, OWNER_EMAIL y
-            ENVIRONMENT=test. No cambies a la copia principal.
+            Conserva el mismo proyecto, URL de implementación y propiedades
+            privadas del script. Mantén el entorno de pruebas seleccionado.
           </li>
           <li>
-            Ejecuta <strong>comprobarPaso4</strong> si necesitas preparar las
-            hojas técnicas; después <strong>comprobarPaso5</strong>. Debe
-            indicar API 3.3.0, doce tablas, backendReady y calculationReady
-            correctos; buildVersion {{BUILD_VERSION}} y bridgeReady true.
-            summaryReady comprueba que el resumen nativo dispone de cifras y
-            precios al corte; no acredita la consulta de fuentes.
+            Sustituye el contenido del archivo inicial
+            <code>Code.gs</code> (puede llamarse <code>Código.gs</code>) por la
+            fachada corta. Añade cada uno de los demás archivos
+            <code>.gs</code> listados arriba; no conserves el monolito anterior
+            como otro archivo. Sustituye <code>Bridge.html</code> y el
+            manifiesto <code>appsscript.json</code>.
           </li>
           <li>
-            Ejecuta <strong>probarFuentesPaso4</strong>. Esta prueba solo
-            consulta. Revisa <strong>complete</strong> y cada
-            <strong>results[].ok</strong>: ok:true en la respuesta general solo
-            confirma que la función terminó. Un fallo incluye el estado HTTP,
-            tamaño, título y huella de la página pública recibida, sin datos de
-            tu libro. Conserva el último precio guardado.
+            Guarda todos los archivos. En Apps Script ejecuta
+            <code>prepareApplication</code> y luego
+            <code>checkApplication</code> para preparar y comprobar el backend.
           </li>
           <li>
-            Actualiza la implementación: Implementar → Gestionar
-            implementaciones → lápiz → Nueva versión. Mantén Ejecutar como: Yo y
-            acceso Solo yo. El repositorio no actualiza automáticamente tu
-            proyecto de Google.
-          </li>
-          <li>
-            Vuelve a Finanzas y pulsa <strong>Abrir mi libro</strong>. Usa la
-            cuenta propietaria. Mantén abierta la ventana de Google mientras
-            usas la app. Debe aparecer Datos cargados con el resumen, cuentas y
-            registros. Comprueba resumen, cortes y registros; después registra
-            una operación de prueba y su anulación desde la revisión previa.
-          </li>
-          <li>
-            Para consultar y guardar cotizaciones verificadas utiliza
-            <strong>Inversiones → Actualizar precios</strong> o
-            <strong>actualizarPreciosPaso4</strong> desde el editor. No se
-            sustituye un precio distinto de la misma fecha sin revisión. Un
-            fallo no pone el fondo a cero.
-          </li>
-          <li>
-            La app se puede instalar desde el navegador cuando lo permita. Los
-            cambios pendientes quedan en este dispositivo; abre la app y Google
-            para enviarlos. Una respuesta perdida conserva la solicitud y
-            consulta su estado antes de reintentar. No se promete envío con la
-            app cerrada.
+            Para guardar cotizaciones verificadas, ejecuta
+            <code>enableDailyPrices</code> una vez y después
+            <code>updatePrices</code>. Ejecuta <code>checkApplication</code>
+            para revisar el estado. Para detener la rutina diaria, ejecuta
+            <code>disableDailyPrices</code>.
           </li>
         </ol>
         <p class="notice">
-          El código mantiene pruebas si ENVIRONMENT=test. Los pasos siguientes
-          preparan el uso real; la publicación del repositorio no cambia por sí
-          sola tu libro o proyecto de Google. El resumen usa los resultados de
-          Sheets; los filtros del listado no cambian los cortes financieros. Las
-          copias locales permanecen en este navegador hasta borrarlas
-          expresamente.
+          Guarda todo antes de ejecutar las funciones. La instalación conserva
+          el entorno ya configurado; no cambies las propiedades del script.
         </p>
       </section>
       <section class="configuration" id="daily-prices">
-        <p class="eyebrow">COTIZACIONES · SOLO PRUEBAS</p>
+        <p class="eyebrow">COTIZACIONES</p>
         <h2>Acumular precios cada día</h2>
         <p>
-          Tras instalar esta entrega, selecciona y ejecuta exactamente
-          <strong>activarActualizacionDiariaPreciosTest</strong> desde el editor
-          con la cuenta propietaria y concede el permiso para administrar esta
-          rutina. Si los diagnósticos muestran enabled: false, ejecútala en ese
-          mismo proyecto autorizado. La función instala un único trigger horario
-          que consulta entre las 20 y las 22 h de Madrid, con hasta tres
-          intentos por lote y día, vinculado al libro de pruebas. Actualizar el
-          código no activa el programador. La activación de producción
-          corresponde solo al principal de producción ya activado.
+          La rutina diaria se activa solo al ejecutar
+          <code>enableDailyPrices</code> desde el proyecto ya configurado.
+          Revisa <code>checkApplication</code> para confirmar su estado. La
+          instalación del código no activa la rutina automáticamente.
         </p>
         <p>
-          Ejecuta <strong>actualizacionDiariaPreciosTest</strong> para comprobar
-          el primer lote. Revisa complete y cada resultado: una fuente fallida
-          conserva el precio anterior. Para detenerla, ejecuta
-          <strong>desactivarActualizacionDiariaPreciosTest</strong>. La rutina
-          se detiene si cambias de libro o entorno.
-        </p>
-        <p>
-          Se guardan valores liquidativos reales con la fecha publicada en
-          tPrecios, sin duplicar producto y fecha. Los históricos verificados
-          pueden importarse por fecha; si el archivo tiene menos precisión que
-          la fuente diaria, importa solo fechas anteriores al último VL diario
-          verificado de ese fondo y deja esa fecha y las posteriores al
-          actualizador. La comprobación de conflictos de misma fecha permanece
-          estricta. La vista Histórico deja en blanco los días sin VL publicado.
-        </p>
-      </section>
-      <section class="configuration">
-        <p class="eyebrow">PASOS 6–8 · COMPROBACIÓN EN PRUEBAS</p>
-        <h2>Terminar las pruebas y conservar el entorno</h2>
-        <ol>
-          <li>
-            En test, ejecuta <strong>comprobarCierre</strong> o usa
-            <strong
-              >Ajustes → Diagnóstico del sistema → Comprobar sistema</strong
-            >. Solo lee y consulta fuentes; no guarda precios. Comprueba
-            buildVersion {{BUILD_VERSION}}, technicalReady true y todos los
-            checks true. Un resumen correcto no acredita por sí solo las
-            fuentes.
-          </li>
-          <li>
-            En tu teléfono, instala desde el menú del navegador cuando lo
-            permita. Abre la app sin conexión y vuelve a abrir Google para
-            enviar los pendientes. Prueba una operación ficticia y su anulación
-            únicamente en test, con restauración confirmada. Resuelve todos los
-            pendientes de cada dispositivo antes del cambio.
-          </li>
-          <li>
-            La activación del principal está suspendida hasta autorización
-            expresa de Manu. El procedimiento siguiente se conserva como
-            referencia futura; no lo ejecutes durante estas pruebas. Comprueba
-            dónde están las últimas operaciones. Conserva una copia completa del
-            libro principal y el XLSX original. Si alguno cambió después de la
-            comparación, integra esas diferencias antes de declarar Sheets como
-            única fuente. Conserva también el código y la configuración privada
-            del proyecto.
-          </li>
-          <li>
-            Para uso real, conserva el proyecto de pruebas y su enlace. Crea un
-            proyecto y una implementación privados separados para el principal,
-            usando estos mismos tres archivos. Configura OWNER_EMAIL,
-            TEST_SPREADSHEET_ID con el libro de pruebas y
-            <strong>PRODUCTION_SPREADSHEET_ID</strong> con el principal: deben
-            ser distintos. Configura <strong>ENVIRONMENT=production</strong>.
-            Ejecuta comprobarPaso4 para preparar el backend del principal y
-            luego comprobarCierre. No ejecutes transacciones ficticias en
-            producción: el código las rechaza.
-          </li>
-          <li>
-            Publica Nueva versión como Yo y Solo yo, y guarda el nuevo /exec en
-            la app. Debe mostrar <strong>Libro principal</strong> y pasar
-            Comprobar sistema. No vuelvas a registrar como nuevas las
-            operaciones ya migradas. Usa Sheets y esta API para las operaciones
-            reales; conserva el XLSX como archivo histórico.
-          </li>
-        </ol>
-        <h2>Mantenimiento y recuperación</h2>
-        <p>
-          Haz una copia nativa completa antes de cambios de código, fórmulas o
-          importaciones y conserva copias periódicas con fecha, revisión y
-          cortes. Guarda de forma privada OWNER_EMAIL, los identificadores y la
-          configuración de la implementación: una copia de Sheets no respalda el
-          proyecto de Apps Script.
-        </p>
-        <p>
-          Para recuperar, detén los envíos y conserva el libro actual,
-          pendientes y journal. Restaura la copia en otro libro, comprueba
-          entradas, fórmulas y resumen, y recupera las operaciones posteriores
-          usando auditoría, solicitudes y recibos. Nunca reenvíes en bloque
-          pendientes sin confirmar: consulta primero su implementación original.
-          Reconfigura una nueva implementación privada y comprueba su lectura
-          antes de reanudar.
+          Para consultar y guardar precios ahora, ejecuta
+          <code>updatePrices</code>. Para pausar las consultas automáticas,
+          ejecuta <code>disableDailyPrices</code>.
         </p>
       </section>
       <footer>

@@ -1,13 +1,13 @@
 # Backup, rehearsal and cutover
 
-Finanzas 3.9.1 uses API 3.3.0 and workbook model 3. Keep the existing test deployment and `ENVIRONMENT=test` while validating this release. Publishing Pages or changing this repository does not update a private Apps Script deployment or activate the principal workbook.
+Finanzas 3.9.2 uses API 3.3.0 and workbook model 3. Keep the existing test deployment and `ENVIRONMENT=test` while validating this release. Publishing Pages or changing this repository does not update a private Apps Script deployment or activate the principal workbook.
 
 ## Before changing a workbook or deployment
 
 1. Stop new submissions on every device. Inventory pending requests by device, workbook and deployment. For a submitted or uncertain UUID, query its **original deployment** for status and preserve the same envelope and receipt. Resolve every pending request before changing a deployment, workbook or environment; never replay test requests against the principal.
 2. Make a dated **native Google Sheets copy of the complete workbook**, including inputs, formulas, hidden technical sheets, named ranges and calculation outputs. Keep the original workbook untouched. Also retain the original XLSX as historical evidence. Record the workbook revision and `start`, `asof` and `valuation` cutoffs privately.
 3. Save the exact deployed `Code.gs`, `Bridge.html` and `appsscript.json`, plus the Apps Script project/deployment version and private configuration in a restricted location. Record Script Properties (`OWNER_EMAIL`, `ENVIRONMENT`, workbook IDs and any other configured values), the owner account and deployment URL privately. A Sheets copy is not a verified backup of Script Properties or deployment settings; a bound script may copy with its workbook. Inspect any copied script, properties and triggers, then configure and verify the isolated project explicitly. Never commit IDs, emails, private URLs, credentials, financial rows or these records to this repository.
-4. With the original read-only, reconcile account opening and actual balances, product units and valuation, invested capital, outstanding debt, settings and report cutoffs against the backup. Record discrepancies before any update. Run `comprobarCierre()` / **Comprobar sistema** for a read-only structural check; `ok:true` alone is not evidence that every readiness or source check passed.
+4. With the original read-only, reconcile account opening and actual balances, product units and valuation, invested capital, outstanding debt, settings and report cutoffs against the backup. Record discrepancies before any update. Run `checkApplication()` for a read-only structural check; `ok:true` alone is not evidence that every readiness or source check passed.
 
 ## Disposable restore rehearsal
 

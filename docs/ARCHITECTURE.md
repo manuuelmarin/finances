@@ -1,6 +1,6 @@
 # Architecture
 
-Finanzas 3.9.1 uses workbook model 3 and API 3.3.0. The environment remains `ENVIRONMENT=test`; this document does not authorize production cutover.
+Finanzas 3.9.2 uses workbook model 3 and API 3.3.0. The environment remains `ENVIRONMENT=test`; this document does not authorize production cutover.
 
 ## Components
 
@@ -12,6 +12,8 @@ Finanzas 3.9.1 uses workbook model 3 and API 3.3.0. The environment remains `ENV
 | Google Sheets             | Inputs, tables, formulas and native results.              |
 | IndexedDB                 | Snapshots and pending requests by deployment/workbook.    |
 | Agent adapters (`tools/`) | Envelopes and durable queue over authenticated transport. |
+
+`apps-script/modules.json` is the installer's source of truth for ordered Apps Script files. The short `Code.gs` facade exposes `prepareApplication`, `checkApplication`, `enableDailyPrices`, `updatePrices` and `disableDailyPrices`; scheduled trigger handlers remain internal.
 
 The server authorizes access before reading Sheets, selects the configured workbook and accepts defined processes/fields, never arbitrary cell instructions. Bridge validates origin, window and session; responses must match the authenticated handshake. The owner-checked initial snapshot may arrive in private HTML; subsequent requests use JSON strings. Sessions are reused within a tab, never between tabs/workbooks. Deployment changes invalidate previous results.
 
@@ -47,8 +49,8 @@ Agent modules share `web/queue.js`, persisting state before sending. Resume the 
 
 Keep `TEST_SPREADSHEET_ID`, `OWNER_EMAIL`, credentials and private URLs outside the repository. Production needs a separate project/deployment and different `PRODUCTION_SPREADSHEET_ID`. Browser selection cannot change server configuration; Pages cannot update Apps Script.
 
-`comprobarCierre()` / **Comprobar sistema** check without writes. `ok:true` means completion; `technicalReady:true` requires all checks, not phone/authentication/source acceptance.
+`checkApplication()` checks readiness without financial writes. `ok:true` means completion; `technicalReady:true` requires all checks, not phone/authentication/source acceptance.
 
-Before authorized cutover, resolve device queues, accept real tests, verify sources, back up workbook/code/configuration, prepare via `comprobarPaso4` and verify closure. Never transfer test requests. Archive XLSX after accepting Sheets.
+Before authorized cutover, resolve device queues, accept real tests, verify sources, back up workbook/code/configuration, prepare via `prepareApplication` and verify closure. Never transfer test requests. Archive XLSX after accepting Sheets.
 
 Recovery stops submissions, preserves workbook/queues/journal, restores into a new workbook, validates formulas and reconciles audit/receipts. Query uncertain requests in their original deployment. Do not treat a native workbook copy as a verified backup of Script Properties or deployment settings; inspect any copied bound script and keep periodic and pre-change backups with private dates/revisions/cutoffs.

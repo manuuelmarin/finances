@@ -331,10 +331,21 @@ function runtime(options = {}) {
       month: '2-digit',
       day: '2-digit',
     }).format(date);
-  vm.runInContext(
-    fs.readFileSync(path.join(__dirname, '../../apps-script/Code.gs'), 'utf8'),
-    ctx,
+  const moduleManifest = JSON.parse(
+    fs.readFileSync(
+      path.join(__dirname, '../../apps-script/modules.json'),
+      'utf8',
+    ),
   );
+  for (const moduleName of moduleManifest.scripts)
+    vm.runInContext(
+      fs.readFileSync(
+        path.join(__dirname, '../../apps-script', moduleName),
+        'utf8',
+      ),
+      ctx,
+      { filename: moduleName },
+    );
   const schemas = JSON.parse(
     vm.runInContext('JSON.stringify(TABLE_SCHEMA_)', ctx),
   );
@@ -576,12 +587,12 @@ function runtime(options = {}) {
         id: bookId,
         environment: options.properties?.ENVIRONMENT || 'test',
       }),
-    init: () => JSON.parse(JSON.stringify(ctx.comprobarPaso3())),
-    api: (request) => JSON.parse(JSON.stringify(ctx.financialApi(request))),
+    init: () => JSON.parse(JSON.stringify(ctx.checkTransactionLayer_())),
+    api: (request) => JSON.parse(JSON.stringify(ctx.financialApi_(request))),
     transact: (operations) =>
       JSON.parse(
         JSON.stringify(
-          ctx.financialApi({
+          ctx.financialApi_({
             action: 'transact',
             requestId: crypto.randomUUID(),
             expectedRevision: ctx.readState_({
