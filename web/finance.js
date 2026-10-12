@@ -59,7 +59,7 @@
       EMBEDDED_CONTEXT:
         'Abre Finanzas en su propia ventana para acceder a tu libro.',
       UPDATE_REQUIRED:
-        'Actualiza todos los archivos del backend desde el instalador 3.9.2 y publica Nueva versión de la implementación existente. Guardar el editor no actualiza el enlace /exec.',
+        'Actualiza todos los archivos del backend desde el instalador 3.9.3 y publica Nueva versión de la implementación existente. Guardar el editor no actualiza el enlace /exec.',
       POPUP_BLOCKED:
         'Permite abrir la ventana de Google y vuelve a pulsar Abrir mi libro.',
       NOT_CONNECTED: 'Abre Google para leer o enviar los pendientes.',

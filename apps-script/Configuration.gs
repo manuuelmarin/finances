@@ -112,7 +112,7 @@ const TABLE_SCHEMA_ = [
 ];
 
 const API_VERSION_ = '3.3.0';
-const BUILD_VERSION_ = '3.9.2';
+const BUILD_VERSION_ = '3.9.3';
 const DAILY_HISTORY_MARKER_ = 'Finanzas · Histórico generado';
 const DAILY_HISTORY_MAX_DAYS_ = 36525;
 const API_TRANSPORT_ = 'finances.rpc.json.v1';

@@ -63,6 +63,20 @@ function dailyPriceTriggerConfig_(event) {
     );
   return { id, owner, environment: 'test' };
 }
+function assertDailyPriceActivationReady_(config) {
+  // Activation is read-only and verifies every technical table refreshPrices_ requires.
+  const state = readState_(config);
+  if (
+    !['requests', 'audit', 'observations', 'funds', 'quotes'].every(
+      (kind) => state.tech[kind],
+    )
+  )
+    fail_(
+      'NOT_INITIALIZED',
+      'Ejecuta prepareApplication desde el editor antes de activar la rutina diaria.',
+    );
+  return state;
+}
 function activateDailyPricesProduction_() {
   const config = authorizedConfig_();
   check_(
@@ -70,6 +84,7 @@ function activateDailyPricesProduction_() {
     'La rutina diaria solo está habilitada para el libro de producción.',
   );
   return locked_(() => {
+    assertDailyPriceActivationReady_(config);
     const properties = PropertiesService.getScriptProperties(),
       existing = ScriptApp.getProjectTriggers().filter(
         (t) =>
@@ -547,6 +562,7 @@ function activateDailyPricesTest_() {
     'La rutina diaria solo está habilitada para el libro de pruebas.',
   );
   return locked_(() => {
+    assertDailyPriceActivationReady_(config);
     const properties = PropertiesService.getScriptProperties(),
       existing = ScriptApp.getProjectTriggers().filter(
         (t) => t.getHandlerFunction() === 'actualizacionDiariaPreciosTest_',

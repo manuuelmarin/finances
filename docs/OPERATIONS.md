@@ -1,6 +1,6 @@
 # Backup, rehearsal and cutover
 
-Finanzas 3.9.2 uses API 3.3.0 and workbook model 3. Keep the existing test deployment and `ENVIRONMENT=test` while validating this release. Publishing Pages or changing this repository does not update a private Apps Script deployment or activate the principal workbook.
+Finanzas 3.9.3 uses API 3.3.0 and workbook model 3. Keep the existing test deployment and `ENVIRONMENT=test` while validating this release. Publishing Pages or changing this repository does not update a private Apps Script deployment or activate the principal workbook.
 
 ## Before changing a workbook or deployment
 

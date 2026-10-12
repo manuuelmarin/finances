@@ -1,6 +1,6 @@
 # Architecture
 
-Finanzas 3.9.2 uses workbook model 3 and API 3.3.0. The environment remains `ENVIRONMENT=test`; this document does not authorize production cutover.
+Finanzas 3.9.3 uses workbook model 3 and API 3.3.0. The environment remains `ENVIRONMENT=test`; this document does not authorize production cutover.
 
 ## Components
 

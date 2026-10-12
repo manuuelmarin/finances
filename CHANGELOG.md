@@ -2,6 +2,14 @@
 
 Build numbers identify the app and Apps Script code, not necessarily GitHub tags or releases. The API remains **3.3.0**. This history does not establish the installed Google version or environment; publishing Pages changes neither.
 
+## 3.9.3
+
+Add a read-only readiness preflight before daily-price activation can mutate triggers or properties. Clarify the private Apps Script upgrade sequence: validate on test, publish a new version of the existing private deployment, preserve its URL and settings, then verify the app connection. API 3.3.0 and workbook model 3 are unchanged.
+
+## 3.9.2
+
+Extract the Apps Script backend into ordered modules with a small operator facade and manifest-driven installer. API 3.3.0 and workbook model 3 remain unchanged.
+
 ## 3.9.1
 
 Add an automatically refreshed daily NAV view in the extra `Histórico` sheet, derived from verified `tPrecios` records and held units. Existing unowned sheets with that name are preserved.
