@@ -385,10 +385,10 @@ if (typeof document !== 'undefined') {
         if (!result.ok) output.textContent = result.message || result.error;
         else if (result.calculationReady === false)
           output.textContent =
-            'Google responde, pero hay fórmulas que necesitan revisión. Consulta el resultado de comprobarPaso3.';
+            'Google responde, pero hay fórmulas que necesitan revisión. Consulta el resultado de checkApplication en Apps Script.';
         else if (!result.backendReady)
           output.textContent =
-            'El código responde. Ejecuta comprobarPaso3 en Apps Script para preparar el backend.';
+            'El código responde. Ejecuta prepareApplication y luego checkApplication en Apps Script para preparar y comprobar el backend.';
         else
           output.textContent =
             'Backend verificado: API ' +

@@ -1,0 +1,17 @@
+{
+  "scripts": [
+    "Code.gs",
+    "Configuration.gs",
+    "AccessAndUtilities.gs",
+    "BackendAndReporting.gs",
+    "DailyHistory.gs",
+    "DailyPriceAutomation.gs",
+    "OperatorChecks.gs",
+    "PriceHistory.gs",
+    "PriceProvidersAndRefresh.gs",
+    "StateAndValidation.gs",
+    "Operations.gs",
+    "SupportAndCapacity.gs",
+    "Transactions.gs"
+  ]
+}

@@ -91,7 +91,7 @@ test('un sobre de pruebas no puede aplicarse o consultarse en el principal aunqu
 });
 test('prueba ficticia del editor se rechaza en producción antes de toda lectura/escritura', () => {
   const r = runtime({ properties, bookId: 'fixture-main' }),
-    result = r.ctx.probarTransaccionesPaso3();
+    result = r.ctx.probeTransactions_();
   assert.equal(result.error, 'TEST_ONLY');
   assert.equal(r.writes.length, 0);
   assert.equal(r.readBooks.length, 0);

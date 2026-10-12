@@ -49,14 +49,14 @@ test('todas las funciones públicas del editor deniegan visitantes antes de acce
   for (const visitor of ['', 'other@example.test']) {
     const r = runtime({ visitor });
     for (const name of [
-      'comprobarInstalacion',
-      'comprobarPaso3',
-      'probarTransaccionesPaso3',
-      'comprobarPaso4',
-      'probarFuentesPaso4',
-      'actualizarPreciosPaso4',
-      'comprobarPaso5',
-      'comprobarCierre',
+      'checkConnection_',
+      'checkTransactionLayer_',
+      'probeTransactions_',
+      'prepareApplication_',
+      'probePriceSources_',
+      'updatePricesLegacy_',
+      'checkReadiness_',
+      'checkClosure_',
     ])
       assert.equal(r.ctx[name]().error, 'ACCESS_DENIED', name);
     assert.equal(r.readBooks.length, 0);
@@ -450,7 +450,7 @@ test('objetivos y asignaciones no producen efectivo; anulación no deja asignaci
 });
 test('prueba del editor comprueba altas, reintentos, corrección y anulación, restaurando las entradas', () => {
   const r = runtime();
-  const result = JSON.parse(JSON.stringify(r.ctx.probarTransaccionesPaso3()));
+  const result = JSON.parse(JSON.stringify(r.ctx.probeTransactions_()));
   assert.equal(result.ok, true);
   assert.equal(result.financialInputsRestored, true);
   assert.equal(result.duplicatePrevented, true);

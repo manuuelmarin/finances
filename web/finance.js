@@ -59,7 +59,7 @@
       EMBEDDED_CONTEXT:
         'Abre Finanzas en su propia ventana para acceder a tu libro.',
       UPDATE_REQUIRED:
-        'Actualiza Code.gs, Bridge.html y appsscript.json desde el instalador 3.9.1 y publica Nueva versión de la implementación del entorno seleccionado (pruebas o principal). Guardar el editor no actualiza el enlace /exec.',
+        'Actualiza todos los archivos del backend desde el instalador 3.9.2 y publica Nueva versión de la implementación existente. Guardar el editor no actualiza el enlace /exec.',
       POPUP_BLOCKED:
         'Permite abrir la ventana de Google y vuelve a pulsar Abrir mi libro.',
       NOT_CONNECTED: 'Abre Google para leer o enviar los pendientes.',
@@ -82,7 +82,7 @@
       TRANSPORT_TIMEOUT:
         'Google no ha respondido a la comprobación del canal. Mantén abierta su ventana y vuelve a abrir el libro.',
       INVALID_RESPONSE:
-        'Google no ha devuelto el formato vigente. Actualiza los tres archivos desde el instalador y publica Nueva versión.',
+        'Google no ha devuelto el formato vigente. Actualiza los archivos de esta entrega desde el instalador y publica Nueva versión.',
       SUBMIT_FAILED:
         'El canal falló durante el envío. Se conserva la solicitud para consultar su recibo.',
       STATUS_FAILED:

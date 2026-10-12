@@ -357,10 +357,18 @@ function runBackend({
       },
     },
   });
-  vm.runInContext(
-    fs.readFileSync(path.join(__dirname, '../apps-script/Code.gs'), 'utf8'),
-    context,
+  const modules = JSON.parse(
+    fs.readFileSync(
+      path.join(__dirname, '../apps-script/modules.json'),
+      'utf8',
+    ),
   );
+  for (const filename of modules.scripts)
+    vm.runInContext(
+      fs.readFileSync(path.join(__dirname, '../apps-script', filename), 'utf8'),
+      context,
+      { filename },
+    );
   vm.runInContext(
     `doGet(${JSON.stringify({ parameter: { state, ...request } })})`,
     context,

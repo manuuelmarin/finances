@@ -6,15 +6,11 @@ for (const button of document.querySelectorAll('[data-copy]'))
     const code = document.getElementById(button.dataset.copy);
     try {
       await navigator.clipboard.writeText(code.textContent);
-      const name = ['Code.gs', 'Bridge.html', 'appsscript.json'][
-        Number(button.dataset.copy.slice(-1))
-      ];
+      const name = button
+        .closest('.code-section')
+        .querySelector('h2').textContent;
       copyStatus.textContent =
-        name +
-        ' copiado. Pégalo únicamente en ese archivo de Apps Script.' +
-        (name === 'Bridge.html'
-          ? ' Este bloque comienza por <!doctype html>.'
-          : '');
+        name + ' copiado. Pégalo únicamente en ese archivo de Apps Script.';
       button.textContent = 'Copiado';
       setTimeout(() => {
         button.textContent = 'Copiar código';

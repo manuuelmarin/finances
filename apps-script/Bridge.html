@@ -48,7 +48,7 @@
       const appOrigin = document.getElementById('origin').textContent;
       const status = document.getElementById('status');
       const detail = document.getElementById('detail');
-      const BRIDGE_VERSION = '3.9.1';
+      const BRIDGE_VERSION = '3.9.2';
       const API_TRANSPORT = 'finances.rpc.json.v1';
       const errors = {
         INVALID_REQUEST:
@@ -62,13 +62,13 @@
         READ_FAILED:
           'Revisa el servicio avanzado Sheets, los permisos y el acceso al libro conectado.',
         UPDATE_REQUIRED:
-          'Actualiza Code.gs y Bridge.html desde el instalador y publica Nueva versión de la implementación existente.',
+          'Actualiza los archivos del backend desde el instalador y publica Nueva versión de la implementación existente.',
         TRANSPORT_UNAVAILABLE:
           'Google no ha iniciado el canal privado. Vuelve a abrir el libro con la sesión de Google iniciada.',
         TRANSPORT_TIMEOUT:
           'Google no ha respondido a la prueba del canal. Vuelve a abrir el libro; si persiste, revisa la implementación privada.',
         INVALID_RESPONSE:
-          'La implementación no devuelve el formato vigente. Actualiza los tres archivos y publica Nueva versión.',
+          'La implementación no devuelve el formato vigente. Actualiza los archivos del backend y publica Nueva versión.',
       };
       let apiReceiver;
       let ready = false;

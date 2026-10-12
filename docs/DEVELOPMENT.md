@@ -1,6 +1,6 @@
 # Development
 
-Finanzas 3.9.1 uses API 3.3.0 and workbook model 3. Keep `ENVIRONMENT=test`; repository maintenance does not modify the private Google deployment.
+Finanzas 3.9.2 uses API 3.3.0 and workbook model 3. Keep `ENVIRONMENT=test`; repository maintenance does not modify the private Google deployment.
 
 ## Local setup
 
@@ -17,15 +17,15 @@ Open `http://127.0.0.1:4173`. If system dependencies are already installed, use 
 
 ## Code map
 
-| Path                                 | Purpose                                                   |
-| ------------------------------------ | --------------------------------------------------------- |
-| `web/`                               | Interface, API client, connection, queue, charts and PWA. |
-| `apps-script/Code.gs`                | Authorization, reads, writes, journal and prices.         |
-| `apps-script/Bridge.html`            | Authenticated Google session bridge.                      |
-| `apps-script/appsscript.json`        | Google permissions and manifest.                          |
-| `tools/`                             | Builds, local server, checks and agent adapters.          |
-| `tests/*.test.cjs`, `tests/browser/` | Simulated Node and Playwright tests.                      |
-| `.github/workflows/`                 | Quality checks and Pages publication.                     |
+| Path                                 | Purpose                                                              |
+| ------------------------------------ | -------------------------------------------------------------------- |
+| `web/`                               | Interface, API client, connection, queue, charts and PWA.            |
+| `apps-script/*.gs`                   | Modular Apps Script backend; `modules.json` defines installer order. |
+| `apps-script/Bridge.html`            | Authenticated Google session bridge.                                 |
+| `apps-script/appsscript.json`        | Google permissions and manifest.                                     |
+| `tools/`                             | Builds, local server, checks and agent adapters.                     |
+| `tests/*.test.cjs`, `tests/browser/` | Simulated Node and Playwright tests.                                 |
+| `.github/workflows/`                 | Quality checks and Pages publication.                                |
 
 See [Architecture](ARCHITECTURE.md), [Contributing](../CONTRIBUTING.md), [Security](../SECURITY.md), [Prices](../apps-script/PRICES.md) and [branch protection](BRANCH_PROTECTION.md).
 
@@ -41,7 +41,7 @@ See [Architecture](ARCHITECTURE.md), [Contributing](../CONTRIBUTING.md), [Securi
 | `npm run audit`                   | Block known high/critical dependency vulnerabilities.                        |
 | `npm run check`                   | Build, format check, lint and both suites; excludes audit and commit checks. |
 
-Edit `tools/install-template.html` for installer instructions and the three `apps-script/` files for embedded code, then rebuild; do not manually edit generated `web/install.html`, `web/sw.js` or CSP hashes. Documentation does not require a version increase. Results use `quality-results/`, `test-results/` and `playwright-report/`; CI retains reports for 14 days. Tests simulate services; the dedicated PWA test checks offline reopening, not installation on a physical phone. Pages publication does not update Apps Script.
+Edit `tools/install-template.html` for installer instructions and the `apps-script/` modules for embedded code, then rebuild; do not manually edit generated `web/install.html`, `web/sw.js` or CSP hashes. Documentation does not require a version increase. Results use `quality-results/`, `test-results/` and `playwright-report/`; CI retains reports for 14 days. Tests simulate services; the dedicated PWA test checks offline reopening, not installation on a physical phone. Pages publication does not update Apps Script.
 
 ## Agent workflow
 

@@ -3,6 +3,16 @@ const { navigate, diagnostic } = require('./helpers/navigation.cjs');
 const fs = require('node:fs'),
   path = require('node:path');
 const deployment = 'https://script.google.com/macros/s/fixture-deployment/exec';
+const installFiles = [
+  ...JSON.parse(
+    fs.readFileSync(
+      path.join(__dirname, '../../apps-script/modules.json'),
+      'utf8',
+    ),
+  ).scripts,
+  'Bridge.html',
+  'appsscript.json',
+];
 
 test('CSP bloquea código inyectado y conexiones a terceros manteniendo la app funcional', async ({
   page,
@@ -69,14 +79,11 @@ test('el instalador copia cada archivo en su botón y Bridge comienza por HTML',
 }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.goto('/install.html');
-  for (const [index, name] of [
-    'Code.gs',
-    'Bridge.html',
-    'appsscript.json',
-  ].entries()) {
-    const button = page.locator('[data-copy="code-' + index + '"]');
+  for (const [index, name] of installFiles.entries()) {
+    const id = index + 1;
+    const button = page.locator('[data-copy="code-' + id + '"]');
     await expect(button).toHaveText('Copiar ' + name);
-    const expected = await page.locator('#code-' + index).textContent();
+    const expected = await page.locator('#code-' + id).textContent();
     await button.click();
     await expect(page.locator('#copy-status')).toContainText(
       name + ' copiado.',
