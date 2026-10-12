@@ -406,12 +406,30 @@ test('respuesta perdida y reapertura conservan sobre y consultan antes de reinte
   await setup(page, { lost: true });
   await expense(page);
   await page.locator('#review-confirm').click();
-  await expect(page.locator('#finance-queue')).toContainText('sin confirmar');
+  const uncertainCard = page.locator(
+    '#finance-queue .queue-item[data-state="uncertain"]',
+  );
+  await expect(uncertainCard).toContainText('sin confirmar');
+  const envelope = await page.evaluate(async (url) => {
+    const store = new FinanceSync.BrowserStore();
+    const data = await store.get(await FinanceSync.namespace(url));
+    return data.queue[0].envelope;
+  }, deployment);
   const before = await page.evaluate(
     () => JSON.parse(localStorage.getItem('fixture.server')).calls,
   );
+  expect(before).toHaveLength(1);
+  expect(before[0]).toEqual(envelope);
   await page.reload();
-  await expect(page.locator('#finance-queue')).toContainText('sin confirmar');
+  await expect(
+    page.locator('#finance-queue .queue-item[data-state="uncertain"]'),
+  ).toContainText('sin confirmar');
+  const reopenedEnvelope = await page.evaluate(async (url) => {
+    const store = new FinanceSync.BrowserStore();
+    const data = await store.get(await FinanceSync.namespace(url));
+    return data.queue[0].envelope;
+  }, deployment);
+  expect(reopenedEnvelope).toEqual(envelope);
   await page.locator('#finance-connect').click();
   await navigate(page, 'activity');
   await page.locator('#finance-sync').click();
@@ -422,6 +440,7 @@ test('respuesta perdida y reapertura conservan sobre y consultan antes de reinte
     () => JSON.parse(localStorage.getItem('fixture.server')).calls,
   );
   expect(after).toEqual(before);
+  expect(after[0].requestId).toBe(envelope.requestId);
 });
 test('sin conexión guarda pendiente en IndexedDB y la app vuelve a abrir con su copia local', async ({
   page,

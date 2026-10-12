@@ -445,6 +445,50 @@ const FinanceAnalytics = (() => {
       capitalKind: 'netContributions',
     };
   }
+  function transferPrecision(snapshot, transfer) {
+    const trades = snapshot?.tables?.tOperaciones || [];
+    const out = trades.find((o) => o.ID === transfer.outTradeID);
+    const incoming = trades.find((o) => o.ID === transfer.inTradeID);
+    const near = (a, b) =>
+      finite(a) &&
+      finite(b) &&
+      Math.abs(a - b) <=
+        Math.max(
+          1e-10,
+          Number.EPSILON * Math.max(1, Math.abs(a), Math.abs(b)) * 8,
+        );
+    const leg = (o, product, type, raw) =>
+      o &&
+      o.Producto === product &&
+      o.Tipo === type &&
+      o.Fecha === transfer.date &&
+      !o.Movimiento &&
+      finite(o.Participaciones) &&
+      finite(o.Precio) &&
+      (o.Comisión ?? 0) === 0 &&
+      (o.Retención ?? 0) === 0 &&
+      near(o.Participaciones * o.Precio, raw);
+    const quoteMatches = (product, price) => {
+      const quote = (snapshot?.tables?.tPrecios || []).find(
+        (q) => q.Producto === product && q.Fecha === transfer.date,
+      );
+      return quote && finite(quote['VL EUR']) && near(quote['VL EUR'], price);
+    };
+    const verified =
+      validDate(transfer.date) &&
+      finite(transfer.amount) &&
+      transfer.amount > 0 &&
+      finite(transfer.rawOut) &&
+      finite(transfer.rawIn) &&
+      cents(transfer.rawOut) === cents(transfer.amount) &&
+      cents(transfer.rawIn) === cents(transfer.amount) &&
+      near(transfer.rawIn - transfer.rawOut, transfer.valuationResidual) &&
+      leg(out, transfer.fromProduct, 'Venta', transfer.rawOut) &&
+      leg(incoming, transfer.toProduct, 'Compra', transfer.rawIn) &&
+      quoteMatches(transfer.fromProduct, out.Precio) &&
+      quoteMatches(transfer.toProduct, incoming.Precio);
+    return { ...transfer, verified };
+  }
   function investmentTimeline(
     snapshot,
     { productId = null, range = 'all' } = {},
@@ -465,6 +509,9 @@ const FinanceAnalytics = (() => {
           );
         })
         .map((o) => o.Producto),
+    );
+    const precisionAdjustments = (snapshot.fundTransfers || []).map((t) =>
+      transferPrecision(snapshot, t),
     );
     const operations = relevant
       .filter((o) => validDate(o.Fecha))
@@ -496,7 +543,13 @@ const FinanceAnalytics = (() => {
         productValues = {};
       let carried = false,
         flow = 0,
-        flowKnown = true;
+        flowKnown = true,
+        precisionAdjustment = 0;
+      if (!productId)
+        for (const t of precisionAdjustments.filter((t) => t.date === date)) {
+          if (!t.verified) flowKnown = false;
+          else precisionAdjustment += t.valuationResidual;
+        }
       for (const p of products) {
         let units =
           date >= (p['Fecha base'] || snapshot.settings.start)
@@ -528,6 +581,11 @@ const FinanceAnalytics = (() => {
           const transfer = (snapshot.fundTransfers || []).find(
             (t) => t.outTradeID === o.ID || t.inTradeID === o.ID,
           );
+          const rawFlow = transfer
+            ? o.ID === transfer.outTradeID
+              ? transfer.rawOut
+              : transfer.rawIn
+            : amount;
           const contribution = transfer
             ? finite(transfer.costBasis)
               ? transfer.costBasis
@@ -548,8 +606,8 @@ const FinanceAnalytics = (() => {
             ]);
           }
           if (o.Fecha === date && (!transfer || productId)) {
-            if (!finite(amount)) flowKnown = false;
-            else flow += amount * (o.Tipo === 'Compra' ? 1 : -1);
+            if (!finite(rawFlow)) flowKnown = false;
+            else flow += rawFlow * (o.Tipo === 'Compra' ? 1 : -1);
           }
         }
         if (
@@ -588,7 +646,8 @@ const FinanceAnalytics = (() => {
           // Quotes need not exist every calendar day. Without an intervening
           // external flow, real endpoint valuations determine the whole return.
           // Endpoint flows use the declared end-of-day convention.
-          const factor = (value - flow) / previousValuation.value;
+          const factor =
+            (value - flow - precisionAdjustment) / previousValuation.value;
           if (finite(factor) && factor >= 0) {
             linked *= factor;
             returnPct = 100 * (linked - 1);
@@ -602,7 +661,7 @@ const FinanceAnalytics = (() => {
           returnPct = 0;
         } else linked = null;
         previousValuation = { date, value };
-      } else if (!flowKnown || flow !== 0) {
+      } else if (!flowKnown || flow !== 0 || precisionAdjustment !== 0) {
         // A contribution during an unvalued interval cannot be neutralized
         // exactly. Do not silently restart a since-inception series afterwards.
         linked = null;
@@ -635,6 +694,7 @@ const FinanceAnalytics = (() => {
         value,
         returnPct,
         totalReturnPct,
+        precisionAdjustment: productId ? 0 : precisionAdjustment,
         carried,
         priceDates,
         productValues,
@@ -704,6 +764,10 @@ const FinanceAnalytics = (() => {
         selectedStartDate: selectedRows[0]?.date || null,
         selectedEndDate: selectedRows.at(-1)?.date || null,
         perProduct,
+        precisionAdjustments: precisionAdjustments.filter(
+          (t) => t.date >= cutoff && t.date <= lastDate,
+        ),
+        precisionConvention: 'noncashRawLegResidualAtRealValuation',
         invalidProducts: [...invalidProducts],
         method: productId ? 'navChange' : 'twrRealValuationIntervals',
         supportedIntervals,
@@ -721,7 +785,7 @@ const FinanceAnalytics = (() => {
             : []),
           productId
             ? 'Variación de VL desde primera cotización observada; no incluye distribuciones.'
-            : 'TWR entre cortes de valoración reales y flujos al cierre; los intervalos sin flujos pueden enlazarse sin inventar precios diarios. Un flujo sin valoración rompe el histórico de rentabilidad.',
+            : 'TWR ajustado: diferencias de precisión verificadas se excluyen mediante un ajuste sin efectivo. TWR entre cortes de valoración reales y flujos al cierre; los intervalos sin flujos pueden enlazarse sin inventar precios diarios. Un flujo sin valoración rompe el histórico de rentabilidad.',
         ],
       },
     };

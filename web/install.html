@@ -220,7 +220,7 @@
       <p class="eyebrow">GOOGLE SHEETS · CONEXIÓN PRIVADA</p>
       <h1>Instalación de Apps Script</h1>
       <p class="intro">
-        Archivos de Apps Script · Entrega 3.8.1 · API 3.3.0. Para
+        Archivos de Apps Script · Entrega 3.9.0 · API 3.3.0. Para
         instalar o actualizar el backend privado de Google.
       </p>
       <p class="notice">
@@ -367,7 +367,7 @@ const TABLE_SCHEMA_ = [
 ];
 
 const API_VERSION_ = &#x27;3.3.0&#x27;;
-const BUILD_VERSION_ = &#x27;3.8.1&#x27;;
+const BUILD_VERSION_ = &#x27;3.9.0&#x27;;
 const API_TRANSPORT_ = &#x27;finances.rpc.json.v1&#x27;;
 // El motor de fórmulas no cambia en el paso 4; conserva su sello de capacidad.
 const CAPACITY_VERSION_ = &#x27;3.1.0&#x27;;
@@ -458,6 +458,7 @@ const PROCESS_FIELDS_ = {
     &#x27;outPrice&#x27;,
     &#x27;inUnits&#x27;,
     &#x27;inPrice&#x27;,
+    &#x27;amount&#x27;,
   ],
   anular_traspaso_fondo: [&#x27;id&#x27;],
   editar_movimiento: [
@@ -910,6 +911,8 @@ const TECH_SCHEMA_ = {
       &#x27;Activo&#x27;,
       &#x27;Fecha registro&#x27;,
       &#x27;Concepto&#x27;,
+      &#x27;Valor bruto de salida&#x27;,
+      &#x27;Valor bruto de entrada&#x27;,
     ],
   ],
   migrations: [
@@ -1429,14 +1432,14 @@ function fundAdjustmentFormula_(product, date, kind) {
     ref(&#x27;J&#x27;) +
     &#x27;;1)&#x27;;
   return kind === &#x27;capital&#x27;
-    ? sum(&#x27;I&#x27;, &#x27;C&#x27;) +
+    ? sum(&#x27;M&#x27;, &#x27;C&#x27;) +
         &#x27;-&#x27; +
         sum(&#x27;G&#x27;, &#x27;C&#x27;) +
         &#x27;+&#x27; +
         sum(&#x27;G&#x27;, &#x27;D&#x27;) +
         &#x27;-&#x27; +
-        sum(&#x27;I&#x27;, &#x27;D&#x27;)
-    : &#x27;-&#x27; + sum(&#x27;H&#x27;, &#x27;C&#x27;) + &#x27;+&#x27; + sum(&#x27;H&#x27;, &#x27;D&#x27;) + &#x27;-&#x27; + sum(&#x27;I&#x27;, &#x27;D&#x27;);
+        sum(&#x27;N&#x27;, &#x27;D&#x27;)
+    : &#x27;-&#x27; + sum(&#x27;H&#x27;, &#x27;C&#x27;) + &#x27;+&#x27; + sum(&#x27;H&#x27;, &#x27;D&#x27;) + &#x27;-&#x27; + sum(&#x27;N&#x27;, &#x27;D&#x27;);
 }
 function fundCapitalAdjustedFormula_(formula, product, date) {
   return (
@@ -1742,11 +1745,14 @@ function refreshTransferBases_(s) {
         from.units &gt; 0 &amp;&amp; out.Participaciones &lt;= from.units + 1e-8,
         &#x27;Traspaso superior a las participaciones disponibles.&#x27;,
       );
-      const amount = tradeAmount_(out);
+      const amount = tradeAmount_(out),
+        incomingAmount = tradeAmount_(incoming);
       check_(
-        Math.abs(amount - tradeAmount_(incoming)) &lt;= 1e-8 &amp;&amp;
-          Math.abs(amount - t[8]) &lt;= 1e-8,
-        &#x27;Valor de traspaso incompatible.&#x27;,
+        Math.abs(amount - t[12]) &lt;= 1e-8 &amp;&amp;
+          Math.abs(incomingAmount - t[13]) &lt;= 1e-8 &amp;&amp;
+          money_(amount) === t[8] &amp;&amp;
+          money_(incomingAmount) === t[8],
+        &#x27;Las dos partes deben liquidar el importe ejecutado, sin cambiar participaciones ni precios.&#x27;,
       );
       const fraction = Math.min(1, out.Participaciones / from.units);
       t[6] = from.capital * fraction;
@@ -1888,6 +1894,9 @@ function validateFinancialState_(s) {
       number_(r[6], &#x27;Aportado neto trasladado&#x27;, false, -1e12);
       number_(r[7], &#x27;Aportado bruto trasladado&#x27;);
       number_(r[8], &#x27;Valor del traspaso&#x27;, false, 0, true);
+      moneyInput_(r[8], &#x27;Importe ejecutado&#x27;);
+      number_(r[12], &#x27;Valor bruto de salida&#x27;, false, 0, true);
+      number_(r[13], &#x27;Valor bruto de entrada&#x27;, false, 0, true);
     }
   });
   if ((s.technical.transfers || []).some((r) =&gt; r[9])) {
@@ -2697,10 +2706,15 @@ function applyOperations_(
       [&#x27;outUnits&#x27;, &#x27;outPrice&#x27;, &#x27;inUnits&#x27;, &#x27;inPrice&#x27;].forEach((k) =&gt;
         number_(required(o, k), k, false, 0, true),
       );
-      const value = o.outUnits * o.outPrice;
+      const value = o.outUnits * o.outPrice,
+        incomingValue = o.inUnits * o.inPrice;
+      const settlement = moneyInput_(
+        blank_(o.amount) ? money_(value) : o.amount,
+        &#x27;Importe ejecutado&#x27;,
+      );
       check_(
-        Math.abs(value - o.inUnits * o.inPrice) &lt;= 1e-8,
-        &#x27;Los dos fondos deben cerrar el mismo valor en EUR.&#x27;,
+        money_(value) === settlement &amp;&amp; money_(incomingValue) === settlement,
+        &#x27;Las dos partes deben liquidar el mismo importe ejecutado en céntimos.&#x27;,
       );
       text_(required(o, &#x27;concept&#x27;), &#x27;Concepto&#x27;);
       const out = tradeId + &#x27;-OUT&#x27;,
@@ -2747,10 +2761,12 @@ function applyOperations_(
         incoming,
         0,
         0,
-        value,
+        settlement,
         1,
         now,
         o.concept,
+        value,
+        incomingValue,
       ]);
       s.settings.asof = Math.max(s.settings.asof, date);
       s.settings.valuation = Math.max(s.settings.valuation, date);
@@ -3740,6 +3756,9 @@ function publicSnapshot_(s) {
         investedBasis: r[7],
         amount: r[8],
         concept: r[11],
+        rawOut: r[12],
+        rawIn: r[13],
+        valuationResidual: r[13] - r[12],
       })),
     capabilities: {
       archives: true,
@@ -6944,7 +6963,7 @@ function comprobarCierre() {
       const appOrigin = document.getElementById(&#x27;origin&#x27;).textContent;
       const status = document.getElementById(&#x27;status&#x27;);
       const detail = document.getElementById(&#x27;detail&#x27;);
-      const BRIDGE_VERSION = &#x27;3.8.1&#x27;;
+      const BRIDGE_VERSION = &#x27;3.9.0&#x27;;
       const API_TRANSPORT = &#x27;finances.rpc.json.v1&#x27;;
       const errors = {
         INVALID_REQUEST:
@@ -7204,7 +7223,7 @@ function comprobarCierre() {
         </details>
       </section>
       <section class="configuration">
-        <p class="eyebrow">PASO 5 · ENTREGA 3.8.1 · API 3.3.0</p>
+        <p class="eyebrow">PASO 5 · ENTREGA 3.9.0 · API 3.3.0</p>
         <h2>Leer el libro y registrar operaciones</h2>
         <ol>
           <li>
@@ -7216,7 +7235,7 @@ function comprobarCierre() {
             Ejecuta <strong>comprobarPaso4</strong> si necesitas preparar las
             hojas técnicas; después <strong>comprobarPaso5</strong>. Debe
             indicar API 3.3.0, doce tablas, backendReady y calculationReady
-            correctos; buildVersion 3.8.1 y bridgeReady true.
+            correctos; buildVersion 3.9.0 y bridgeReady true.
             summaryReady comprueba que el resumen nativo dispone de cifras y
             precios al corte; no acredita la consulta de fuentes.
           </li>
@@ -7301,7 +7320,7 @@ function comprobarCierre() {
             <strong
               >Ajustes → Diagnóstico del sistema → Comprobar sistema</strong
             >. Solo lee y consulta fuentes; no guarda precios. Comprueba
-            buildVersion 3.8.1, technicalReady true y todos los
+            buildVersion 3.9.0, technicalReady true y todos los
             checks true. Un resumen correcto no acredita por sí solo las
             fuentes.
           </li>

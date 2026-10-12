@@ -374,7 +374,7 @@ test('fund transfer rejects nonclosing/excess units and unknown native formula b
   for (const change of [
     { outUnits: 6, inUnits: 9 },
     { inPrice: 3 },
-    { inPrice: 2.001 },
+    { inPrice: 2.002 },
   ]) {
     const { r, op } = funds(),
       before = r.state();
@@ -717,4 +717,81 @@ test('native gate accepts Sheets optional quote normalization without relaxing l
     state.tables.tOperaciones.length,
     r.state().tables.tOperaciones.length,
   );
+});
+
+test('legacy fund-transfer schema fails closed before financial writes', () => {
+  const { r, op } = funds(),
+    state = r.state(),
+    transferSchema = state.tech.transfers;
+  r.ctx.Sheets.Spreadsheets.batchUpdate(
+    {
+      requests: [
+        {
+          updateCells: {
+            start: {
+              sheetId: transferSchema.id,
+              rowIndex: 0,
+              columnIndex: 0,
+            },
+            rows: [
+              {
+                values: transferSchema.headers.slice(0, 12).map((value) => ({
+                  userEnteredValue: { stringValue: value },
+                })),
+              },
+            ],
+            fields: 'userEnteredValue',
+          },
+        },
+        {
+          updateCells: {
+            start: {
+              sheetId: transferSchema.id,
+              rowIndex: 0,
+              columnIndex: 12,
+            },
+            rows: [{ values: [{}, {}] }],
+            fields: 'userEnteredValue',
+          },
+        },
+      ],
+    },
+    'fixture-book',
+  );
+  const writesBefore = r.writes.length,
+    result = r.api({
+      action: 'transact',
+      requestId: require('node:crypto').randomUUID(),
+      expectedRevision: state.revision,
+      operations: [op],
+    });
+  assert.equal(result.error, 'SCHEMA_CONFLICT');
+  assert.equal(r.writes.length, writesBefore);
+});
+
+test('broker cent settlement preserves raw leg inputs and exact transferred contribution basis', () => {
+  const { r, op } = funds();
+  const before = r.state(),
+    result = r.transact([{ ...op, inPrice: 2.001, amount: 6 }]);
+  assert.equal(result.ok, true, result.message);
+  const transfer = r.api({ action: 'read' }).fundTransfers[0];
+  assert.equal(transfer.amount, 6);
+  assert.equal(transfer.rawOut, 6);
+  assert.equal(transfer.rawIn, 6.003);
+  assert.ok(Math.abs(transfer.valuationResidual - 0.003) < 1e-12);
+  assert.equal(transfer.costBasis, 4);
+  assert.equal(transfer.investedBasis, 4);
+  assert.deepEqual(r.state().tables.tMovimientos, before.tables.tMovimientos);
+  const sourceCapital = 10 - 2 * 3 + (transfer.rawOut - transfer.costBasis),
+    destinationCapital = 3 * 2.001 + (transfer.costBasis - transfer.rawIn);
+  assert.equal(sourceCapital + destinationCapital, 10);
+  assert.equal(
+    r.state().tables.tOperaciones.find((t) => t.Tipo === 'Compra').Precio,
+    2.001,
+  );
+  const stable = r.state();
+  assert.equal(r.transact([{ ...op, inPrice: 2.001, amount: 6.01 }]).ok, false);
+  assert.deepEqual(r.state(), stable);
+  assert.ok(r.formulas().some(([, f]) => f.includes('$M$2:$M')));
+  assert.ok(r.formulas().some(([, f]) => f.includes('$N$2:$N')));
 });

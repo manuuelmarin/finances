@@ -6,6 +6,10 @@ Build numbers identify the app and Apps Script code, not necessarily GitHub tags
 
 Simplified documentation, issue and PR templates, and editing conventions. Build 3.8.1 runtime files, dependencies and deployment configuration are preserved.
 
+## 3.9.0
+
+Reviewed financial operations add typed archives, templates, plans, payroll and contextual corrections, and paired fund transfers with guarded native formula migration. Broker cent settlement and transfer precision are carried into portfolio time-weighted returns. Analytics distinguishes NAV change from distribution-inclusive total return; CSV export includes the full filtered result. API 3.3.0 and workbook model 3 remain unchanged.
+
 ## 3.8.1
 
 [PR #14](https://github.com/manuuelmarin/finances/pull/14): revised contribution/value charts and TWR between observed valuations. Missing initial history remains unknown; insufficient valuations interrupt TWR. Optional daily prices in test include concurrency checks, receipt recovery and stale-price handling.

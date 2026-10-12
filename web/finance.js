@@ -1386,7 +1386,7 @@
     $('operation-note').textContent =
       {
         traspaso_fondo:
-          'Las dos partes deben cerrar el mismo valor en EUR. Se trasladan participaciones y aportaciones; no se crea caja ni ingreso. El backend verifica y conserva las fórmulas revisadas antes de registrar el lote.',
+          'Las dos partes deben liquidar el mismo importe ejecutado en céntimos. El valor bruto puede diferir por la precisión de participaciones o valor liquidativo; esa diferencia se muestra al revisar. Se trasladan participaciones y aportaciones; no se crea caja ni ingreso. El backend verifica y conserva las fórmulas revisadas antes de registrar el lote.',
         producto:
           'La posición base recoge lo que ya tienes en esa fecha. No crea compras ni caja. Si cambias de fondo, crea otro producto para conservar su historial.',
         asignacion:
@@ -1949,7 +1949,11 @@
           D.processes[process].label +
           (op.concept ? ' · ' + op.concept : op.name ? ' · ' + op.name : '');
       }
-      showReview([op], label);
+      const transferNote =
+        op.process === 'traspaso_fondo'
+          ? `Importe ejecutado: ${displayValue('amount', op.amount, snapshot)}. Valor bruto de salida: ${(op.outUnits * op.outPrice).toLocaleString('es-ES', { maximumFractionDigits: 12 })} EUR; valor bruto de entrada: ${(op.inUnits * op.inPrice).toLocaleString('es-ES', { maximumFractionDigits: 12 })} EUR. Diferencia de valoración por precisión: ${(op.inUnits * op.inPrice - op.outUnits * op.outPrice).toLocaleString('es-ES', { maximumFractionDigits: 12 })} EUR. Se conservan las participaciones y los valores liquidativos reales. No se registra caja; las aportaciones se trasladan sin esa diferencia.`
+          : undefined;
+      showReview([op], label, null, transferNote);
     } catch (error) {
       $('operation-error').textContent = errorText(error);
       $('operation-error').hidden = false;

@@ -401,7 +401,7 @@ const FinanceDashboard = (() => {
     FinanceCharts.plot(target, {
       title: product
         ? 'Variación del valor liquidativo'
-        : 'Rentabilidad de la cartera',
+        : 'Rentabilidad ajustada de la cartera',
       rows: timeline.rows,
       unit: '%',
       emptyMessage: product
@@ -414,8 +414,8 @@ const FinanceDashboard = (() => {
           label: product
             ? 'Variación de VL'
             : timeline.coverage.returnStartDate
-              ? 'TWR desde ' + timeline.coverage.returnStartDate
-              : 'Rentabilidad TWR',
+              ? 'TWR ajustado desde ' + timeline.coverage.returnStartDate
+              : 'TWR ajustado',
           tone: 'chart-mint',
         },
       ],
@@ -428,7 +428,7 @@ const FinanceDashboard = (() => {
                 ? '. '
                 : '; el rendimiento anterior es desconocido. ')
             : '') +
-          'TWR entre valoraciones reales con flujos al cierre. Si hay aportaciones o retiradas entre cortes sin valoración, no puede calcularse: registra los VL de esos cortes. El resultado sobre aportación neta aparece arriba como una métrica distinta.',
+          'TWR ajustado entre valoraciones reales con flujos al cierre: excluye diferencias de precisión vinculadas al traspaso; el detalle muestra cada ajuste sin efectivo. Si hay aportaciones o retiradas entre cortes sin valoración, no puede calcularse: registra los VL de esos cortes. El resultado sobre aportación neta aparece arriba como una métrica distinta.',
     });
     if (product)
       FinanceCharts.plot(target, {
@@ -466,6 +466,44 @@ const FinanceDashboard = (() => {
   function renderPriceCoverage(coverage) {
     const target = $('investment-health');
     target.replaceChildren();
+    if (coverage.precisionAdjustments.length) {
+      const card = el('article', undefined, 'budget-card');
+      const details = el('details');
+      details.append(el('summary', 'Diferencias de precisión por traspaso'));
+      details.append(
+        el(
+          'p',
+          'El TWR ajustado excluye la diferencia entre las dos valoraciones brutas del traspaso cuando las referencias y el corte real son verificables. No crea efectivo ni ingresos. El valor y resultado nativos conservan sus cifras nominales.',
+        ),
+      );
+      const raw = new Intl.NumberFormat('es-ES', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 12,
+      });
+      for (const t of coverage.precisionAdjustments)
+        details.append(
+          el(
+            'p',
+            t.date +
+              ' · ' +
+              (t.concept || 'Traspaso') +
+              ' · salida bruta ' +
+              (known(t.rawOut) ? raw.format(t.rawOut) : 'sin dato') +
+              ' EUR · entrada bruta ' +
+              (known(t.rawIn) ? raw.format(t.rawIn) : 'sin dato') +
+              ' EUR · diferencia ' +
+              (known(t.valuationResidual)
+                ? raw.format(t.valuationResidual)
+                : 'sin dato') +
+              ' EUR · ' +
+              (t.verified
+                ? 'referencias verificadas; ajuste solo con valoración real contemporánea'
+                : 'evidencia insuficiente: rentabilidad desconocida'),
+          ),
+        );
+      card.append(details);
+      target.append(card);
+    }
     for (const p of coverage.perProduct) {
       const evidence = current.prices?.find((q) => q.product === p.product);
       const card = el('article', undefined, 'budget-card');

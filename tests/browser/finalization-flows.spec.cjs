@@ -11,19 +11,20 @@ const {
 } = require('./helpers/finalization-runtime.cjs');
 const header =
   'isin,referenceName,classCurrency,quoteCurrency,date,price,provider,sourceUrl,exportedAt';
+const csvField = (value) => '"' + String(value).replace(/"/g, '""') + '"';
 const historyCsv = (count = 21, price = 301.123456) =>
   header +
   '\n' +
   Array.from({ length: count }, (_, index) =>
     [
       isin,
-      referenceName,
+      csvField(referenceName),
       'EUR',
       'EUR',
       '2026-09-' + String(index + 1).padStart(2, '0'),
       price,
       'Synthetic owner reviewed export',
-      '',
+      'https://example.com/fictitious-fund/nav-history.csv',
       '2026-10-01T12:00:00Z',
     ].join(','),
   ).join('\n');
@@ -141,6 +142,7 @@ test('template saving creates no movement, reuse reviews actual money, and archi
   expect(server.api({ action: 'read' }).tables.tMovimientos).toHaveLength(
     movements,
   );
+  await navigate(page, 'home');
   await page.locator('#finance-new').click();
   await page.locator('.operation-templates summary').click();
   await page
@@ -173,6 +175,7 @@ test('template saving creates no movement, reuse reviews actual money, and archi
   expect(server.api({ action: 'read' }).tables.tMovimientos).toHaveLength(
     movements + 1,
   );
+  await navigate(page, 'home');
   await page.locator('#finance-new').click();
   await expect(
     page.locator('#operation-account option[value="Cuenta A"]'),
@@ -277,8 +280,11 @@ test('local copy controls distinguish hiding, closing, disconnecting and erasing
     'review',
   ]);
   await page.getByRole('button', { name: 'Ocultar / mostrar datos' }).click();
+  await expect(page.locator('#finance-kpis')).toBeHidden();
+  await page.getByRole('button', { name: 'Ocultar / mostrar datos' }).click();
+  await expect(page.locator('#finance-kpis')).toBeVisible();
   await navigate(page, 'home');
-  await expect(page.locator('#finance-kpis')).not.toBeVisible();
+  await expect(page.locator('#finance-kpis')).toBeVisible();
   expect((await queueData(page)).snapshot.bookKey).toBe(
     current.snapshot.bookKey,
   );

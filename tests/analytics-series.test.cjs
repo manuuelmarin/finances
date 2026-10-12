@@ -517,6 +517,9 @@ test('cashless fund transfer carries signed net contribution basis and neutraliz
       costBasis: 50,
       investedBasis: 50,
       amount: 50,
+      rawOut: 50,
+      rawIn: 50,
+      valuationResidual: 0,
     },
   ];
   const rows = A.investmentTimeline(s).rows;
@@ -545,6 +548,95 @@ test('cashless fund transfer carries signed net contribution basis and neutraliz
   assert.equal(A.investmentTimeline(s).rows.at(-1).capital, 100);
   s.fundTransfers[0].costBasis = null;
   assert.equal(A.investmentTimeline(s).rows.at(-1).capital, null);
+});
+test('asymmetric raw transfer adjusts portfolio TWR only with same-day NAV evidence', () => {
+  const s = fixture();
+  s.settings.asof = s.settings.valuation = '2026-01-03';
+  s.tables.tProductos.push({
+    ID: 'Q',
+    Producto: 'Destination',
+    'Fecha base': '2026-01-01',
+    'Unidades base': 1,
+    'Coste base': 10,
+  });
+  s.tables.tProductos.find((p) => p.ID === 'P')['Unidades base'] = 10;
+  s.tables.tProductos.find((p) => p.ID === 'P')['Coste base'] = 100;
+  s.tables.tOperaciones = [
+    {
+      ID: 'out',
+      Producto: 'P',
+      Fecha: '2026-01-02',
+      Tipo: 'Venta',
+      Participaciones: 0.6,
+      Importe: 6,
+      Precio: 10,
+      Movimiento: null,
+    },
+    {
+      ID: 'in',
+      Producto: 'Q',
+      Fecha: '2026-01-02',
+      Tipo: 'Compra',
+      Participaciones: 0.6003,
+      Importe: 6,
+      Precio: 10,
+      Movimiento: null,
+    },
+  ];
+  s.tables.tPrecios = [
+    { Producto: 'P', Fecha: '2026-01-01', 'VL EUR': 10 },
+    { Producto: 'P', Fecha: '2026-01-02', 'VL EUR': 10 },
+    { Producto: 'P', Fecha: '2026-01-03', 'VL EUR': 10 },
+    { Producto: 'Q', Fecha: '2026-01-01', 'VL EUR': 10 },
+    { Producto: 'Q', Fecha: '2026-01-02', 'VL EUR': 10 },
+    { Producto: 'Q', Fecha: '2026-01-03', 'VL EUR': 10 },
+  ];
+  s.fundTransfers = [
+    {
+      id: 'T',
+      date: '2026-01-02',
+      fromProduct: 'P',
+      toProduct: 'Q',
+      outTradeID: 'out',
+      inTradeID: 'in',
+      costBasis: 6,
+      investedBasis: 6,
+      amount: 6,
+      rawOut: 6,
+      rawIn: 6.003,
+      valuationResidual: 0.003,
+    },
+  ];
+  const timeline = A.investmentTimeline(s);
+  const transferRow = timeline.rows[1];
+  assert.equal(transferRow.returnPct, 0);
+  assert.equal(transferRow.value, 110.003);
+  assert.equal(transferRow.capital, 110);
+  assert.equal(transferRow.precisionAdjustment, 0.003);
+  assert.equal(timeline.coverage.precisionAdjustments[0].verified, true);
+  assert.equal(
+    A.investmentTimeline(s, { productId: 'P' }).rows[1].returnPct,
+    0,
+  );
+  assert.equal(
+    A.investmentTimeline(s, { productId: 'Q' }).rows[1].returnPct,
+    0,
+  );
+  assert.equal(
+    A.investmentTimeline(s, { productId: 'Q' }).rows[1].totalReturnPct,
+    0,
+  );
+  assert.deepEqual(
+    s.tables.tMovimientos.map((m) => m.ID),
+    ['transfer', 'expense', 'payroll'],
+  );
+
+  s.tables.tPrecios = s.tables.tPrecios.filter(
+    (q) => !(q.Producto === 'Q' && q.Fecha === '2026-01-02'),
+  );
+  const unverified = A.investmentTimeline(s);
+  assert.equal(unverified.rows[1].returnPct, null);
+  assert.equal(unverified.rows[2].returnPct, null);
 });
 test('same-class total return includes net distributions once while NAV variation remains separate', () => {
   const s = fixture();

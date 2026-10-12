@@ -113,7 +113,7 @@ const TABLE_SCHEMA_ = [
 ];
 
 const API_VERSION_ = '3.3.0';
-const BUILD_VERSION_ = '3.8.1';
+const BUILD_VERSION_ = '3.9.0';
 const API_TRANSPORT_ = 'finances.rpc.json.v1';
 // El motor de fórmulas no cambia en el paso 4; conserva su sello de capacidad.
 const CAPACITY_VERSION_ = '3.1.0';
@@ -204,6 +204,7 @@ const PROCESS_FIELDS_ = {
     'outPrice',
     'inUnits',
     'inPrice',
+    'amount',
   ],
   anular_traspaso_fondo: ['id'],
   editar_movimiento: [
@@ -656,6 +657,8 @@ const TECH_SCHEMA_ = {
       'Activo',
       'Fecha registro',
       'Concepto',
+      'Valor bruto de salida',
+      'Valor bruto de entrada',
     ],
   ],
   migrations: [
@@ -1175,14 +1178,14 @@ function fundAdjustmentFormula_(product, date, kind) {
     ref('J') +
     ';1)';
   return kind === 'capital'
-    ? sum('I', 'C') +
+    ? sum('M', 'C') +
         '-' +
         sum('G', 'C') +
         '+' +
         sum('G', 'D') +
         '-' +
-        sum('I', 'D')
-    : '-' + sum('H', 'C') + '+' + sum('H', 'D') + '-' + sum('I', 'D');
+        sum('N', 'D')
+    : '-' + sum('H', 'C') + '+' + sum('H', 'D') + '-' + sum('N', 'D');
 }
 function fundCapitalAdjustedFormula_(formula, product, date) {
   return (
@@ -1488,11 +1491,14 @@ function refreshTransferBases_(s) {
         from.units > 0 && out.Participaciones <= from.units + 1e-8,
         'Traspaso superior a las participaciones disponibles.',
       );
-      const amount = tradeAmount_(out);
+      const amount = tradeAmount_(out),
+        incomingAmount = tradeAmount_(incoming);
       check_(
-        Math.abs(amount - tradeAmount_(incoming)) <= 1e-8 &&
-          Math.abs(amount - t[8]) <= 1e-8,
-        'Valor de traspaso incompatible.',
+        Math.abs(amount - t[12]) <= 1e-8 &&
+          Math.abs(incomingAmount - t[13]) <= 1e-8 &&
+          money_(amount) === t[8] &&
+          money_(incomingAmount) === t[8],
+        'Las dos partes deben liquidar el importe ejecutado, sin cambiar participaciones ni precios.',
       );
       const fraction = Math.min(1, out.Participaciones / from.units);
       t[6] = from.capital * fraction;
@@ -1634,6 +1640,9 @@ function validateFinancialState_(s) {
       number_(r[6], 'Aportado neto trasladado', false, -1e12);
       number_(r[7], 'Aportado bruto trasladado');
       number_(r[8], 'Valor del traspaso', false, 0, true);
+      moneyInput_(r[8], 'Importe ejecutado');
+      number_(r[12], 'Valor bruto de salida', false, 0, true);
+      number_(r[13], 'Valor bruto de entrada', false, 0, true);
     }
   });
   if ((s.technical.transfers || []).some((r) => r[9])) {
@@ -2443,10 +2452,15 @@ function applyOperations_(
       ['outUnits', 'outPrice', 'inUnits', 'inPrice'].forEach((k) =>
         number_(required(o, k), k, false, 0, true),
       );
-      const value = o.outUnits * o.outPrice;
+      const value = o.outUnits * o.outPrice,
+        incomingValue = o.inUnits * o.inPrice;
+      const settlement = moneyInput_(
+        blank_(o.amount) ? money_(value) : o.amount,
+        'Importe ejecutado',
+      );
       check_(
-        Math.abs(value - o.inUnits * o.inPrice) <= 1e-8,
-        'Los dos fondos deben cerrar el mismo valor en EUR.',
+        money_(value) === settlement && money_(incomingValue) === settlement,
+        'Las dos partes deben liquidar el mismo importe ejecutado en céntimos.',
       );
       text_(required(o, 'concept'), 'Concepto');
       const out = tradeId + '-OUT',
@@ -2493,10 +2507,12 @@ function applyOperations_(
         incoming,
         0,
         0,
-        value,
+        settlement,
         1,
         now,
         o.concept,
+        value,
+        incomingValue,
       ]);
       s.settings.asof = Math.max(s.settings.asof, date);
       s.settings.valuation = Math.max(s.settings.valuation, date);
@@ -3486,6 +3502,9 @@ function publicSnapshot_(s) {
         investedBasis: r[7],
         amount: r[8],
         concept: r[11],
+        rawOut: r[12],
+        rawIn: r[13],
+        valuationResidual: r[13] - r[12],
       })),
     capabilities: {
       archives: true,

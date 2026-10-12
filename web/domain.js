@@ -67,6 +67,12 @@ const FinanceDomain = (() => {
         field('outPrice', 'Valor liquidativo de salida EUR', 'decimal'),
         field('inUnits', 'Participaciones de entrada', 'decimal'),
         field('inPrice', 'Valor liquidativo de entrada EUR', 'decimal'),
+        field(
+          'amount',
+          'Importe ejecutado por el intermediario EUR · vacío para calcular céntimos',
+          'money',
+          false,
+        ),
       ],
     },
     archivar: {
@@ -374,6 +380,18 @@ const FinanceDomain = (() => {
           throw Error('Selección inválida.');
         result[f.key] = value === 'true';
       } else result[f.key] = value;
+    }
+    if (process === 'traspaso_fondo') {
+      const cents = (value) => Math.round((value + Number.EPSILON) * 100) / 100;
+      if (result.amount === null)
+        result.amount = cents(result.outUnits * result.outPrice);
+      if (
+        cents(result.outUnits * result.outPrice) !== result.amount ||
+        cents(result.inUnits * result.inPrice) !== result.amount
+      )
+        throw Error(
+          'Las dos partes deben liquidar el mismo importe ejecutado en céntimos.',
+        );
     }
     if (process === 'producto' && result.isin && !result.referenceName)
       result.referenceName = result.name;

@@ -156,7 +156,7 @@ test('reviewed fund transfer persists paired cashless legs and one receipt witho
   ).ID;
   await navigate(page, 'investments');
   await page.getByRole('tab', { name: 'Operaciones', exact: true }).click();
-  await page.locator('#finance-new').click();
+  await page.locator('#view-investments [data-operation="compra"]').click();
   await page.locator('#operation-kind').selectOption('traspaso_fondo');
   for (const [field, value] of Object.entries({
     date: '2026-01-02',

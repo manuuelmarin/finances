@@ -8,15 +8,16 @@ Synthetic positions replaced inputs only inside the copy. Private input/formula/
 
 Each tuple below is `(units, net contributions, value, result, return percentage)`.
 
-| Scenario                                                     | Source fund              | Destination fund        | Preserved portfolio totals             |
-| ------------------------------------------------------------ | ------------------------ | ----------------------- | -------------------------------------- |
-| Baseline                                                     | `(10, 20, 30, 10, 50%)`  | `(0, 0, 0, 0, unknown)` | Contributions 20; value 30; result 10  |
-| Partial transfer at value 6                                  | `(8, 16, 24, 8, 50%)`    | `(3, 4, 6, 2, 50%)`     | Contributions 20; value 30; result 10  |
-| Transfer remaining position at value 24                      | `(0, 0, 0, 0, unknown)`  | `(15, 20, 30, 10, 50%)` | Contributions 20; value 30; result 10  |
-| Signed-basis baseline after synthetic cash-linked withdrawal | `(5, -10, 15, 25, 125%)` | `(0, 0, 0, 0, unknown)` | Contributions -10; value 15; result 25 |
-| Signed-basis transfer at value 6                             | `(3, -6, 9, 15, 125%)`   | `(3, -4, 6, 10, 125%)`  | Contributions -10; value 15; result 25 |
+| Scenario                                                               | Source fund              | Destination fund                | Preserved portfolio totals                                                                        |
+| ---------------------------------------------------------------------- | ------------------------ | ------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Baseline                                                               | `(10, 20, 30, 10, 50%)`  | `(0, 0, 0, 0, unknown)`         | Contributions 20; value 30; result 10                                                             |
+| Partial transfer at value 6                                            | `(8, 16, 24, 8, 50%)`    | `(3, 4, 6, 2, 50%)`             | Contributions 20; value 30; result 10                                                             |
+| Broker precision: outgoing raw 6, incoming raw 6.003, both settle 6.00 | `(8, 16, 24, 8, 50%)`    | `(3, 4, 6.003, 2.003, 50.075%)` | Contributions exactly 20; actual value 30.003; disclosed valuation residual 0.003; cash unchanged |
+| Transfer remaining position at value 24                                | `(0, 0, 0, 0, unknown)`  | `(15, 20, 30, 10, 50%)`         | Contributions 20; value 30; result 10                                                             |
+| Signed-basis baseline after synthetic cash-linked withdrawal           | `(5, -10, 15, 25, 125%)` | `(0, 0, 0, 0, unknown)`         | Contributions -10; value 15; result 25                                                            |
+| Signed-basis transfer at value 6                                       | `(3, -6, 9, 15, 125%)`   | `(3, -4, 6, 10, 125%)`          | Contributions -10; value 15; result 25                                                            |
 
-The native monthly history matched each position's units, contributions and value. Each transfer preserved exact cash balances relative to its preceding baseline. The independent auditor fetched unformatted effective values for full and signed cases directly from Google. All 297 targeted migration formulas (240 product contribution/percentage formulas and 57 history contribution formulas) compiled and recalculated in the native engine, including empty capacity rows.
+The native monthly history matched each position's units, contributions and value. The final per-leg formula expressions were also compiled and recalculated for an asymmetric raw-value case: contribution capital stayed exactly 20 while actual units/NAVs retained the disclosed 0.003 precision valuation residual. No cash or income was invented. Each transfer preserved exact cash balances relative to its preceding baseline. The independent auditor fetched unformatted effective values for full and signed cases directly from Google. All 297 targeted migration formulas (240 product contribution/percentage formulas and 57 history contribution formulas) compiled and recalculated in the native engine, including empty capacity rows.
 
 ## Recovery and formula representation
 
@@ -34,4 +35,4 @@ No release claim relies on byte-identical reentry of imported formula text. Reco
 
 ## Local checks
 
-Focused operation tests cover atomic metadata-only writes and receipts, planning realization, complete payroll corrections and unknown values, contextual linked reclassification, reference integrity and rename behavior, archive history and picker eligibility, CSV injection/delimiter handling, two-leg cash-neutral transfers, signed basis, invalid units/value closing, unknown native formula rejection, request replay, cancellation/restoration and readback normalization. Financial/API, budget, domain, pricing and production-isolation regressions also pass. Browser interaction tests are included for percentage focus/export and payroll review; final browser execution belongs to the integrated release check.
+Focused operation tests cover atomic metadata-only writes and receipts, planning realization, complete payroll corrections and unknown values, contextual linked reclassification, reference integrity and rename behavior, archive history and picker eligibility, CSV injection/delimiter handling, two-leg cash-neutral transfers, signed basis, invalid units/value closing, unknown native formula rejection, broker cent-settlement compatibility with raw-leg authenticity, request replay, cancellation/restoration and readback normalization. Financial/API, budget, domain, pricing and production-isolation regressions also pass. Browser interaction tests are included for percentage focus/export and payroll review; final browser execution belongs to the integrated release check.

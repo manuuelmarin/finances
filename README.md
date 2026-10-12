@@ -4,7 +4,7 @@
 
 Personal finance PWA backed by private Google Sheets and Apps Script. Track cash, investments, budgets, salary and savings goals with interactive charts, sortable tables and an offline operation queue.
 
-**App 3.8.1 · API 3.3.0 · model 3 · test environment · Spanish interface.**
+**App 3.9.0 · API 3.3.0 · model 3 · test environment · Spanish interface.**
 
 [Open app](https://manuuelmarin.github.io/finances/) · [Install Google backend](https://manuuelmarin.github.io/finances/install.html)
 
