@@ -114,7 +114,7 @@ async function setup(page, options = {}) {
   const mock = `
 FinanceApiClient = class {
   constructor(url) { this.url = url; this.session = null; }
-  async connect() { this.close(); window.fictionalGoogleOpens++; this.session = { rpcReady: true, bridgeVersion: '3.9.0', popup: { closed: false } }; return { ok: true, apiVersion: '3.3.0' }; }
+  async connect() { this.close(); window.fictionalGoogleOpens++; this.session = { rpcReady: true, bridgeVersion: '3.9.1', popup: { closed: false } }; return { ok: true, apiVersion: '3.3.0' }; }
   close() { if (this.session) this.session.popup.closed = true; this.session = null; }
   read() { return window.fictionalFinanceRpc({ action: 'read' }); }
   request(body) { return window.fictionalFinanceRpc(body); }

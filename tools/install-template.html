@@ -373,11 +373,12 @@
         </p>
         <p>
           Se guardan valores liquidativos reales con la fecha publicada en
-          tPrecios, sin duplicar producto y fecha. Esto acumula el historial
-          desde su activación; el proveedor actual no permite reconstruir de
-          forma verificable todos los valores diarios anteriores. Los gráficos
-          identifican los huecos y los días que usan el último precio
-          disponible.
+          tPrecios, sin duplicar producto y fecha. Los históricos verificados
+          pueden importarse por fecha; si el archivo tiene menos precisión que
+          la fuente diaria, importa solo fechas anteriores al último VL diario
+          verificado de ese fondo y deja esa fecha y las posteriores al
+          actualizador. La comprobación de conflictos de misma fecha permanece
+          estricta. La vista Histórico deja en blanco los días sin VL publicado.
         </p>
       </section>
       <section class="configuration">

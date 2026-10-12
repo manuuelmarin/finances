@@ -282,7 +282,12 @@ test('actualización atómica guarda precio, consulta, auditoría y solicitud y 
   assert.equal(res.ok, true);
   assert.equal(res.complete, true);
   assert.equal(res.results[0].status, 'updated');
-  assert.equal(r.writes.length, writes + 1);
+  assert.equal(r.writes.length, writes + 2);
+  assert.ok(
+    r.book().sheets.some((sheet) => sheet.properties.title === 'Histórico'),
+  );
+  assert.equal(r.api({ action: 'diagnostics' }).businessSheetCount, 10);
+  assert.equal(r.api({ action: 'diagnostics' }).tableCount, 12);
   const s = r.state();
   assert.equal(s.tables.tPrecios.at(-1)['VL EUR'], 345.19706);
   assert.equal(s.tables.tPrecios.at(-1).Fecha, serial('2026-10-02'));
@@ -509,7 +514,7 @@ test('migración desde tres hojas técnicas añade fondos, cotizaciones y presup
     JSON.stringify(r.state().technical.requests),
     JSON.stringify(before.technical.requests),
   );
-  assert.equal(r.book().sheets.length, 21);
+  assert.equal(r.book().sheets.length, 22);
 });
 test('ampliación de precios con tabla llena conserva los precios históricos y guarda el nuevo una sola vez', () => {
   const r = configured(),

@@ -220,7 +220,7 @@
       <p class="eyebrow">GOOGLE SHEETS · CONEXIÓN PRIVADA</p>
       <h1>Instalación de Apps Script</h1>
       <p class="intro">
-        Archivos de Apps Script · Entrega 3.9.0 · API 3.3.0. Para
+        Archivos de Apps Script · Entrega 3.9.1 · API 3.3.0. Para
         instalar o actualizar el backend privado de Google.
       </p>
       <p class="notice">
@@ -367,7 +367,9 @@ const TABLE_SCHEMA_ = [
 ];
 
 const API_VERSION_ = &#x27;3.3.0&#x27;;
-const BUILD_VERSION_ = &#x27;3.9.0&#x27;;
+const BUILD_VERSION_ = &#x27;3.9.1&#x27;;
+const DAILY_HISTORY_MARKER_ = &#x27;Finanzas · Histórico generado&#x27;;
+const DAILY_HISTORY_MAX_DAYS_ = 36525;
 const API_TRANSPORT_ = &#x27;finances.rpc.json.v1&#x27;;
 // El motor de fórmulas no cambia en el paso 4; conserva su sello de capacidad.
 const CAPACITY_VERSION_ = &#x27;3.1.0&#x27;;
@@ -5057,6 +5059,295 @@ function prepareCapacity_(config, before, desired) {
   return state;
 }
 
+// Vista auxiliar del registro de precios. No es una tabla financiera ni participa
+// en la validación del modelo: tPrecios sigue siendo la única fuente de VL.
+function dailyHistoryRows_(s, firstHeldOverrides) {
+  const products = s.tables.tProductos.slice(),
+    prices = new Map(),
+    events = new Map(),
+    knownTradeStarts = new Map(),
+    overrides = firstHeldOverrides || {};
+  let latestPriceDate = 0,
+    firstDate = Infinity;
+  products.forEach((p) =&gt; events.set(p.ID, []));
+  s.tables.tPrecios.forEach((p) =&gt; {
+    prices.set(p.Producto + &#x27;|&#x27; + p.Fecha, p[&#x27;VL EUR&#x27;]);
+    latestPriceDate = Math.max(latestPriceDate, p.Fecha);
+  });
+  const todaySerial = serialDate_(
+    Utilities.formatDate(new Date(), &#x27;Europe/Madrid&#x27;, &#x27;yyyy-MM-dd&#x27;),
+  );
+  if (latestPriceDate &gt; todaySerial)
+    fail_(&#x27;HISTORY_RANGE&#x27;, &#x27;El NAV futuro impide actualizar la vista diaria.&#x27;);
+  const lastDate = todaySerial;
+  products.forEach((p) =&gt; {
+    if (p[&#x27;Unidades base&#x27;] &gt; 0) {
+      const key = dailyHistoryProductKey_(p.ID),
+        start = overrides[key] || p[&#x27;Fecha base&#x27;];
+      events.get(p.ID).push({ date: start, units: p[&#x27;Unidades base&#x27;] });
+      firstDate = Math.min(firstDate, start);
+    }
+  });
+  s.tables.tOperaciones.forEach((o) =&gt; {
+    const units =
+      o.Tipo === &#x27;Compra&#x27;
+        ? o.Participaciones
+        : o.Tipo === &#x27;Venta&#x27;
+          ? -o.Participaciones
+          : 0;
+    const key = dailyHistoryProductKey_(o.Producto);
+    if (units &amp;&amp; (!overrides[key] || o.Fecha &gt;= overrides[key])) {
+      events.get(o.Producto).push({ date: o.Fecha, units });
+      if (units &gt; 0) {
+        firstDate = Math.min(firstDate, o.Fecha);
+        knownTradeStarts.set(
+          key,
+          Math.min(knownTradeStarts.get(key) || Infinity, o.Fecha),
+        );
+      }
+    }
+  });
+  const rows = [
+    [DAILY_HISTORY_MARKER_, ...products.map((p) =&gt; p.Producto)],
+    [&#x27;Fecha&#x27;, ...products.map((p) =&gt; dailyHistoryHeader_(s, p))],
+    [
+      &#x27;Inicio conocido (o Fecha base)&#x27;,
+      ...products.map((p) =&gt; {
+        const key = dailyHistoryProductKey_(p.ID);
+        return (
+          overrides[key] ||
+          (p[&#x27;Unidades base&#x27;] &gt; 0
+            ? p[&#x27;Fecha base&#x27;]
+            : knownTradeStarts.get(key) || null)
+        );
+      }),
+    ],
+  ];
+  if (!lastDate || !Number.isFinite(firstDate) || firstDate &gt; lastDate)
+    return rows;
+  if (lastDate - firstDate &gt; DAILY_HISTORY_MAX_DAYS_)
+    fail_(&#x27;HISTORY_RANGE&#x27;, &#x27;El intervalo del Histórico supera 100 años.&#x27;);
+  const ordered = new Map();
+  events.forEach((list, id) =&gt;
+    ordered.set(
+      id,
+      list.sort((a, b) =&gt; a.date - b.date),
+    ),
+  );
+  for (let date = firstDate; date &lt;= lastDate; date++) {
+    const row = [date];
+    products.forEach((p) =&gt; {
+      const held = (ordered.get(p.ID) || [])
+        .filter((event) =&gt; event.date &lt;= date)
+        .reduce((units, event) =&gt; units + event.units, 0);
+      row.push(
+        held &gt; 1e-8
+          ? prices.has(p.ID + &#x27;|&#x27; + date)
+            ? prices.get(p.ID + &#x27;|&#x27; + date)
+            : null
+          : null,
+      );
+    });
+    rows.push(row);
+  }
+  return rows;
+}
+function dailyHistoryProductKey_(id) {
+  return validIsin_(id) ? normalizeIsin_(id) : id;
+}
+function dailyHistoryHeader_(s, product) {
+  if (validIsin_(product.ID)) return normalizeIsin_(product.ID);
+  const binding = (s.technical?.funds || []).find(
+    (row) =&gt; row[0] === product.ID,
+  );
+  return validIsin_(binding?.[1]) ? normalizeIsin_(binding[1]) : product.ID;
+}
+function dailyHistoryOverrideSerial_(value) {
+  if (Number.isSafeInteger(value) &amp;&amp; value &gt; 0 &amp;&amp; value &lt; 100000) return value;
+  if (typeof value === &#x27;string&#x27; &amp;&amp; /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    try {
+      return serialDate_(value);
+    } catch (ignored) {}
+  }
+  return null;
+}
+function refreshDailyHistory_(config, s) {
+  const existing = (s.book.sheets || []).find(
+    (sheet) =&gt; sheet.properties.title === &#x27;Histórico&#x27;,
+  );
+  let firstHeldOverrides = {};
+  if (existing) {
+    const read = Sheets.Spreadsheets.Values.batchGet(config.id, {
+      ranges: [
+        &quot;&#x27;Histórico&#x27;!A1:A1&quot;,
+        &quot;&#x27;Histórico&#x27;!B2:ZZ3&quot;,
+        &quot;&#x27;Histórico&#x27;!A1:A&quot; + existing.properties.gridProperties.rowCount,
+      ],
+      valueRenderOption: &#x27;UNFORMATTED_VALUE&#x27;,
+    });
+    const marker = read.valueRanges?.[0]?.values?.[0]?.[0];
+    if (marker !== DAILY_HISTORY_MARKER_)
+      return { status: &#x27;preserved_existing_sheet&#x27; };
+    const oldHeaders = read.valueRanges?.[1]?.values?.[0] || [],
+      oldStarts = read.valueRanges?.[1]?.values?.[1] || [];
+    const currentProducts = new Map(
+      s.tables.tProductos.map((p) =&gt; [dailyHistoryHeader_(s, p), p]),
+    );
+    check_(
+      currentProducts.size === s.tables.tProductos.length,
+      &#x27;Hay productos con el mismo ISIN en Histórico.&#x27;,
+    );
+    const todaySerial = serialDate_(
+      Utilities.formatDate(new Date(), &#x27;Europe/Madrid&#x27;, &#x27;yyyy-MM-dd&#x27;),
+    );
+    oldHeaders.forEach((id, i) =&gt; {
+      const value = oldStarts[i];
+      if (blank_(value)) return;
+      check_(
+        typeof id === &#x27;string&#x27; &amp;&amp; currentProducts.has(id),
+        &#x27;Inicio conocido sin un producto vigente.&#x27;,
+      );
+      const date = dailyHistoryOverrideSerial_(value);
+      check_(
+        date !== null &amp;&amp;
+          date &lt;= todaySerial &amp;&amp;
+          todaySerial - date &lt;= DAILY_HISTORY_MAX_DAYS_,
+        &#x27;Inicio conocido inválido o fuera del intervalo permitido.&#x27;,
+      );
+      const latest = Math.max(
+        0,
+        ...s.tables.tPrecios.map((price) =&gt; price.Fecha),
+      );
+      check_(
+        !latest || Math.abs(latest - date) &lt;= DAILY_HISTORY_MAX_DAYS_,
+        &#x27;Inicio conocido fuera del intervalo permitido.&#x27;,
+      );
+      firstHeldOverrides[dailyHistoryProductKey_(currentProducts.get(id).ID)] =
+        date;
+    });
+    const oldRows = read.valueRanges?.[2]?.values?.length || 0,
+      oldColumns = Math.min(
+        1 + oldHeaders.length,
+        existing.properties.gridProperties.columnCount,
+      );
+    if (oldRows &amp;&amp; oldColumns) {
+      existing.clearOwnedRange = {
+        rowCount: oldRows,
+        columnCount: oldColumns,
+      };
+    }
+  }
+  const rows = dailyHistoryRows_(s, firstHeldOverrides),
+    columns = Math.max(1, rows[1].length),
+    requests = [];
+  let sheetId;
+  if (existing) {
+    sheetId = existing.properties.sheetId;
+    const grid = existing.properties.gridProperties || {};
+    if ((grid.rowCount || 0) &lt; rows.length)
+      requests.push({
+        appendDimension: {
+          sheetId,
+          dimension: &#x27;ROWS&#x27;,
+          length: rows.length - grid.rowCount,
+        },
+      });
+    if ((grid.columnCount || 0) &lt; columns)
+      requests.push({
+        appendDimension: {
+          sheetId,
+          dimension: &#x27;COLUMNS&#x27;,
+          length: columns - grid.columnCount,
+        },
+      });
+  } else {
+    sheetId =
+      Math.max(...s.book.sheets.map((sheet) =&gt; sheet.properties.sheetId)) + 1;
+    requests.push({
+      addSheet: {
+        properties: {
+          sheetId,
+          title: &#x27;Histórico&#x27;,
+          gridProperties: {
+            rowCount: Math.max(1000, rows.length),
+            columnCount: Math.max(26, columns),
+            frozenRowCount: 3,
+          },
+        },
+      },
+    });
+  }
+  if (existing?.clearOwnedRange) {
+    const { rowCount, columnCount } = existing.clearOwnedRange;
+    requests.push({
+      updateCells: {
+        start: { sheetId, rowIndex: 0, columnIndex: 0 },
+        rows: Array.from({ length: rowCount }, () =&gt; ({
+          values: Array.from({ length: columnCount }, () =&gt; ({})),
+        })),
+        fields: &#x27;userEnteredValue&#x27;,
+      },
+    });
+  }
+  requests.push({
+    updateCells: {
+      start: { sheetId, rowIndex: 0, columnIndex: 0 },
+      rows: rows.map((row) =&gt; ({ values: row.map(cellValue_) })),
+      fields: &#x27;userEnteredValue&#x27;,
+    },
+  });
+  if (columns &gt; 1) {
+    requests.push({
+      repeatCell: {
+        range: {
+          sheetId,
+          startRowIndex: 2,
+          endRowIndex: 3,
+          startColumnIndex: 1,
+          endColumnIndex: columns,
+        },
+        cell: {
+          userEnteredFormat: {
+            numberFormat: { type: &#x27;DATE&#x27;, pattern: &#x27;yyyy-mm-dd&#x27; },
+          },
+        },
+        fields: &#x27;userEnteredFormat.numberFormat&#x27;,
+      },
+    });
+  }
+  if (rows.length &gt; 3) {
+    requests.push({
+      repeatCell: {
+        range: {
+          sheetId,
+          startRowIndex: 3,
+          endRowIndex: rows.length,
+          startColumnIndex: 0,
+          endColumnIndex: 1,
+        },
+        cell: {
+          userEnteredFormat: {
+            numberFormat: { type: &#x27;DATE&#x27;, pattern: &#x27;yyyy-mm-dd&#x27; },
+          },
+        },
+        fields: &#x27;userEnteredFormat.numberFormat&#x27;,
+      },
+    });
+  }
+  Sheets.Spreadsheets.batchUpdate({ requests }, config.id);
+  return { status: &#x27;updated&#x27; };
+}
+function refreshDailyHistorySafely_(config) {
+  try {
+    return refreshDailyHistory_(config, readState_(config));
+  } catch (error) {
+    console.log(
+      &#x27;Histórico derivado sin actualizar: &#x27; + (error.code || error.message),
+    );
+    return { status: &#x27;not_updated&#x27; };
+  }
+}
+
 // Paso 4. La resolución depende del ISIN, nunca de una lista de fondos conocidos.
 const PRICE_LIMIT_ = 20;
 const PRICE_PROVIDER_ = &#x27;VDOS / Quefondos&#x27;;
@@ -5854,6 +6145,7 @@ function refreshPrices_(config, request) {
         &#x27;Consulta o reintenta exactamente la misma solicitud de precios.&#x27;,
       );
     }
+    response.historyView = refreshDailyHistorySafely_(config);
     return response;
   });
 }
@@ -6122,6 +6414,7 @@ function priceHistory_(config, request) {
         &#x27;Recupera exactamente la misma solicitud histórica.&#x27;,
       );
     }
+    response.historyView = refreshDailyHistorySafely_(config);
     return response;
   });
 }
@@ -6734,7 +7027,11 @@ function comprobarPaso4() {
     const config = authorizedConfig_();
     result = locked_(() =&gt; {
       const s = prepareCapacity_(config, initializeBackendUnlocked_(config));
-      return Object.assign(diagnostics_(s), { prices: priceSnapshot_(s) });
+      const historyView = refreshDailyHistorySafely_(config);
+      return Object.assign(diagnostics_(s), {
+        prices: priceSnapshot_(s),
+        historyView,
+      });
     });
   } catch (error) {
     result = apiError_(error);
@@ -6963,7 +7260,7 @@ function comprobarCierre() {
       const appOrigin = document.getElementById(&#x27;origin&#x27;).textContent;
       const status = document.getElementById(&#x27;status&#x27;);
       const detail = document.getElementById(&#x27;detail&#x27;);
-      const BRIDGE_VERSION = &#x27;3.9.0&#x27;;
+      const BRIDGE_VERSION = &#x27;3.9.1&#x27;;
       const API_TRANSPORT = &#x27;finances.rpc.json.v1&#x27;;
       const errors = {
         INVALID_REQUEST:
@@ -7223,7 +7520,7 @@ function comprobarCierre() {
         </details>
       </section>
       <section class="configuration">
-        <p class="eyebrow">PASO 5 · ENTREGA 3.9.0 · API 3.3.0</p>
+        <p class="eyebrow">PASO 5 · ENTREGA 3.9.1 · API 3.3.0</p>
         <h2>Leer el libro y registrar operaciones</h2>
         <ol>
           <li>
@@ -7235,7 +7532,7 @@ function comprobarCierre() {
             Ejecuta <strong>comprobarPaso4</strong> si necesitas preparar las
             hojas técnicas; después <strong>comprobarPaso5</strong>. Debe
             indicar API 3.3.0, doce tablas, backendReady y calculationReady
-            correctos; buildVersion 3.9.0 y bridgeReady true.
+            correctos; buildVersion 3.9.1 y bridgeReady true.
             summaryReady comprueba que el resumen nativo dispone de cifras y
             precios al corte; no acredita la consulta de fuentes.
           </li>
@@ -7304,11 +7601,12 @@ function comprobarCierre() {
         </p>
         <p>
           Se guardan valores liquidativos reales con la fecha publicada en
-          tPrecios, sin duplicar producto y fecha. Esto acumula el historial
-          desde su activación; el proveedor actual no permite reconstruir de
-          forma verificable todos los valores diarios anteriores. Los gráficos
-          identifican los huecos y los días que usan el último precio
-          disponible.
+          tPrecios, sin duplicar producto y fecha. Los históricos verificados
+          pueden importarse por fecha; si el archivo tiene menos precisión que
+          la fuente diaria, importa solo fechas anteriores al último VL diario
+          verificado de ese fondo y deja esa fecha y las posteriores al
+          actualizador. La comprobación de conflictos de misma fecha permanece
+          estricta. La vista Histórico deja en blanco los días sin VL publicado.
         </p>
       </section>
       <section class="configuration">
@@ -7320,7 +7618,7 @@ function comprobarCierre() {
             <strong
               >Ajustes → Diagnóstico del sistema → Comprobar sistema</strong
             >. Solo lee y consulta fuentes; no guarda precios. Comprueba
-            buildVersion 3.9.0, technicalReady true y todos los
+            buildVersion 3.9.1, technicalReady true y todos los
             checks true. Un resumen correcto no acredita por sí solo las
             fuentes.
           </li>
