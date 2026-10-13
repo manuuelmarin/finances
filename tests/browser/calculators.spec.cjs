@@ -6,7 +6,7 @@ async function fill(page, prefix, values) {
     await page.locator(`#${prefix}-${field}`).fill(String(value));
 }
 
-test('existing investment and mortgage forms preserve ordinary calculations and clear stale errors', async ({
+test('@responsive existing investment and mortgage forms preserve ordinary calculations and clear stale errors', async ({
   page,
 }) => {
   await page.goto('/');
@@ -50,6 +50,11 @@ test('existing investment and mortgage forms preserve ordinary calculations and 
   await expect(page.locator('#mortgage-message')).toBeHidden();
   await page.locator('#mortgage-form button').click();
   await expect(page.locator('#mortgage-payment')).toContainText('666,67');
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+    ),
+  ).toBe(true);
 });
 
 test('planning forms accept actual month deadlines and reject overflowing zero-capital annuity', async ({

@@ -119,7 +119,7 @@ test('historical NAV conflict never enables confirmation or writes another price
   );
 });
 
-test('template saving creates no movement, reuse reviews actual money, and archive preserves history', async ({
+test('@responsive template saving creates no movement, reuse reviews actual money, and archive preserves history', async ({
   page,
 }) => {
   const { server, calls } = await setup(page);

@@ -206,7 +206,7 @@ async function setup(page, seedSnapshot = snapshot) {
   }, seedSnapshot);
 }
 
-test('resumen concentra patrimonio, caja seleccionable y gráficos accesibles', async ({
+test('@responsive resumen concentra patrimonio, caja seleccionable y gráficos accesibles', async ({
   page,
 }) => {
   await setup(page);
@@ -257,7 +257,7 @@ test('resumen concentra patrimonio, caja seleccionable y gráficos accesibles', 
   ).toBe(true);
 });
 
-test('gasto excluye Vivienda y recalcula el denominador; nómina y cuentas tienen gráficas propias', async ({
+test('@responsive gasto excluye Vivienda y recalcula el denominador; nómina y cuentas tienen gráficas propias', async ({
   page,
 }) => {
   await setup(page);
@@ -303,7 +303,7 @@ test('gasto excluye Vivienda y recalcula el denominador; nómina y cuentas tiene
   await screenshot(page, 'goals');
 });
 
-test('selección genérica de producto y periodo conserva escalera, valor e inspección', async ({
+test('@responsive selección genérica de producto y periodo conserva escalera, valor e inspección', async ({
   page,
 }) => {
   await setup(page);
@@ -406,7 +406,7 @@ test('tres nuevas calculadoras funcionan localmente y mantienen las existentes',
   await screenshot(page, 'tools');
 });
 
-test('datos del gráfico permiten ordenar y filtrar con teclado sin alterar las series', async ({
+test('@responsive datos del gráfico permiten ordenar y filtrar con teclado sin alterar las series', async ({
   page,
 }) => {
   await setup(page);

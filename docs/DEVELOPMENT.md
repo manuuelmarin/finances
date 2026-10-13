@@ -37,11 +37,13 @@ See [Architecture](ARCHITECTURE.md), [Contributing](../CONTRIBUTING.md), [Securi
 | `npm run format` / `format:check` | Apply/check Prettier; `.gs` uses Babel.                                      |
 | `npm run lint`                    | ESLint for `.js`, `.cjs` and `.gs`.                                          |
 | `npm test`                        | Node suites and TAP report.                                                  |
-| `npm run test:browser`            | Desktop Chrome and Pixel 7 profiles.                                         |
+| `npm run test:browser`            | Full Desktop Chrome suite and selected Pixel 7 workflows.                    |
 | `npm run audit`                   | Block known high/critical dependency vulnerabilities.                        |
 | `npm run check`                   | Build, format check, lint and both suites; excludes audit and commit checks. |
 
 Edit `tools/install-template.html` for installer instructions and the `apps-script/` modules for embedded code, then rebuild; do not manually edit generated `web/install.html`, `web/sw.js` or CSP hashes. Documentation does not require a version increase. Results use `quality-results/`, `test-results/` and `playwright-report/`; CI retains reports for 14 days. Tests simulate services; the dedicated PWA test checks offline reopening, not installation on a physical phone. Pages publication does not update Apps Script.
+
+See [Test coverage and audit](TESTING.md) for scenario selection, mobile coverage and CI scheduling. Quality runs on pull requests, pushes to `main`, and manual dispatch; feature-branch pushes do not start a duplicate run.
 
 ## Agent workflow
 
