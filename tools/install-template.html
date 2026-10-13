@@ -93,6 +93,63 @@
         color: var(--muted);
         font-size: 14px;
       }
+      .release-check {
+        margin: 24px 0;
+        padding: 20px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--panel);
+      }
+      .release-check label {
+        display: block;
+        color: var(--text);
+        font-weight: 600;
+      }
+      .release-check select {
+        display: block;
+        width: 100%;
+        max-width: 420px;
+        margin-top: 8px;
+        padding: 10px;
+        border-radius: 6px;
+        background: var(--ink);
+        color: var(--text);
+        border: 1px solid var(--line);
+        font: inherit;
+      }
+      .release-check p {
+        color: var(--muted);
+        margin: 10px 0;
+      }
+      .release-check label.filter {
+        margin-top: 12px;
+        font-weight: 400;
+      }
+      .file-status {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 4px 10px;
+        color: var(--muted);
+        white-space: nowrap;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+      }
+      .file-status[data-state='changed'],
+      .file-status[data-state='new'] {
+        color: #ffd795;
+        border-color: #8c6935;
+      }
+      .file-status[data-state='same'] {
+        color: var(--mint);
+        border-color: #3e7562;
+      }
+      .file-status[data-state='unknown'] {
+        color: var(--muted);
+      }
+      .code-section[hidden] {
+        display: none;
+      }
       .code-section pre {
         max-height: 320px;
       }
@@ -231,6 +288,25 @@
         propiedades privadas. Los archivos de código no incluyen datos
         financieros ni sustituyen una copia de seguridad.
       </p>
+      <section class="release-check" aria-labelledby="release-title">
+        <h2 id="release-title">Comparar con una entrega instalada</h2>
+        <label for="installed-release">¿Qué versión tienes instalada?</label>
+        <select id="installed-release">
+          <option value="">No sé / instalación nueva</option>
+          {{INSTALL_RELEASE_OPTIONS}}
+        </select>
+        <p id="release-summary" role="status" aria-live="polite">
+          Sin una versión de referencia, instala y revisa los 15 archivos.
+        </p>
+        <label class="filter"
+          ><input id="changed-only" type="checkbox" disabled /> Mostrar solo
+          archivos nuevos o modificados</label
+        >
+        <p id="removed-files" hidden></p>
+      </section>
+      <template id="install-releases" data-current-version="{{BUILD_VERSION}}"
+        >{{INSTALL_RELEASES}}</template
+      >
       <p id="copy-status" role="status" aria-live="polite"></p>
       {{INSTALL_FILES}}
       <section class="configuration">

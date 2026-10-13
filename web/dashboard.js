@@ -727,9 +727,10 @@ const FinanceDashboard = (() => {
         inspection_unavailable: 'No se ha podido comprobar el programador',
         trigger_missing: 'Falta reinstalar la rutina en Google',
         scheduled: 'Activada · pendiente de ejecución',
-        complete: 'Activada · última actualización completada',
+        execution_due: 'Activada · comprobación pendiente en esta franja',
+        complete: 'Activada · última comprobación completada',
         partial: 'Activada · hay precios pendientes; se reintentará',
-        retry_limit: 'Activada · agotados los intentos del día',
+        retry_limit: 'Activada · agotados los intentos de hoy; continúa mañana',
         no_products: 'Activada · sin inversiones configuradas',
       };
     $('settings-daily-status').textContent = !current

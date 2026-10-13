@@ -3,7 +3,7 @@
   <head>
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self'; style-src 'self' 'sha256-F3V2q21DbgalKaSOImI1w7fqg7sQGMJ/tzPn6IAhSOo='; img-src 'self'; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'sha256-s6aEEXbSnP6H1YElkpXaQof61Iw3IICP5AXoQ4NeVRM='; img-src 'self'; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
     />
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -92,6 +92,63 @@
       .code-section > p {
         color: var(--muted);
         font-size: 14px;
+      }
+      .release-check {
+        margin: 24px 0;
+        padding: 20px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--panel);
+      }
+      .release-check label {
+        display: block;
+        color: var(--text);
+        font-weight: 600;
+      }
+      .release-check select {
+        display: block;
+        width: 100%;
+        max-width: 420px;
+        margin-top: 8px;
+        padding: 10px;
+        border-radius: 6px;
+        background: var(--ink);
+        color: var(--text);
+        border: 1px solid var(--line);
+        font: inherit;
+      }
+      .release-check p {
+        color: var(--muted);
+        margin: 10px 0;
+      }
+      .release-check label.filter {
+        margin-top: 12px;
+        font-weight: 400;
+      }
+      .file-status {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 4px 10px;
+        color: var(--muted);
+        white-space: nowrap;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+      }
+      .file-status[data-state='changed'],
+      .file-status[data-state='new'] {
+        color: #ffd795;
+        border-color: #8c6935;
+      }
+      .file-status[data-state='same'] {
+        color: var(--mint);
+        border-color: #3e7562;
+      }
+      .file-status[data-state='unknown'] {
+        color: var(--muted);
+      }
+      .code-section[hidden] {
+        display: none;
       }
       .code-section pre {
         max-height: 320px;
@@ -223,7 +280,7 @@
       <p class="eyebrow">GOOGLE SHEETS · CONEXIÓN PRIVADA</p>
       <h1>Instalación de Apps Script</h1>
       <p class="intro">
-        Archivos de Apps Script · Entrega 3.9.3. Instala los módulos
+        Archivos de Apps Script · Entrega 3.9.4. Instala los módulos
         del backend privado en el proyecto que ya está conectado.
       </p>
       <p class="notice">
@@ -231,13 +288,34 @@
         propiedades privadas. Los archivos de código no incluyen datos
         financieros ni sustituyen una copia de seguridad.
       </p>
+      <section class="release-check" aria-labelledby="release-title">
+        <h2 id="release-title">Comparar con una entrega instalada</h2>
+        <label for="installed-release">¿Qué versión tienes instalada?</label>
+        <select id="installed-release">
+          <option value="">No sé / instalación nueva</option>
+          <option value="3.9.4">3.9.4</option>
+<option value="3.9.3">3.9.3</option>
+        </select>
+        <p id="release-summary" role="status" aria-live="polite">
+          Sin una versión de referencia, instala y revisa los 15 archivos.
+        </p>
+        <label class="filter"
+          ><input id="changed-only" type="checkbox" disabled /> Mostrar solo
+          archivos nuevos o modificados</label
+        >
+        <p id="removed-files" hidden></p>
+      </section>
+      <template id="install-releases" data-current-version="3.9.4"
+        >{"3.9.3":{"Code.gs":"9ffe7cdef6cb4f3f4189fe9ab064ca11c3014851476212a0ca38ce25ba0f763e","Configuration.gs":"4748f6ee5e214687e22531f0bf5056dc380e8c3ebcf348755813bbeb2e06f4c4","AccessAndUtilities.gs":"ee4a4abcc5f5a963178f65f4591a068c222fc79041e1a9c0bc6b600448107333","BackendAndReporting.gs":"f8d3cf3d70536e2afbf7b3ae2a3d413bcc4e9d4af8af5f7f229e31d3bdebc405","DailyHistory.gs":"58cd749c210b0a9f16bf5fffb60e9f40bbd608f7890a42af280a4a92fcab6f6a","DailyPriceAutomation.gs":"347e4ff8f0c0f207d02076a0a4964650f0458b5954396f44c1759d80b374c7a9","OperatorChecks.gs":"7066876c821b99b83527ddaa92c749024c30e899152611178bb866c6f75c347e","PriceHistory.gs":"24900e2ae46f43faf843c0e9f5bf728540f260c132ad24ed1c87feb382b099cd","PriceProvidersAndRefresh.gs":"936c8fbb8b7b0b8fdf00e7a12df7de0154b9b134983004ea1a252237cd8988ed","StateAndValidation.gs":"1eb75be16e737a96a7f123ab8b1d8d9786c27c9a787407f7363a5303d7e2dbc6","Operations.gs":"9597cbfd971a074def13da1c74fa613a7d4a0d5df467a8b01154cdd8062dcd11","SupportAndCapacity.gs":"6781747c2f0ac15b1a963056a1f90cdefb716f5a9f904cb2222cbcd561e9e58e","Transactions.gs":"a837477bd9745fffcbea6016d0764e1a7f7b0ae961ffe856603b721a1ee6c01b","Bridge.html":"ff2067f09bdb3459a4089e108d34e5f12555d649b86649fca438f1e7f67e04a4","appsscript.json":"6d9e30fcdbf21cec70850bceb611d2c88dc7d79139f0bd1ffe19f91a6b1d50f8"},"3.9.4":{"Code.gs":"9ffe7cdef6cb4f3f4189fe9ab064ca11c3014851476212a0ca38ce25ba0f763e","Configuration.gs":"eebd9655072baca95d9cb8c10ea33d24df412d4f2b273a29a818da02330163ad","AccessAndUtilities.gs":"ee4a4abcc5f5a963178f65f4591a068c222fc79041e1a9c0bc6b600448107333","BackendAndReporting.gs":"f8d3cf3d70536e2afbf7b3ae2a3d413bcc4e9d4af8af5f7f229e31d3bdebc405","DailyHistory.gs":"58cd749c210b0a9f16bf5fffb60e9f40bbd608f7890a42af280a4a92fcab6f6a","DailyPriceAutomation.gs":"347e4ff8f0c0f207d02076a0a4964650f0458b5954396f44c1759d80b374c7a9","OperatorChecks.gs":"7066876c821b99b83527ddaa92c749024c30e899152611178bb866c6f75c347e","PriceHistory.gs":"24900e2ae46f43faf843c0e9f5bf728540f260c132ad24ed1c87feb382b099cd","PriceProvidersAndRefresh.gs":"936c8fbb8b7b0b8fdf00e7a12df7de0154b9b134983004ea1a252237cd8988ed","StateAndValidation.gs":"1eb75be16e737a96a7f123ab8b1d8d9786c27c9a787407f7363a5303d7e2dbc6","Operations.gs":"9597cbfd971a074def13da1c74fa613a7d4a0d5df467a8b01154cdd8062dcd11","SupportAndCapacity.gs":"6781747c2f0ac15b1a963056a1f90cdefb716f5a9f904cb2222cbcd561e9e58e","Transactions.gs":"a837477bd9745fffcbea6016d0764e1a7f7b0ae961ffe856603b721a1ee6c01b","Bridge.html":"8b311443805628c7bc6ccf65fb630f8f4cb62f6668666591095780c88080350e","appsscript.json":"6d9e30fcdbf21cec70850bceb611d2c88dc7d79139f0bd1ffe19f91a6b1d50f8"}}</template
+      >
       <p id="copy-status" role="status" aria-live="polite"></p>
-      <section class="code-section" aria-labelledby="file-1">
+      <section class="code-section" aria-labelledby="file-1" data-file-name="Code.gs">
   <header>
     <div>
       <p class="eyebrow">ARCHIVO 1 DE 15</p>
       <h2 id="file-1">Code.gs</h2>
     </div>
+    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
     <button type="button" data-copy="code-1">Copiar Code.gs</button>
   </header>
   <p>Añade o sustituye el archivo indicado en el proyecto de Apps Script.</p>
@@ -303,12 +381,13 @@ function financialApiJson(requestJson) {
 </pre>
   </details>
 </section>
-<section class="code-section" aria-labelledby="file-2">
+<section class="code-section" aria-labelledby="file-2" data-file-name="Configuration.gs">
   <header>
     <div>
       <p class="eyebrow">ARCHIVO 2 DE 15</p>
       <h2 id="file-2">Configuration.gs</h2>
     </div>
+    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
     <button type="button" data-copy="code-2">Copiar Configuration.gs</button>
   </header>
   <p>Añade o sustituye el archivo indicado en el proyecto de Apps Script.</p>
@@ -428,7 +507,7 @@ const TABLE_SCHEMA_ = [
 ];
 
 const API_VERSION_ = &#x27;3.3.0&#x27;;
-const BUILD_VERSION_ = &#x27;3.9.3&#x27;;
+const BUILD_VERSION_ = &#x27;3.9.4&#x27;;
 const DAILY_HISTORY_MARKER_ = &#x27;Finanzas · Histórico generado&#x27;;
 const DAILY_HISTORY_MAX_DAYS_ = 36525;
 const API_TRANSPORT_ = &#x27;finances.rpc.json.v1&#x27;;
@@ -852,12 +931,13 @@ const PRICE_BASE_ =
 </pre>
   </details>
 </section>
-<section class="code-section" aria-labelledby="file-3">
+<section class="code-section" aria-labelledby="file-3" data-file-name="AccessAndUtilities.gs">
   <header>
     <div>
       <p class="eyebrow">ARCHIVO 3 DE 15</p>
       <h2 id="file-3">AccessAndUtilities.gs</h2>
     </div>
+    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
     <button type="button" data-copy="code-3">Copiar AccessAndUtilities.gs</button>
   </header>
   <p>Añade o sustituye el archivo indicado en el proyecto de Apps Script.</p>
@@ -1477,12 +1557,13 @@ function serveApplication_(e) {
 </pre>
   </details>
 </section>
-<section class="code-section" aria-labelledby="file-4">
+<section class="code-section" aria-labelledby="file-4" data-file-name="BackendAndReporting.gs">
   <header>
     <div>
       <p class="eyebrow">ARCHIVO 4 DE 15</p>
       <h2 id="file-4">BackendAndReporting.gs</h2>
     </div>
+    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
     <button type="button" data-copy="code-4">Copiar BackendAndReporting.gs</button>
   </header>
   <p>Añade o sustituye el archivo indicado en el proyecto de Apps Script.</p>
@@ -2219,12 +2300,13 @@ function financialApiJson_(requestJson) {
 </pre>
   </details>
 </section>
-<section class="code-section" aria-labelledby="file-5">
+<section class="code-section" aria-labelledby="file-5" data-file-name="DailyHistory.gs">
   <header>
     <div>
       <p class="eyebrow">ARCHIVO 5 DE 15</p>
       <h2 id="file-5">DailyHistory.gs</h2>
     </div>
+    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
     <button type="button" data-copy="code-5">Copiar DailyHistory.gs</button>
   </header>
   <p>Añade o sustituye el archivo indicado en el proyecto de Apps Script.</p>
@@ -2441,12 +2523,13 @@ function refreshDailyHistorySafely_(config) {
 </pre>
   </details>
 </section>
-<section class="code-section" aria-labelledby="file-6">
+<section class="code-section" aria-labelledby="file-6" data-file-name="DailyPriceAutomation.gs">
   <header>
     <div>
       <p class="eyebrow">ARCHIVO 6 DE 15</p>
       <h2 id="file-6">DailyPriceAutomation.gs</h2>
     </div>
+    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
     <button type="button" data-copy="code-6">Copiar DailyPriceAutomation.gs</button>
   </header>
   <p>Añade o sustituye el archivo indicado en el proyecto de Apps Script.</p>
@@ -3072,12 +3155,13 @@ function activateDailyPricesTest_() {
 </pre>
   </details>
 </section>
-<section class="code-section" aria-labelledby="file-7">
+<section class="code-section" aria-labelledby="file-7" data-file-name="OperatorChecks.gs">
   <header>
     <div>
       <p class="eyebrow">ARCHIVO 7 DE 15</p>
       <h2 id="file-7">OperatorChecks.gs</h2>
     </div>
+    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
     <button type="button" data-copy="code-7">Copiar OperatorChecks.gs</button>
   </header>
   <p>Añade o sustituye el archivo indicado en el proyecto de Apps Script.</p>
@@ -3257,12 +3341,13 @@ function prepareApplication_() {
 </pre>
   </details>
 </section>
-<section class="code-section" aria-labelledby="file-8">
+<section class="code-section" aria-labelledby="file-8" data-file-name="PriceHistory.gs">
   <header>
     <div>
       <p class="eyebrow">ARCHIVO 8 DE 15</p>
       <h2 id="file-8">PriceHistory.gs</h2>
     </div>
+    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
     <button type="button" data-copy="code-8">Copiar PriceHistory.gs</button>
   </header>
   <p>Añade o sustituye el archivo indicado en el proyecto de Apps Script.</p>
@@ -3427,12 +3512,13 @@ function prepareApplication_() {
 </pre>
   </details>
 </section>
-<section class="code-section" aria-labelledby="file-9">
+<section class="code-section" aria-labelledby="file-9" data-file-name="PriceProvidersAndRefresh.gs">
   <header>
     <div>
       <p class="eyebrow">ARCHIVO 9 DE 15</p>
       <h2 id="file-9">PriceProvidersAndRefresh.gs</h2>
     </div>
+    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
     <button type="button" data-copy="code-9">Copiar PriceProvidersAndRefresh.gs</button>
   </header>
   <p>Añade o sustituye el archivo indicado en el proyecto de Apps Script.</p>
@@ -4355,12 +4441,13 @@ function historyRows_(state, request) {
 </pre>
   </details>
 </section>
-<section class="code-section" aria-labelledby="file-10">
+<section class="code-section" aria-labelledby="file-10" data-file-name="StateAndValidation.gs">
   <header>
     <div>
       <p class="eyebrow">ARCHIVO 10 DE 15</p>
       <h2 id="file-10">StateAndValidation.gs</h2>
     </div>
+    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
     <button type="button" data-copy="code-10">Copiar StateAndValidation.gs</button>
   </header>
   <p>Añade o sustituye el archivo indicado en el proyecto de Apps Script.</p>
@@ -5265,12 +5352,13 @@ function synchronizeTradeCash_(s) {
 </pre>
   </details>
 </section>
-<section class="code-section" aria-labelledby="file-11">
+<section class="code-section" aria-labelledby="file-11" data-file-name="Operations.gs">
   <header>
     <div>
       <p class="eyebrow">ARCHIVO 11 DE 15</p>
       <h2 id="file-11">Operations.gs</h2>
     </div>
+    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
     <button type="button" data-copy="code-11">Copiar Operations.gs</button>
   </header>
   <p>Añade o sustituye el archivo indicado en el proyecto de Apps Script.</p>
@@ -6235,12 +6323,13 @@ function synchronizeTradeCash_(s) {
 </pre>
   </details>
 </section>
-<section class="code-section" aria-labelledby="file-12">
+<section class="code-section" aria-labelledby="file-12" data-file-name="SupportAndCapacity.gs">
   <header>
     <div>
       <p class="eyebrow">ARCHIVO 12 DE 15</p>
       <h2 id="file-12">SupportAndCapacity.gs</h2>
     </div>
+    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
     <button type="button" data-copy="code-12">Copiar SupportAndCapacity.gs</button>
   </header>
   <p>Añade o sustituye el archivo indicado en el proyecto de Apps Script.</p>
@@ -7104,12 +7193,13 @@ function dailyHistoryRows_(s, firstHeldOverrides) {
 </pre>
   </details>
 </section>
-<section class="code-section" aria-labelledby="file-13">
+<section class="code-section" aria-labelledby="file-13" data-file-name="Transactions.gs">
   <header>
     <div>
       <p class="eyebrow">ARCHIVO 13 DE 15</p>
       <h2 id="file-13">Transactions.gs</h2>
     </div>
+    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
     <button type="button" data-copy="code-13">Copiar Transactions.gs</button>
   </header>
   <p>Añade o sustituye el archivo indicado en el proyecto de Apps Script.</p>
@@ -7438,12 +7528,13 @@ function initializeBackend_(config) {
 </pre>
   </details>
 </section>
-<section class="code-section" aria-labelledby="file-14">
+<section class="code-section" aria-labelledby="file-14" data-file-name="Bridge.html">
   <header>
     <div>
       <p class="eyebrow">ARCHIVO 14 DE 15</p>
       <h2 id="file-14">Bridge.html</h2>
     </div>
+    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
     <button type="button" data-copy="code-14">Copiar Bridge.html</button>
   </header>
   <p>Sustituye el contenido del archivo indicado por este código.</p>
@@ -7499,7 +7590,7 @@ function initializeBackend_(config) {
       const appOrigin = document.getElementById(&#x27;origin&#x27;).textContent;
       const status = document.getElementById(&#x27;status&#x27;);
       const detail = document.getElementById(&#x27;detail&#x27;);
-      const BRIDGE_VERSION = &#x27;3.9.3&#x27;;
+      const BRIDGE_VERSION = &#x27;3.9.4&#x27;;
       const API_TRANSPORT = &#x27;finances.rpc.json.v1&#x27;;
       const errors = {
         INVALID_REQUEST:
@@ -7716,12 +7807,13 @@ function initializeBackend_(config) {
 </pre>
   </details>
 </section>
-<section class="code-section" aria-labelledby="file-15">
+<section class="code-section" aria-labelledby="file-15" data-file-name="appsscript.json">
   <header>
     <div>
       <p class="eyebrow">ARCHIVO 15 DE 15</p>
       <h2 id="file-15">appsscript.json</h2>
     </div>
+    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
     <button type="button" data-copy="code-15">Copiar appsscript.json</button>
   </header>
   <p>Sustituye el contenido del archivo indicado por este código.</p>
@@ -7754,7 +7846,7 @@ function initializeBackend_(config) {
   </details>
 </section>
       <section class="configuration">
-        <p class="eyebrow">INSTALACIÓN · ENTREGA 3.9.3</p>
+        <p class="eyebrow">INSTALACIÓN · ENTREGA 3.9.4</p>
         <h2>Actualizar el proyecto conectado</h2>
         <ol>
           <li>

@@ -532,6 +532,16 @@ test('Ajustes muestra estado diario verificado, horario y resultado parcial sin 
   await expect(page.locator('#settings-daily-run')).toContainText(
     'Sin completar',
   );
+  configured.dailyPrices.status = 'execution_due';
+  await page.evaluate((seed) => FinanceDashboard.render(seed), configured);
+  await expect(page.locator('#settings-daily-status')).toContainText(
+    'comprobación pendiente en esta franja',
+  );
+  configured.dailyPrices.status = 'retry_limit';
+  await page.evaluate((seed) => FinanceDashboard.render(seed), configured);
+  await expect(page.locator('#settings-daily-status')).toContainText(
+    'continúa mañana',
+  );
   configured.dailyPrices.status = 'disabled';
   configured.dailyPrices.enabled = false;
   await page.evaluate((seed) => FinanceDashboard.render(seed), configured);
