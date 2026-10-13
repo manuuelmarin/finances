@@ -1,6 +1,6 @@
 # Development
 
-Finanzas 3.9.3 uses API 3.3.0 and workbook model 3. Keep `ENVIRONMENT=test`; repository maintenance does not modify the private Google deployment.
+Finanzas 3.9.4 uses API 3.3.0 and workbook model 3. Keep `ENVIRONMENT=test`; repository maintenance does not modify the private Google deployment.
 
 ## Local setup
 

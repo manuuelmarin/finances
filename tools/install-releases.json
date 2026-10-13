@@ -1,0 +1,36 @@
+{
+  "3.9.3": {
+    "Code.gs": "9ffe7cdef6cb4f3f4189fe9ab064ca11c3014851476212a0ca38ce25ba0f763e",
+    "Configuration.gs": "4748f6ee5e214687e22531f0bf5056dc380e8c3ebcf348755813bbeb2e06f4c4",
+    "AccessAndUtilities.gs": "ee4a4abcc5f5a963178f65f4591a068c222fc79041e1a9c0bc6b600448107333",
+    "BackendAndReporting.gs": "f8d3cf3d70536e2afbf7b3ae2a3d413bcc4e9d4af8af5f7f229e31d3bdebc405",
+    "DailyHistory.gs": "58cd749c210b0a9f16bf5fffb60e9f40bbd608f7890a42af280a4a92fcab6f6a",
+    "DailyPriceAutomation.gs": "347e4ff8f0c0f207d02076a0a4964650f0458b5954396f44c1759d80b374c7a9",
+    "OperatorChecks.gs": "7066876c821b99b83527ddaa92c749024c30e899152611178bb866c6f75c347e",
+    "PriceHistory.gs": "24900e2ae46f43faf843c0e9f5bf728540f260c132ad24ed1c87feb382b099cd",
+    "PriceProvidersAndRefresh.gs": "936c8fbb8b7b0b8fdf00e7a12df7de0154b9b134983004ea1a252237cd8988ed",
+    "StateAndValidation.gs": "1eb75be16e737a96a7f123ab8b1d8d9786c27c9a787407f7363a5303d7e2dbc6",
+    "Operations.gs": "9597cbfd971a074def13da1c74fa613a7d4a0d5df467a8b01154cdd8062dcd11",
+    "SupportAndCapacity.gs": "6781747c2f0ac15b1a963056a1f90cdefb716f5a9f904cb2222cbcd561e9e58e",
+    "Transactions.gs": "a837477bd9745fffcbea6016d0764e1a7f7b0ae961ffe856603b721a1ee6c01b",
+    "Bridge.html": "ff2067f09bdb3459a4089e108d34e5f12555d649b86649fca438f1e7f67e04a4",
+    "appsscript.json": "6d9e30fcdbf21cec70850bceb611d2c88dc7d79139f0bd1ffe19f91a6b1d50f8"
+  },
+  "3.9.4": {
+    "Code.gs": "9ffe7cdef6cb4f3f4189fe9ab064ca11c3014851476212a0ca38ce25ba0f763e",
+    "Configuration.gs": "eebd9655072baca95d9cb8c10ea33d24df412d4f2b273a29a818da02330163ad",
+    "AccessAndUtilities.gs": "ee4a4abcc5f5a963178f65f4591a068c222fc79041e1a9c0bc6b600448107333",
+    "BackendAndReporting.gs": "f8d3cf3d70536e2afbf7b3ae2a3d413bcc4e9d4af8af5f7f229e31d3bdebc405",
+    "DailyHistory.gs": "58cd749c210b0a9f16bf5fffb60e9f40bbd608f7890a42af280a4a92fcab6f6a",
+    "DailyPriceAutomation.gs": "347e4ff8f0c0f207d02076a0a4964650f0458b5954396f44c1759d80b374c7a9",
+    "OperatorChecks.gs": "7066876c821b99b83527ddaa92c749024c30e899152611178bb866c6f75c347e",
+    "PriceHistory.gs": "24900e2ae46f43faf843c0e9f5bf728540f260c132ad24ed1c87feb382b099cd",
+    "PriceProvidersAndRefresh.gs": "936c8fbb8b7b0b8fdf00e7a12df7de0154b9b134983004ea1a252237cd8988ed",
+    "StateAndValidation.gs": "1eb75be16e737a96a7f123ab8b1d8d9786c27c9a787407f7363a5303d7e2dbc6",
+    "Operations.gs": "9597cbfd971a074def13da1c74fa613a7d4a0d5df467a8b01154cdd8062dcd11",
+    "SupportAndCapacity.gs": "6781747c2f0ac15b1a963056a1f90cdefb716f5a9f904cb2222cbcd561e9e58e",
+    "Transactions.gs": "a837477bd9745fffcbea6016d0764e1a7f7b0ae961ffe856603b721a1ee6c01b",
+    "Bridge.html": "8b311443805628c7bc6ccf65fb630f8f4cb62f6668666591095780c88080350e",
+    "appsscript.json": "6d9e30fcdbf21cec70850bceb611d2c88dc7d79139f0bd1ffe19f91a6b1d50f8"
+  }
+}

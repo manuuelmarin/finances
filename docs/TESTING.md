@@ -1,6 +1,8 @@
 # Test coverage and audit
 
-The October 2026 audit reviewed every Node test and browser scenario against its asserted behavior. Similar names were not treated as duplicates: authorization at different entry points, failures before and after a write, stale prices and conflicting history protect different risks.
+The 3.9.3 audit reviewed every Node test and browser scenario against its asserted behavior. Similar names were not treated as duplicates: authorization at different entry points, failures before and after a write, stale prices and conflicting history protect different risks.
+
+Release 3.9.4 adds four Node installer-contract cases and four unique browser scenarios, including one responsive comparison/filter workflow. Current totals are **237 Node cases in 22 files** and **100 browser executions: 80 desktop plus 20 mobile**. The tables below record the original 3.9.3 reduction, rather than claim that new functionality needs no tests.
 
 The useful reduction was repeated execution. Previously, all 76 browser scenarios ran in both profiles: 152 executions. The revised suite runs all 76 on desktop and 19 relevant workflows on mobile: 95 executions, 57 fewer (37.5%). No logical scenario was removed or hidden with a skip. All 233 Node tests remain because they cover distinct financial, data-integrity, transport or installation contracts.
 

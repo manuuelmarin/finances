@@ -2,6 +2,12 @@
 
 Build numbers identify the app and Apps Script code, not necessarily GitHub tags or releases. The API remains **3.3.0**. This history does not establish the installed Google version or environment; publishing Pages changes neither.
 
+## 3.9.4
+
+- Installer comparisons identify modified/new Apps Script files against known release hashes; unknown baselines keep the complete install path.
+- Scheduling labels explain the next-day retry and recognize the execution-due state without claiming a new NAV publication.
+- Document the 13 Google modules and the owner acceptance/principal cutover checklist. Financial operations and daily retry rules are unchanged.
+
 ## 3.9.3
 
 Add a read-only readiness preflight before daily-price activation can mutate triggers or properties. Clarify the private Apps Script upgrade sequence: validate on test, publish a new version of the existing private deployment, preserve its URL and settings, then verify the app connection. API 3.3.0 and workbook model 3 are unchanged.
