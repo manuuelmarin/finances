@@ -14,6 +14,7 @@ Follow the installer to add the listed Apps Script modules to the existing priva
 
 ## Documentation
 
+- [Workbook compatibility](docs/WORKBOOK.md) — required Sheets structure, formulas, and safe anonymized setup.
 - [Development](docs/DEVELOPMENT.md) — setup, checks and generated files.
 - [Architecture](docs/ARCHITECTURE.md) — data flow, writes and recovery.
 - [Operations](docs/OPERATIONS.md) — backup, test restore and cutover.
