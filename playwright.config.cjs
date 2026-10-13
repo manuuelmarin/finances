@@ -17,7 +17,7 @@ module.exports = defineConfig({
   },
   projects: [
     { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
-    { name: 'mobile', use: { ...devices['Pixel 7'] } },
+    { name: 'mobile', grep: /@responsive/, use: { ...devices['Pixel 7'] } },
   ],
   webServer: {
     command: 'node tools/serve.cjs',

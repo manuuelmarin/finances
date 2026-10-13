@@ -146,7 +146,7 @@ function prepareFunds(server) {
   server.ctx.Sheets.Spreadsheets.batchUpdate({ requests }, 'fixture-book');
 }
 
-test('reviewed fund transfer persists paired cashless legs and one receipt without touching cash or quotes', async ({
+test('@responsive reviewed fund transfer persists paired cashless legs and one receipt without touching cash or quotes', async ({
   page,
 }) => {
   const { server, calls } = await setup(page, { configure: prepareFunds });

@@ -298,7 +298,7 @@ test('inversiones obtiene ISIN del catálogo y limita los enlaces de fuentes', a
   );
 });
 
-test('móvil conserva filtros y orden en la tabla sin desbordar la página', async ({
+test('@responsive móvil conserva filtros y orden en la tabla sin desbordar la página', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -339,7 +339,7 @@ test('móvil conserva filtros y orden en la tabla sin desbordar la página', asy
   expect(dimensions.pageWidth).toBeLessThanOrEqual(dimensions.viewportWidth);
 });
 
-test('percentage filters use displayed percent, retain focus, clear and export all selected rows', async ({
+test('@responsive percentage filters use displayed percent, retain focus, clear and export all selected rows', async ({
   page,
 }) => {
   await setupRecords(page, (seed) => {
@@ -379,7 +379,7 @@ test('percentage filters use displayed percent, retain focus, clear and export a
   await expect(lower).toHaveValue('');
 });
 
-test('payroll opens a unified editor and reviews old/new values; cancellation names linked effects', async ({
+test('@responsive payroll opens a unified editor and reviews old/new values; cancellation names linked effects', async ({
   page,
 }) => {
   await setupRecords(page, (seed) => {

@@ -350,7 +350,7 @@ async function setupChannel(page, { delayed = false } = {}) {
   );
   await page.reload();
 }
-test('lectura nativa, filtros y móvil conservan nombres, desconocidos y el error de precios', async ({
+test('@responsive lectura nativa, filtros y móvil conservan nombres, desconocidos y el error de precios', async ({
   page,
 }) => {
   await setup(page);
@@ -383,7 +383,7 @@ test('lectura nativa, filtros y móvil conservan nombres, desconocidos y el erro
     ),
   ).toBe(true);
 });
-test('revisión previa, cancelar sin enviar y confirmación guarda una sola solicitud', async ({
+test('@responsive revisión previa, cancelar sin enviar y confirmación guarda una sola solicitud', async ({
   page,
 }) => {
   await setup(page);
@@ -449,7 +449,7 @@ test('respuesta perdida y reapertura conservan sobre y consultan antes de reinte
   expect(after).toEqual(before);
   expect(after[0].requestId).toBe(envelope.requestId);
 });
-test('sin conexión guarda pendiente en IndexedDB y la app vuelve a abrir con su copia local', async ({
+test('@responsive sin conexión guarda pendiente en IndexedDB y la app vuelve a abrir con su copia local', async ({
   page,
   context,
 }) => {
@@ -553,7 +553,7 @@ test('un envío de precios confirmado con fallos nunca se presenta como cotizaci
 });
 test.describe('PWA instalable', () => {
   test.use({ serviceWorkers: 'allow' });
-  test('instalación cachea solo archivos públicos y permite abrir la app sin conexión', async ({
+  test('@responsive instalación cachea solo archivos públicos y permite abrir la app sin conexión', async ({
     page,
     context,
   }) => {
@@ -747,7 +747,7 @@ test('el cliente y postMessage con Google ficticio conservan el borrador y regis
     ),
   ).toBe(1);
 });
-test('registro ofrece ingreso y transferencia sin volver al inicio y guardar un gasto actualiza el listado', async ({
+test('@responsive registro ofrece ingreso y transferencia sin volver al inicio y guardar un gasto actualiza el listado', async ({
   page,
 }) => {
   await setup(page);
@@ -768,7 +768,7 @@ test('registro ofrece ingreso y transferencia sin volver al inicio y guardar un 
     'Alta visible ficticia',
   );
 });
-test('panel concentra cifras y ofrece gráficos accesibles sin ocultar precios desconocidos', async ({
+test('@responsive panel concentra cifras y ofrece gráficos accesibles sin ocultar precios desconocidos', async ({
   page,
 }) => {
   await setup(page);
@@ -799,7 +799,7 @@ test('panel concentra cifras y ofrece gráficos accesibles sin ocultar precios d
     ),
   ).toBe(true);
 });
-test('las pantallas separan los registros y conservan filtros sin volver a leer Google', async ({
+test('@responsive las pantallas separan los registros y conservan filtros sin volver a leer Google', async ({
   page,
 }) => {
   await setup(page);
@@ -917,7 +917,7 @@ test('Actividad distingue pendientes del recibo confirmado sin volver a enviar',
   );
   expect(calls).toHaveLength(1);
 });
-test('diagnóstico permanece desplegable y el menú móvil devuelve el foco al cerrar', async ({
+test('@responsive diagnóstico permanece desplegable y el menú móvil devuelve el foco al cerrar', async ({
   page,
   isMobile,
 }) => {
@@ -980,7 +980,7 @@ test('actualizar la interfaz conserva la solicitud incierta y espera a cerrar fo
   }, deployment);
   expect(stored).toEqual({ status: 'uncertain', envelope: request });
 });
-test('presupuesto se revisa, persiste al reabrir y se retira sin crear un movimiento', async ({
+test('@responsive presupuesto se revisa, persiste al reabrir y se retira sin crear un movimiento', async ({
   page,
 }) => {
   await setup(page);
