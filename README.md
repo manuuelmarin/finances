@@ -10,7 +10,7 @@ Personal finance PWA backed by private Google Sheets and Apps Script. Track cash
 
 ## Getting started
 
-Follow the installer to add the listed Apps Script modules to the existing private project. Keep its URL and properties, run `prepareApplication` and `checkApplication`, then publish a new version of the existing deployment with the same URL and private access. Run `enableDailyPrices` only when daily updates are wanted. GitHub Pages does not update the Google project.
+For a new setup, start with the [blank model 3 workbook](templates/finances-model-3.xlsx) and follow [Workbook compatibility](docs/WORKBOOK.md). For an existing private project, follow the installer to add the listed Apps Script modules, keep its URL and properties, run `prepareApplication` and `checkApplication`, then publish a new version of the same private deployment. GitHub Pages does not update the Google project.
 
 ## Documentation
 
