@@ -155,6 +155,7 @@ const FinanceDashboard = (() => {
     target.querySelector('.transaction-selection')?.remove();
     const rows = spendingMovements().filter(
       (r) =>
+        (!selectedCategories || selectedCategories.includes(r.category)) &&
         (!category || r.category === category) &&
         (!date || r.date === date) &&
         (!city || r.city === city) &&
@@ -212,8 +213,10 @@ const FinanceDashboard = (() => {
       filtered.sort((a, b) => {
         const left = a[sortKey];
         const right = b[sortKey];
+        if (sortKey === 'amount' && (!known(left) || !known(right)))
+          return known(left) ? -1 : known(right) ? 1 : 0;
         const comparison =
-          typeof left === 'number'
+          sortKey === 'amount'
             ? left - right
             : String(left).localeCompare(String(right), 'es-ES');
         return descending ? -comparison : comparison;
@@ -433,6 +436,11 @@ const FinanceDashboard = (() => {
           ...categoryDetails.querySelectorAll('input:checked'),
         ].map((input) => input.value);
         renderSpending();
+        const next = $('spending-categories').querySelector('details');
+        next.open = true;
+        [...next.querySelectorAll('input')]
+          .find((input) => input.value === category.label)
+          ?.focus();
       });
       label.append(checkbox, document.createTextNode(category.label));
       categoryDetails.append(label);
@@ -465,30 +473,29 @@ const FinanceDashboard = (() => {
     const dailyValues = new Map();
     const cityValues = new Map();
     const recurringValues = new Map();
+    const add = (values, key, value) => {
+      const previous = values.has(key) ? values.get(key) : 0;
+      values.set(
+        key,
+        known(previous) && known(value) ? previous + value : null,
+      );
+    };
     for (const movement of selectedMovements) {
-      dailyValues.set(
-        movement.date,
-        (dailyValues.get(movement.date) || 0) + movement.amount,
-      );
-      cityValues.set(
-        movement.city,
-        (cityValues.get(movement.city) || 0) + movement.amount,
-      );
+      add(dailyValues, movement.date, movement.amount);
+      add(cityValues, movement.city, movement.amount);
       const recurrenceLabel =
         movement.recurring === 'Sí' ? 'Recurrente' : 'No recurrente';
-      recurringValues.set(
-        recurrenceLabel,
-        (recurringValues.get(recurrenceLabel) || 0) + movement.amount,
-      );
+      add(recurringValues, recurrenceLabel, movement.amount);
     }
     let running = 0;
     const shownDaily = a.daily.map((r) => {
-      running += dailyValues.get(r.date) || 0;
-      return { ...r, value: dailyValues.get(r.date) || 0, cumulative: running };
+      const value = dailyValues.has(r.date) ? dailyValues.get(r.date) : 0;
+      running = known(running) && known(value) ? running + value : null;
+      return { ...r, value, cumulative: running };
     });
     const shownCities = [...cityValues]
       .map(([label, value]) => ({ label, value }))
-      .sort((x, y) => y.value - x.value);
+      .sort((x, y) => (y.value ?? -Infinity) - (x.value ?? -Infinity));
     const shownRecurring = [...recurringValues].map(([label, value]) => ({
       label,
       value,

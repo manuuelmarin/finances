@@ -270,6 +270,13 @@ test('@responsive checklist filtra categorías; salario y cuentas mantienen sus 
     .filter({ hasText: 'Vivienda' })
     .locator('input')
     .uncheck();
+  await expect(page.locator('#spending-categories details')).toHaveAttribute(
+    'open',
+    '',
+  );
+  await expect(
+    page.locator('#spending-categories input[value="Vivienda"]'),
+  ).toBeFocused();
   await expect(
     page.locator('#spending-summary .kpi').first().locator('.kpi-value'),
   ).toContainText('500,00');
@@ -295,6 +302,15 @@ test('@responsive checklist filtra categorías; salario y cuentas mantienen sus 
       hasText: 'Transporte',
     }),
   ).toContainText('40 %');
+  const cityChart = page.locator('#spending-charts .chart-card').filter({
+    has: page.getByRole('heading', { name: 'Gasto por ciudad', exact: true }),
+  });
+  await cityChart.locator('.finance-chart').focus();
+  await page.keyboard.press('Home');
+  const selection = page.locator('.transaction-selection');
+  await expect(selection.locator('tbody tr')).toHaveCount(1);
+  await expect(selection.locator('tbody')).toContainText('Alimentación');
+  await expect(selection.locator('tbody')).not.toContainText('Vivienda');
   await distribution
     .locator('button.distribution-item')
     .filter({ hasText: 'Alimentación' })
@@ -324,6 +340,67 @@ test('@responsive checklist filtra categorías; salario y cuentas mantienen sus 
   await navigate(page, 'goals');
   await expect(page.locator('#goal-charts')).toContainText('Meta ficticia');
   await screenshot(page, 'goals');
+});
+
+test('spending projections preserve unknown amounts until their category is excluded', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  seed.tables.tMovimientos.push({
+    ID: 'UNKNOWN-EXPENSE',
+    Fecha: '2026-03-05',
+    Tipo: 'Gasto',
+    Origen: 'Banco ficticio',
+    Importe: null,
+    Recuperable: 0,
+    Subcategoría: 'Compra',
+    Localización: 'Ciudad ficticia',
+    Recurrente: 'No',
+  });
+  await setup(page, seed);
+  await navigate(page, 'book');
+  await expect(
+    page.locator('#spending-summary .kpi').first().locator('.kpi-value'),
+  ).toHaveText('Sin dato');
+  const cumulative = page.locator('#spending-charts .chart-card').filter({
+    has: page.getByRole('heading', { name: 'Gasto del mes', exact: true }),
+  });
+  await cumulative.locator('.finance-chart').focus();
+  await page.keyboard.press('End');
+  await expect(cumulative.locator('.chart-readout')).toContainText('Sin dato');
+  const city = page.locator('#spending-charts .chart-card').filter({
+    has: page.getByRole('heading', { name: 'Gasto por ciudad', exact: true }),
+  });
+  await city.locator('.finance-chart').focus();
+  await page.keyboard.press('End');
+  await expect(city.locator('.chart-readout')).toContainText('Sin dato');
+  const selection = page.locator('.transaction-selection');
+  const amountSort = selection.getByRole('button', { name: 'Importe propio' });
+  await amountSort.click();
+  await expect(selection.locator('tbody tr').last()).toContainText('Sin dato');
+  await amountSort.click();
+  await expect(selection.locator('tbody tr').last()).toContainText('Sin dato');
+  const recurrence = page.locator('#spending-charts .chart-card').filter({
+    has: page.getByRole('heading', {
+      name: 'Recurrencia del gasto',
+      exact: true,
+    }),
+  });
+  await expect(recurrence.locator('.distribution-legend')).toContainText(
+    'Sin dato',
+  );
+  await page.locator('#spending-categories summary').click();
+  await page
+    .locator('#spending-categories input[value="Alimentación"]')
+    .uncheck();
+  await expect(
+    page.locator('#spending-summary .kpi').first().locator('.kpi-value'),
+  ).toContainText(/1\.?200,00/);
+  await cumulative.locator('.finance-chart').focus();
+  await page.keyboard.press('End');
+  await expect(cumulative.locator('.chart-readout')).not.toContainText(
+    'Sin dato',
+  );
 });
 
 test('@responsive selección genérica de producto y periodo conserva escalera, valor e inspección', async ({
