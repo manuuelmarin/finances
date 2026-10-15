@@ -5,6 +5,7 @@ const web = path.resolve(__dirname, '../web');
 const assets = [
   'index.html',
   'styles.css',
+  'chart-controls.css',
   'connection.js',
   'api.js',
   'calculators.js',
@@ -15,6 +16,8 @@ const assets = [
   'history.js',
   'history-template.csv',
   'analytics.js',
+  'insights.js',
+  'wealth.js',
   'dashboard.js',
   'charts.js',
   'pwa.js',

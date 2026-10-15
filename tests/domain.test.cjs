@@ -139,3 +139,71 @@ test('adaptador de agentes genera referencias y exige guardar antes de enviar', 
   assert.equal(result.replayed, true);
   assert.equal(r.state().tables.tMovimientos.length, 1);
 });
+
+test('recurrente usa No por defecto y normaliza el vacío histórico', () => {
+  const values = {
+    date: '2026-01-02',
+    concept: 'Compra ficticia',
+    account: 'Cuenta A',
+    category: 'Café',
+    amount: '1',
+  };
+  assert.equal(D.operation('gasto', values).recurring, false);
+  assert.equal(
+    D.operation('gasto', { ...values, recurring: '' }).recurring,
+    false,
+  );
+  assert.equal(
+    D.operation('gasto', { ...values, recurring: 'true' }).recurring,
+    true,
+  );
+});
+
+test('alta inline de producto e ISIN y compra son un único lote sin doble caja', () => {
+  const r = runtime();
+  r.init();
+  const product = D.operation('producto', {
+    name: 'Fondo nuevo',
+    account: 'Cuenta A',
+    class: 'Renta variable',
+    date: '2026-01-02',
+    units: '0',
+    cost: '0',
+  });
+  product.alias = 'newProduct';
+  const bind = D.operation('vincular_isin', {
+    product: '$newProduct',
+    isin: 'ES0112611001',
+    referenceName: 'Fondo nuevo clase A',
+  });
+  const purchase = D.operation('compra', {
+    date: '2026-01-02',
+    concept: 'Compra inicial',
+    product: '$newProduct',
+    units: '2',
+    price: '5',
+    fee: '0',
+    historical: 'false',
+  });
+  const result = r.transact([product, bind, purchase]);
+  assert.equal(result.ok, true);
+  const state = r.state();
+  assert.equal(state.tables.tProductos.length, 2);
+  assert.equal(state.tables.tOperaciones.length, 1);
+  assert.equal(state.tables.tMovimientos.length, 1);
+  assert.equal(state.tables.tMovimientos[0].Importe, 10);
+  assert.equal(
+    state.tables.tOperaciones[0].Producto,
+    state.tables.tProductos[1].ID,
+  );
+});
+
+test('formularios de inversión muestran Precio y omiten Localización', () => {
+  for (const process of ['compra', 'venta']) {
+    const fields = D.processes[process].fields;
+    assert.ok(
+      fields.some((field) => field.key === 'price' && field.label === 'Precio'),
+    );
+    assert.ok(!fields.some((field) => field.key === 'location'));
+  }
+});

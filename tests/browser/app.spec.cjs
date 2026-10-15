@@ -275,7 +275,7 @@ async function setup(
     },
     { deployment, seed, lost, bridgeFailure },
   );
-  const mock = `\nFinanceApiClient = class {constructor(url){this.url=url;this.session=null;}connect(){this.session={rpcReady:true};return Promise.resolve({ok:true,apiVersion:'3.3.0'});}close(){this.session=null;}acceptance(){const s=JSON.parse(localStorage.getItem('fixture.server')).snapshot;return Promise.resolve({ok:true,readOnly:true,environment:s.environment,buildVersion:'3.4.0',technicalReady:true,checks:{backend:true,calculations:true,summary:true,bridge:true,sources:true,stable:true},results:[]});}read(){return Promise.resolve(JSON.parse(localStorage.getItem('fixture.server')).snapshot);}async submit(envelope){const s=JSON.parse(localStorage.getItem('fixture.server'));s.calls.push(envelope);if(!s.journal[envelope.requestId]){s.snapshot.revision='r'+(s.calls.length+1);for(const op of envelope.operations||[]){if(op.process==='presupuesto'){const b=s.snapshot.budgets.find(b=>b.month===op.month&&b.category===op.category);if(b)b.amount=op.amount;else s.snapshot.budgets.push({month:op.month,category:op.category,amount:op.amount});}if(op.process==='quitar_presupuesto')s.snapshot.budgets=s.snapshot.budgets.filter(b=>b.month!==op.month||b.category!==op.category);if(op.process==='gasto')s.snapshot.tables.tMovimientos.push({ID:'NEW-'+envelope.requestId,Fecha:op.date,Tipo:'Gasto',Concepto:op.concept,Origen:op.account,Subcategoría:op.category,Importe:op.amount,Recuperable:op.recoverable,Localización:op.location,Recurrente:op.recurring});}s.journal[envelope.requestId]={ok:true,revision:s.snapshot.revision,results:[],complete:envelope.action!=='refreshPrices'};if(envelope.action==='refreshPrices')s.journal[envelope.requestId].results=[{ok:false,referenceName:'Fondo ficticio',message:'Fuente sin identidad verificable'}];}const result=s.journal[envelope.requestId];const lost=s.lost;s.lost=false;localStorage.setItem('fixture.server',JSON.stringify(s));if(lost)throw Error('RESPONSE_UNCERTAIN');if(s.bridgeFailure){s.bridgeFailure=false;localStorage.setItem('fixture.server',JSON.stringify(s));return {ok:false,error:'RESPONSE_UNCERTAIN',message:'Respuesta de Google no confirmada'};}return result;}requestStatus(envelope){return Promise.resolve(JSON.parse(localStorage.getItem('fixture.server')).journal[envelope.requestId]||{ok:true,found:false});}};`;
+  const mock = `\nFinanceApiClient = class {constructor(url){this.url=url;this.session=null;}connect(){this.session={rpcReady:true};return Promise.resolve({ok:true,apiVersion:'3.3.0'});}close(){this.session=null;}diagnostics(){const s=JSON.parse(localStorage.getItem('fixture.server')).snapshot;return Promise.resolve({ok:true,backendReady:true,calculationReady:true,apiVersion:'3.3.0',tableCount:10,environment:s.environment});}acceptance(){const s=JSON.parse(localStorage.getItem('fixture.server')).snapshot;return Promise.resolve({ok:true,readOnly:true,environment:s.environment,buildVersion:'3.4.0',technicalReady:true,checks:{backend:true,calculations:true,summary:true,bridge:true,sources:true,stable:true},results:[]});}read(){return Promise.resolve(JSON.parse(localStorage.getItem('fixture.server')).snapshot);}async submit(envelope){const s=JSON.parse(localStorage.getItem('fixture.server'));s.calls.push(envelope);if(!s.journal[envelope.requestId]){s.snapshot.revision='r'+(s.calls.length+1);for(const op of envelope.operations||[]){if(op.process==='presupuesto'){const b=s.snapshot.budgets.find(b=>b.month===op.month&&b.category===op.category);if(b)b.amount=op.amount;else s.snapshot.budgets.push({month:op.month,category:op.category,amount:op.amount});}if(op.process==='quitar_presupuesto')s.snapshot.budgets=s.snapshot.budgets.filter(b=>b.month!==op.month||b.category!==op.category);if(op.process==='gasto')s.snapshot.tables.tMovimientos.push({ID:'NEW-'+envelope.requestId,Fecha:op.date,Tipo:'Gasto',Concepto:op.concept,Origen:op.account,Subcategoría:op.category,Importe:op.amount,Recuperable:op.recoverable,Localización:op.location,Recurrente:op.recurring});}s.journal[envelope.requestId]={ok:true,revision:s.snapshot.revision,results:[],complete:envelope.action!=='refreshPrices'};if(envelope.action==='refreshPrices')s.journal[envelope.requestId].results=[{ok:false,referenceName:'Fondo ficticio',message:'Fuente sin identidad verificable'}];}const result=s.journal[envelope.requestId];const lost=s.lost;s.lost=false;localStorage.setItem('fixture.server',JSON.stringify(s));if(lost)throw Error('RESPONSE_UNCERTAIN');if(s.bridgeFailure){s.bridgeFailure=false;localStorage.setItem('fixture.server',JSON.stringify(s));return {ok:false,error:'RESPONSE_UNCERTAIN',message:'Respuesta de Google no confirmada'};}return result;}requestStatus(envelope){return Promise.resolve(JSON.parse(localStorage.getItem('fixture.server')).journal[envelope.requestId]||{ok:true,found:false});}};`;
   await page.route('**/api.js', (route) =>
     route.fulfill({
       contentType: 'text/javascript',
@@ -405,7 +405,7 @@ test('@responsive revisión previa, cancelar sin enviar y confirmación guarda u
   );
   expect(calls).toHaveLength(1);
   expect(calls[0].operations[0].amount).toBe(12.34);
-  expect(calls[0].operations[0].recurring).toBe(null);
+  expect(calls[0].operations[0].recurring).toBe(false);
 });
 test('respuesta perdida y reapertura conservan sobre y consultan antes de reintentar', async ({
   page,
@@ -500,13 +500,15 @@ test('nómina desconocida y precio con precisión completa se revisan con nombre
   await page.locator('#review-cancel').click();
   await page.locator('#operation-cancel').click();
   await navigate(page, 'investments');
-  await page.locator('#view-investments [data-operation=compra]').click();
-  await page.locator('#operation-kind').selectOption('precio');
-  await page.locator('#operation-product').selectOption('INTERNAL-PRODUCT');
-  await page.locator('#operation-price').fill('14,490500');
-  await page.locator('#operation-source').fill('Fuente ficticia');
+  await page.getByRole('tab', { name: 'Precios', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Corregir Fondo ficticio', exact: true })
+    .click();
+  await expect(page.locator('#operation-title')).toContainText(
+    'Fondo ficticio',
+  );
+  await page.locator('#operation-fields [name="VL EUR"]').fill('14,490500');
   await page.locator('#operation-form button[type=submit]').click();
-  await expect(page.locator('#review-fields')).toContainText('Fondo ficticio');
   await expect(page.locator('#review-fields')).toContainText('14.4905');
   await expect(page.locator('#review-fields')).not.toContainText(
     'INTERNAL-PRODUCT',
@@ -589,16 +591,9 @@ test('producción se identifica en ordenador/móvil y la comprobación del siste
   await expect(page.locator('.environment-tag')).toHaveText('Libro principal');
   await expect(page.locator('#app-version')).toContainText('Libro principal');
   await navigate(page, 'connection');
-  await diagnostic(page);
-  await page.locator('#acceptance-check').click();
-  await expect(page.locator('#acceptance-result')).toContainText(
-    'Libro principal · versión 3.4.0',
-  );
-  await expect(page.locator('#acceptance-result')).toContainText(
-    'Comprobaciones técnicas correctas',
-  );
-  await expect(page.locator('#acceptance-result')).toContainText(
-    'No se han guardado precios ni operaciones',
+  await page.locator('#system-check').click();
+  await expect(page.locator('#system-result')).toContainText(
+    'Sistema comprobado. No se han guardado cambios.',
   );
   expect(
     await page.evaluate(
@@ -752,10 +747,17 @@ test('@responsive registro ofrece ingreso y transferencia sin volver al inicio y
 }) => {
   await setup(page);
   await navigate(page, 'book');
-  await page.locator('#view-book [data-operation=ingreso]').click();
+  const newMovement = page.locator('#view-book [data-operation=gasto]');
+  await newMovement.click();
+  await page.locator('#operation-kind').selectOption('ingreso');
   await expect(page.locator('#operation-kind')).toHaveValue('ingreso');
   await page.locator('#operation-cancel').click();
-  await page.locator('#view-book [data-operation=gasto]').click();
+  await newMovement.click();
+  await page.locator('#operation-kind').selectOption('traspaso');
+  await expect(page.locator('#operation-kind')).toHaveValue('traspaso');
+  await page.locator('#operation-cancel').click();
+  await newMovement.click();
+  await page.locator('#operation-kind').selectOption('gasto');
   await page.locator('#operation-date').fill('2026-01-02');
   await page.locator('.operation-additional summary').click();
   await page.locator('#operation-concept').fill('Alta visible ficticia');
@@ -773,19 +775,14 @@ test('@responsive panel concentra cifras y ofrece gráficos accesibles sin ocult
 }) => {
   await setup(page);
   await expect(page.locator('#finance-kpis > article')).toHaveCount(3);
-  await expect(page.locator('#dashboard-charts .chart-card')).toHaveCount(2);
+  await expect(page.locator('#dashboard-charts .chart-card')).toHaveCount(3);
   await expect(page.locator('#dashboard-charts .asset-breakdown')).toHaveCount(
     1,
   );
   await expect(page.locator('#investment-charts .chart-card')).toHaveCount(3);
-  await expect(page.locator('#spending-charts .chart-card')).toHaveCount(4);
-  await expect(page.locator('#salary-charts .chart-card')).toHaveCount(1);
-  await expect(page.locator('#salary-saving-charts .chart-card')).toHaveCount(
-    1,
-  );
-  await expect(page.locator('#finance-kpis')).toContainText(
-    'define un límite total',
-  );
+  await expect(page.locator('#spending-charts .chart-card')).toHaveCount(5);
+  await expect(page.locator('#salary-charts .chart-card')).toHaveCount(2);
+  await expect(page.locator('#finance-kpis')).not.toContainText(/presupuesto/i);
   await page.locator('#dashboard-charts .chart-data summary').last().click();
   await expect(
     page.locator('#dashboard-charts .chart-table').last(),
@@ -835,7 +832,7 @@ test('@responsive las pantallas separan los registros y conservan filtros sin vo
   await navigate(page, 'goals');
   await expect(page.locator('#finance-section')).toHaveValue('tObjetivos');
   await navigate(page, 'connection');
-  await page.locator('#category-settings summary').click();
+  await page.locator('#category-settings > summary').click();
   await expect(page.locator('#finance-register')).toContainText('Nómina');
   await navigate(page, 'book');
   await expect(page.locator('#finance-search')).toHaveValue('Café');
@@ -929,15 +926,15 @@ test('@responsive diagnóstico permanece desplegable y el menú móvil devuelve 
   if (isMobile) {
     await page.locator('#mobile-menu').click();
     await expect(page.locator('#navigation-dialog')).toBeVisible();
-    await expect(page.locator('#navigation-dialog [data-view]')).toHaveCount(6);
+    await expect(page.locator('#navigation-dialog [data-view]')).toHaveCount(4);
     await page.keyboard.press('Escape');
     await expect(page.locator('#navigation-dialog')).not.toBeVisible();
     await expect(page.locator('#mobile-menu')).toBeFocused();
   }
   await diagnostic(page);
-  await page.locator('#acceptance-check').click();
-  await expect(page.locator('#acceptance-result')).toContainText(
-    'Comprobaciones técnicas correctas',
+  await page.locator('#system-check').click();
+  await expect(page.locator('#system-result')).toContainText(
+    'Sistema comprobado. No se han guardado cambios.',
   );
 });
 test('actualizar la interfaz conserva la solicitud incierta y espera a cerrar formularios', async ({
@@ -1006,7 +1003,9 @@ test('@responsive presupuesto se revisa, persiste al reabrir y se retira sin cre
   );
   await page.getByRole('button', { name: 'Quitar límite' }).click();
   await page.locator('#review-confirm').click();
-  await expect(page.locator('#budget-cards')).toContainText('no tiene límites');
+  await expect(page.locator('#budget-cards')).toContainText(
+    'No hay límites definidos para este mes',
+  );
   const s = await page.evaluate(() =>
     JSON.parse(localStorage.getItem('fixture.server')),
   );

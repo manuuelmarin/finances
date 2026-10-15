@@ -211,8 +211,10 @@ test('@responsive resumen concentra patrimonio, caja seleccionable y gráficos a
 }) => {
   await setup(page);
   await expect(page.locator('#finance-kpis')).toContainText('Patrimonio neto');
+  await expect(page.locator('#finance-kpis > .kpi')).toHaveCount(3);
+  await expect(page.locator('#finance-kpis')).toContainText('Liquidez');
   await expect(page.locator('#finance-kpis')).toContainText(
-    'Saldo libre del mes',
+    'Variación del patrimonio',
   );
   await expect(page.locator('#finance-kpis')).not.toContainText(
     /Tasa de ahorro|Ingresos|Últimos movimientos/,
@@ -224,7 +226,7 @@ test('@responsive resumen concentra patrimonio, caja seleccionable y gráficos a
   await screenshot(page, 'home');
   const cash = page.locator('#dashboard-charts .chart-card').filter({
     has: page.getByRole('heading', {
-      name: 'Evolución diaria del efectivo',
+      name: 'Saldo diario en cuentas',
       exact: true,
     }),
   });
@@ -238,18 +240,17 @@ test('@responsive resumen concentra patrimonio, caja seleccionable y gráficos a
   await expect(accountToggle).toHaveAttribute('aria-pressed', 'false');
   await expect(cash.locator('path.chart-line')).toHaveCount(2);
   await accountToggle.click();
-  const navigator = cash.locator('.chart-navigator');
-  await navigator.focus();
+  const graph = cash.locator('.finance-chart');
+  await graph.focus();
   await page.keyboard.press('Home');
-  await expect(cash.locator('.chart-readout')).toContainText('2026-03-01');
+  await expect(cash.locator('.chart-readout')).toContainText('01 mar 2026');
   await page.keyboard.press('ArrowRight');
-  await expect(cash.locator('.chart-readout')).toContainText('2026-03-02');
+  await expect(cash.locator('.chart-readout')).toContainText('02 mar 2026');
   await page.locator('#cash-month').fill('2026-02');
   await page.locator('#cash-month').dispatchEvent('change');
   await expect(page.locator('#cash-month')).toHaveValue('2026-02');
-  await expect(cash.locator(':scope > .chart-description')).toContainText(
-    '2026-02',
-  );
+  await cash.locator('.chart-explanation summary').click();
+  await expect(cash.locator('.chart-explanation p')).toContainText('2026-02');
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth + 1,
@@ -257,42 +258,80 @@ test('@responsive resumen concentra patrimonio, caja seleccionable y gráficos a
   ).toBe(true);
 });
 
-test('@responsive gasto excluye Vivienda y recalcula el denominador; nómina y cuentas tienen gráficas propias', async ({
+test('@responsive checklist filtra categorías; salario y cuentas mantienen sus gráficos', async ({
   page,
 }) => {
   await setup(page);
   await navigate(page, 'book');
   await expect(page.locator('#spending-month')).toHaveValue('2026-03');
-  await page.locator('#spending-exclude').selectOption('Vivienda');
+  await page.locator('#spending-categories summary').click();
+  await page
+    .locator('#spending-categories label')
+    .filter({ hasText: 'Vivienda' })
+    .locator('input')
+    .uncheck();
+  await expect(page.locator('#spending-categories details')).toHaveAttribute(
+    'open',
+    '',
+  );
+  await expect(
+    page.locator('#spending-categories input[value="Vivienda"]'),
+  ).toBeFocused();
   await expect(
     page.locator('#spending-summary .kpi').first().locator('.kpi-value'),
   ).toContainText('500,00');
-  await expect(page.locator('#spending-note')).toContainText(
-    'Los porcentajes usan el total restante',
+  await expect(page.locator('#spending-categories summary')).toContainText(
+    '2 categorías incluidas',
   );
-  const distribution = page.locator('#spending-charts .chart-card').first();
+  const distribution = page.locator('#spending-charts .chart-card').filter({
+    has: page.getByRole('heading', {
+      name: 'Distribución del gasto',
+      exact: true,
+    }),
+  });
   await expect(distribution.locator('.distribution-legend')).not.toContainText(
     'Vivienda',
   );
   await expect(
-    distribution.getByRole('button', { name: /Alimentación/ }),
+    distribution.locator('button.distribution-item').filter({
+      hasText: 'Alimentación',
+    }),
   ).toContainText('60 %');
   await expect(
-    distribution.getByRole('button', { name: /Transporte/ }),
+    distribution.locator('button.distribution-item').filter({
+      hasText: 'Transporte',
+    }),
   ).toContainText('40 %');
-  await distribution.getByRole('button', { name: /Alimentación/ }).click();
+  const cityChart = page.locator('#spending-charts .chart-card').filter({
+    has: page.getByRole('heading', { name: 'Gasto por ciudad', exact: true }),
+  });
+  await cityChart.locator('.finance-chart').focus();
+  await page.keyboard.press('Home');
+  const selection = page.locator('.transaction-selection');
+  await expect(selection.locator('tbody tr')).toHaveCount(1);
+  await expect(selection.locator('tbody')).toContainText('Alimentación');
+  await expect(selection.locator('tbody')).not.toContainText('Vivienda');
+  await distribution
+    .locator('button.distribution-item')
+    .filter({ hasText: 'Alimentación' })
+    .click();
   await expect(distribution.locator('.chart-readout')).toContainText(
     '60 % del total mostrado',
   );
   await expect(page.locator('#spending-charts path.chart-step')).toHaveCount(1);
   await screenshot(page, 'spending');
   await navigate(page, 'salary');
-  await expect(page.locator('#salary-saving-charts')).toContainText(
+  const salaryCharts = page.locator('#salary-charts .chart-card');
+  await expect(salaryCharts).toHaveCount(2);
+  await expect(salaryCharts.nth(0)).toContainText(
+    'Nóminas registradas por mes',
+  );
+  await expect(salaryCharts.nth(1)).toContainText(
     'Ahorro mensual sobre nómina',
   );
-  await expect(
-    page.locator('#salary-saving-charts .chart-readout'),
-  ).toContainText('25 %');
+  await expect(salaryCharts.nth(1).locator('.chart-readout')).toContainText(
+    '25 %',
+  );
   await screenshot(page, 'salary');
   await navigate(page, 'accounts');
   await expect(page.locator('#account-charts .chart-card')).toHaveCount(2);
@@ -301,6 +340,67 @@ test('@responsive gasto excluye Vivienda y recalcula el denominador; nómina y c
   await navigate(page, 'goals');
   await expect(page.locator('#goal-charts')).toContainText('Meta ficticia');
   await screenshot(page, 'goals');
+});
+
+test('spending projections preserve unknown amounts until their category is excluded', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  seed.tables.tMovimientos.push({
+    ID: 'UNKNOWN-EXPENSE',
+    Fecha: '2026-03-05',
+    Tipo: 'Gasto',
+    Origen: 'Banco ficticio',
+    Importe: null,
+    Recuperable: 0,
+    Subcategoría: 'Compra',
+    Localización: 'Ciudad ficticia',
+    Recurrente: 'No',
+  });
+  await setup(page, seed);
+  await navigate(page, 'book');
+  await expect(
+    page.locator('#spending-summary .kpi').first().locator('.kpi-value'),
+  ).toHaveText('Sin dato');
+  const cumulative = page.locator('#spending-charts .chart-card').filter({
+    has: page.getByRole('heading', { name: 'Gasto del mes', exact: true }),
+  });
+  await cumulative.locator('.finance-chart').focus();
+  await page.keyboard.press('End');
+  await expect(cumulative.locator('.chart-readout')).toContainText('Sin dato');
+  const city = page.locator('#spending-charts .chart-card').filter({
+    has: page.getByRole('heading', { name: 'Gasto por ciudad', exact: true }),
+  });
+  await city.locator('.finance-chart').focus();
+  await page.keyboard.press('End');
+  await expect(city.locator('.chart-readout')).toContainText('Sin dato');
+  const selection = page.locator('.transaction-selection');
+  const amountSort = selection.getByRole('button', { name: 'Importe propio' });
+  await amountSort.click();
+  await expect(selection.locator('tbody tr').last()).toContainText('Sin dato');
+  await amountSort.click();
+  await expect(selection.locator('tbody tr').last()).toContainText('Sin dato');
+  const recurrence = page.locator('#spending-charts .chart-card').filter({
+    has: page.getByRole('heading', {
+      name: 'Recurrencia del gasto',
+      exact: true,
+    }),
+  });
+  await expect(recurrence.locator('.distribution-legend')).toContainText(
+    'Sin dato',
+  );
+  await page.locator('#spending-categories summary').click();
+  await page
+    .locator('#spending-categories input[value="Alimentación"]')
+    .uncheck();
+  await expect(
+    page.locator('#spending-summary .kpi').first().locator('.kpi-value'),
+  ).toContainText(/1\.?200,00/);
+  await cumulative.locator('.finance-chart').focus();
+  await page.keyboard.press('End');
+  await expect(cumulative.locator('.chart-readout')).not.toContainText(
+    'Sin dato',
+  );
 });
 
 test('@responsive selección genérica de producto y periodo conserva escalera, valor e inspección', async ({
@@ -329,20 +429,33 @@ test('@responsive selección genérica de producto y periodo conserva escalera, 
   expect(await area.getAttribute('d')).toMatch(/Z$/);
   await screenshot(page, 'investments-area');
   await expect(chart.locator('.finance-chart circle')).toHaveCount(0);
+  await chart.locator('.chart-data > summary').click();
   const allRows = await chart.locator('tbody tr').count();
   await page.locator('#investment-range').selectOption('1m');
-  const monthRows = await chart.locator('tbody tr').count();
-  expect(monthRows).toBeLessThan(allRows);
-  expect(monthRows).toBeGreaterThan(1);
+  await expect(
+    chart.getByLabel('Desde Valor de mercado y aportación neta'),
+  ).toHaveValue(/^2026-02/);
+  await expect(
+    chart.getByLabel('Hasta Valor de mercado y aportación neta'),
+  ).toHaveValue('2026-03-15');
+  // The chart table follows the selected date window as well as the plot.
+  expect(await chart.locator('tbody tr').count()).toBeLessThan(allRows);
+  const oneMonthDates = await chart.locator('tbody tr th').allTextContents();
+  expect(oneMonthDates.length).toBeGreaterThan(0);
+  expect(
+    oneMonthDates.every((date) => date >= '2026-02' && date <= '2026-03-15'),
+  ).toBe(true);
   await page.locator('#investment-range').selectOption('ytd');
-  await expect(chart.locator('tbody tr')).toHaveCount(allRows);
+  await expect(chart.locator('tbody tr')).not.toHaveCount(0);
   await page.locator('#investment-range').selectOption('all');
   await expect(chart.locator('tbody tr')).toHaveCount(allRows);
   await page.locator('#investment-product').selectOption('FICTITIOUS-BETA');
   await expect(page.locator('#investment-kpis')).toContainText('450,00');
-  await expect(chart.locator(':scope > .chart-description')).toContainText(
+  await chart.locator('.chart-explanation summary').click();
+  await expect(chart.locator('.chart-explanation p')).toContainText(
     'Fondo Beta ficticio',
   );
+  await chart.locator('.chart-explanation summary').click();
   const valueToggle = chart.getByRole('button', {
     name: 'Valor de mercado',
     exact: true,
@@ -350,9 +463,9 @@ test('@responsive selección genérica de producto y periodo conserva escalera, 
   await valueToggle.click();
   await expect(valueToggle).toHaveAttribute('aria-pressed', 'false');
   await expect(chart.locator('path.chart-line')).toHaveCount(1);
-  await chart.locator('.chart-navigator').focus();
+  await chart.locator('.finance-chart').focus();
   await page.keyboard.press('Home');
-  await expect(chart.locator('.chart-readout')).toContainText('2026-01-01');
+  await expect(chart.locator('.chart-readout')).toContainText('01 ene 2026');
   await screenshot(page, 'investments');
 });
 
@@ -428,7 +541,7 @@ test('@responsive datos del gráfico permiten ordenar y filtrar con teclado sin 
   const chart = page.locator('#dashboard-charts .chart-card').filter({
     has: page.getByRole('heading', { name: 'Tabla ficticia', exact: true }),
   });
-  await chart.locator('summary').click();
+  await chart.locator('.chart-data > summary').click();
   const table = chart.locator('table');
   const amountSort = table.getByRole('button', {
     name: 'Ordenar por Importe ficticio',
@@ -496,10 +609,13 @@ test('TWR insuficiente explica los cortes que faltan y no muestra resultado sobr
   await setup(page, sparse);
   await navigate(page, 'investments');
   const performance = page.locator('#investment-charts .chart-card').nth(1);
-  await expect(performance).toContainText(
+  await performance.locator('.chart-explanation summary').click();
+  await expect(performance.locator('.chart-explanation p')).toContainText(
     'TWR ajustado entre valoraciones reales',
   );
-  await expect(performance).toContainText('no puede calcularse');
+  await expect(performance.locator('.chart-explanation p')).toContainText(
+    'no puede calcularse',
+  );
   const rowValues = await performance.locator('tbody tr').allTextContents();
   expect(rowValues.at(-1)).toContain('Sin dato');
 });
@@ -571,7 +687,8 @@ test('TWR identifica la primera valoración real cuando falta el rendimiento ant
       exact: true,
     }),
   ).toBeVisible();
-  await expect(performance).toContainText(
+  await performance.locator('.chart-explanation summary').click();
+  await expect(performance.locator('.chart-explanation p')).toContainText(
     'el rendimiento anterior es desconocido',
   );
   const last = await performance.locator('tbody tr').last().textContent();
@@ -600,7 +717,7 @@ test('future budget is planned, account month is independent and unknown goal as
   await page.locator('#budget-month').fill('2026-04');
   await expect(page.locator('#budget-spent')).toHaveText('Sin dato');
   await expect(page.locator('#budget-note')).toContainText(
-    'Mes futuro planificado',
+    'Este backend admite límites mensuales',
   );
   await navigate(page, 'accounts');
   await page.locator('#account-month').fill('2026-02');
@@ -754,7 +871,7 @@ test('future expense panels and missing-price portfolio composition never imply 
   await expect(page.locator('#spending-summary')).toContainText('Sin dato');
   await expect(page.locator('#spending-charts .chart-card')).toHaveCount(0);
   await expect(page.locator('#spending-charts')).toContainText(
-    'Mes futuro planificado',
+    'Periodo futuro · sin registros',
   );
 });
 

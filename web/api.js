@@ -1,3 +1,4 @@
+/* global currentDeployment */
 'use strict';
 
 const API_REQUEST_TYPE = 'finances.api.request.v1';
@@ -329,6 +330,75 @@ if (typeof document !== 'undefined') {
   const checkError = (error) =>
     globalThis.FinanceBook?.errorText(error) ||
     'Abre Finanzas en su propia ventana para comprobar tu libro.';
+  const systemButton = document.getElementById('system-check'),
+    systemOutput = document.getElementById('system-result');
+  if (systemButton && systemOutput)
+    systemButton.addEventListener('click', async () => {
+      const buttons = [
+        'system-check',
+        'connect',
+        'backend-check',
+        'acceptance-check',
+      ]
+        .map((id) => document.getElementById(id))
+        .filter(Boolean);
+      const disabled = buttons.map((button) => button.disabled);
+      const deployment = currentDeployment();
+      let completed = 0;
+      buttons.forEach((button) => {
+        button.disabled = true;
+      });
+      systemOutput.replaceChildren();
+      try {
+        for (const [action, label] of [
+          ['connection', 'Conexión'],
+          ['diagnostics', 'Datos y cálculos'],
+          ['acceptance', 'Resumen y precios'],
+        ]) {
+          if (currentDeployment() !== deployment)
+            throw Error('CONFIGURATION_CHANGED');
+          const line = document.createElement('p');
+          line.textContent = label + ' · comprobando…';
+          systemOutput.append(line);
+          const result = await check(action);
+          if (currentDeployment() !== deployment)
+            throw Error('CONFIGURATION_CHANGED');
+          if (!result.ok) throw Error(result.error || 'INVALID_RESPONSE');
+          if (action === 'connection')
+            window.dispatchEvent(
+              new CustomEvent('finances:connection-checked', {
+                detail: result,
+              }),
+            );
+          const ready =
+            action === 'connection'
+              ? result.rpcReady === true
+              : action === 'diagnostics'
+                ? result.backendReady === true &&
+                  result.calculationReady === true
+                : result.technicalReady === true;
+          line.textContent =
+            label + (ready ? ' · correcto' : ' · requiere revisión');
+          line.dataset.checkState = ready ? 'success' : 'warning';
+          if (ready) completed++;
+        }
+        const status = document.createElement('p');
+        status.textContent =
+          completed === 3
+            ? 'Sistema comprobado. No se han guardado cambios.'
+            : 'Revisa los apartados indicados en el diagnóstico detallado.';
+        systemOutput.append(status);
+      } catch (error) {
+        const message = document.createElement('p');
+        message.textContent = checkError(error);
+        systemOutput.append(message);
+      } finally {
+        buttons.forEach((button, index) => {
+          button.disabled =
+            button.id === 'connect' ? !currentDeployment() : disabled[index];
+        });
+      }
+    });
   const acceptanceButton = document.getElementById('acceptance-check'),
     acceptanceOutput = document.getElementById('acceptance-result');
   if (acceptanceButton && acceptanceOutput)

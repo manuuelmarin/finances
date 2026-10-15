@@ -514,7 +514,7 @@ test('migración desde tres hojas técnicas añade fondos, cotizaciones y presup
     JSON.stringify(r.state().technical.requests),
     JSON.stringify(before.technical.requests),
   );
-  assert.equal(r.book().sheets.length, 22);
+  assert.equal(r.book().sheets.length, 23);
 });
 test('ampliación de precios con tabla llena conserva los precios históricos y guarda el nuevo una sola vez', () => {
   const r = configured(),

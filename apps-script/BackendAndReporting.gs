@@ -116,6 +116,14 @@ function publicSnapshot_(s) {
             if (!blank_(row[k])) row[k] = isoDate_(row[k]);
           },
         );
+        // Legacy expense rows with a blank nullable field mean “not recurring”.
+        // Normalize only the public projection; preparation never edits live input cells.
+        if (
+          name === 'tMovimientos' &&
+          row.Tipo === 'Gasto' &&
+          blank_(row.Recurrente)
+        )
+          row.Recurrente = 'No';
         return row;
       });
   });
@@ -235,6 +243,17 @@ function publicSnapshot_(s) {
     budgets: (s.technical.budgets || [])
       .filter((r) => r[4])
       .map((r) => ({ month: r[1], category: r[2], amount: r[3] })),
+    supportsCustomBudgets: !!s.tech.intervalBudgets,
+    intervalBudgets: (s.technical.intervalBudgets || [])
+      .filter((r) => r[6])
+      .map((r) => ({
+        id: r[0],
+        title: r[1],
+        start: isoDate_(r[2]),
+        end: blank_(r[3]) ? null : isoDate_(r[3]),
+        category: r[4],
+        amount: r[5],
+      })),
     charts: nativeCharts_(s, data),
     summary: nativeSummary_(s, data),
     bookKey: s.bookKey,

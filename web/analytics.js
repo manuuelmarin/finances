@@ -40,6 +40,123 @@ const FinanceAnalytics = (() => {
       exceeded: spent !== null && spent > record.amount,
     };
   }
+  function intervalSpending(snapshot, record) {
+    if (
+      !validDate(record?.start) ||
+      !validDate(snapshot?.settings?.start) ||
+      !validDate(snapshot?.settings?.asof)
+    )
+      return null;
+    const trackingStart = snapshot.settings.start;
+    const requestedEnd = record.end || snapshot.settings.asof;
+    if (requestedEnd < trackingStart || record.start < trackingStart)
+      return null;
+    const first =
+      record.start < snapshot.settings.start
+        ? snapshot.settings.start
+        : record.start;
+    const last =
+      requestedEnd > snapshot.settings.asof
+        ? snapshot.settings.asof
+        : requestedEnd;
+    if (first > last || record.start > snapshot.settings.asof) return null;
+    let total = 0;
+    for (const row of snapshot?.tables?.tMovimientos || []) {
+      if (row.Fecha < first || row.Fecha > last) continue;
+      if (record.category && row.Subcategoría !== record.category) continue;
+      if (!['Gasto', 'Devolución gasto'].includes(row.Tipo)) continue;
+      if (
+        !finite(row.Importe) ||
+        (row.Recuperable != null && !finite(row.Recuperable))
+      )
+        return null;
+      const own = cents(row.Importe) - cents(row.Recuperable || 0);
+      total += row.Tipo === 'Gasto' ? own : -own;
+      if (!Number.isSafeInteger(total)) return null;
+    }
+    return total / 100;
+  }
+  function intervalCoverage(snapshot, record) {
+    const settings = snapshot?.settings;
+    if (
+      !validDate(record?.start) ||
+      !validDate(settings?.start) ||
+      !validDate(settings?.asof)
+    )
+      return { status: 'unknown', observed: false, first: null, last: null };
+    const end = record.end || settings.asof;
+    if (record.start > settings.asof)
+      return { status: 'future', observed: false, first: null, last: null };
+    if (end < settings.start)
+      return { status: 'prestart', observed: false, first: null, last: null };
+    const first = record.start < settings.start ? settings.start : record.start;
+    const last = end > settings.asof ? settings.asof : end;
+    if (record.start < settings.start)
+      return { status: 'partial', observed: true, first, last };
+    if (!record.end || record.end > settings.asof)
+      return { status: 'ongoing', observed: true, first, last };
+    return { status: 'full', observed: true, first, last };
+  }
+  function intervalBudget(snapshot, record) {
+    const spent = intervalSpending(snapshot, record);
+    return {
+      ...record,
+      coverage: intervalCoverage(snapshot, record),
+      spent,
+      remaining:
+        spent === null ? null : (cents(record.amount) - cents(spent)) / 100,
+      ratio:
+        spent === null || record.amount === 0 ? null : spent / record.amount,
+      exceeded: spent !== null && spent > record.amount,
+    };
+  }
+  function budgetEvolution(snapshot, record) {
+    if (
+      !validDate(record?.start) ||
+      !validDate(snapshot?.settings?.start) ||
+      !validDate(snapshot?.settings?.asof)
+    )
+      return [];
+    const first =
+      record.start < snapshot.settings.start
+        ? snapshot.settings.start
+        : record.start;
+    const last =
+      record.end && record.end < snapshot.settings.asof
+        ? record.end
+        : snapshot.settings.asof;
+    if (first > last) return [];
+    const movements = (snapshot.tables?.tMovimientos || []).filter(
+      (r) =>
+        r.Fecha >= first &&
+        r.Fecha <= last &&
+        (!record.category || r.Subcategoría === record.category) &&
+        ['Gasto', 'Devolución gasto'].includes(r.Tipo),
+    );
+    const dates = [
+      ...new Set([first, last, ...movements.map((r) => r.Fecha)]),
+    ].sort();
+    let spent = record.start < snapshot.settings.start ? null : 0;
+    return dates.map((date) => {
+      for (const row of movements.filter((r) => r.Fecha === date)) {
+        if (
+          !finite(row.Importe) ||
+          (row.Recuperable != null && !finite(row.Recuperable))
+        )
+          spent = null;
+        else if (spent !== null)
+          spent +=
+            (cents(row.Importe) - cents(row.Recuperable || 0)) *
+            (row.Tipo === 'Gasto' ? 1 : -1);
+      }
+      return {
+        date,
+        label: date,
+        expense: spent === null ? null : spent / 100,
+        limit: record.amount,
+      };
+    });
+  }
   function groups(positions) {
     const result = new Map();
     for (const row of positions || []) {
@@ -800,6 +917,10 @@ const FinanceAnalytics = (() => {
     cashForecast,
     spending,
     budget,
+    intervalSpending,
+    intervalCoverage,
+    intervalBudget,
+    budgetEvolution,
     groups,
     cashTimeline,
     investmentTimeline,
