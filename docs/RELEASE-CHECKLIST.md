@@ -1,31 +1,28 @@
-# Owner acceptance and cutover checklist
+# Release acceptance and cutover
 
-This is the remaining owner workflow after the 3.9.3 test-backend confirmation. The 3.9.4 release adds installer file comparisons and clearer scheduling labels; it does not change financial operations, quote validation, retries or workbook data.
+The owner completed the previous ten-step test acceptance. Release 3.10.0 changes the workspace and adds interval budgets; it needs a focused acceptance after updating the private deployment. Keep the app bound to the test workbook.
 
-## Observed state and pending work
+## Update the existing test deployment
 
-- Editor output confirmed build **3.9.3**, API **3.3.0**, model **3**, test environment, 10 business sheets, 12 tables and no calculation errors. The same revision before/after the checks shows no financial-input change.
-- The daily routine can be enabled while its three attempts receive old effective dates and a further manual execution returns `DAILY_RETRY_LIMIT`. The next Madrid calendar day gets a fresh daily ledger. Calling `enableDailyPrices` again on the same enabled binding preserves today's attempts. `disableDailyPrices` removes that state; do not toggle disable/enable to bypass the quota.
-- `ok:true` reports that an operator/check ran; `technicalReady:true` covers structure, calculations, summary, Bridge, verified sources and stable revision. Neither field means that every latest NAV was published. Inspect `complete`, `dailyPrices.status`, effective dates and warnings separately.
-- Provider results can carry `PUBLICATION_DELAY` even when their identity is valid. A newer stored observation must remain when the provider returns an older effective date. No newer prices are assumed or fabricated.
-- Confirm the intended report (`asof`) and valuation cutoffs before interpreting current-market charts; change dates explicitly through the app when appropriate.
-- Editor execution does not prove that the `/exec` deployment has the same code. Publish and verify the private deployed version separately.
+1. Resolve pending/uncertain requests on each device through their original deployment. Retain a private workbook/code/configuration backup and note balances, units and report dates.
+2. In the installer, select the actual complete installed release. For an intact **3.9.4** baseline, replace only six files: `Configuration.gs`, `BackendAndReporting.gs`, `Operations.gs`, `StateAndValidation.gs`, `Transactions.gs` and `Bridge.html`. Other/customized baselines require the installer's comparison.
+3. Save in the existing test project. Run `prepareApplication` once for interval-budget support, then `checkApplication`. Expect build **3.10.0**, API **3.3.0**, model **3**, `environment:test` and no calculation errors. Inspect price freshness separately.
+4. Publish **New version** of the existing deployment, preserving its URL, **execute as Me**, **Only me**, test workbook binding and existing daily trigger. Do not toggle daily prices to reset retry limits.
+5. Close the old Google window, reload the updated app, open the test book and run **Comprobar sistema**. Confirm the deployed build, environment and baseline values.
 
-## Tomorrow: test application, in order
+## Focused checks
 
-1. Resolve pending/uncertain operations on each device through their original deployment before any connection switch. Record the current balances, holdings and report dates, and retain the full native backup.
-2. Open the installer and select **3.9.3** only if all its original modules are installed without custom edits. For 3.9.4, replace the files marked changed: `Configuration.gs` and `Bridge.html`. Keep the other 13 files. If the baseline is uncertain, follow the complete installation instructions.
-3. Save in the existing test project. Run `checkApplication`; expect build **3.9.4**, API **3.3.0**, `environment:test`, `technicalReady:true` and no calculation errors. Preparation is already confirmed; rerun `prepareApplication` only if initialization/capacity diagnostics require it.
-4. Publish **New version** of the existing web deployment, retaining its URL, **execute as Me** and **Only me** access. Keep its existing test properties and workbook ID.
-5. After resolving pending requests, close the old Google window, reload Finance and reopen the workbook. Inspect the connection diagnostics from the app. Confirm the deployed build is **3.9.4**, the environment is test, and the intended workbook loaded. Check that its financial values and dates match the baseline.
-6. In Settings, inspect daily prices: enabled schedule **20, 21, 22 / Europe/Madrid**. An exhausted previous-day result must not be presented as a current successful publication. Use one manual `updatePrices` check on the new day if wanted; it shares the three-attempt quota. A still-old source legitimately remains pending.
-7. In Investments, inspect each product's ISIN, effective price date, source and warning. Newer stored prices must remain if the provider returns an older effective date. `Histórico` must retain real dates and blank unsupported dates; a successful poll need not add a row when the NAV is unchanged.
-8. On the **test book**, review/cancel an expense without sending it, then confirm a 1 EUR synthetic expense. Correct it to 2 EUR, cancel it, reread and reconcile the original balance and report dates. Confirm there is no duplicate row or unresolved request.
-9. Check existing monthly budgets, salary, goals, account filters and investment/product/time selectors. Use your accepted desktop/phone workflows; an offline rehearsal must recover one request/receipt and be canceled on the test book afterward.
-10. After the automatic window, inspect the latest run, each effective NAV date and provider warnings. A `complete` verification is useful evidence; `retry_limit` with delayed quotes means the publication issue remains open even when technical readiness is green.
+1. Enter arbitrary chart dates, move both range handles and resize. Verify the displayed period changes without writes; test an empty period and series selection.
+2. Open the large new-tab chart and export SVG, PNG and CSV. Confirm titles, dates, colors, values and descriptive filenames. Exports contain private data.
+3. Select multiple categorical filters, clear them and sort a column. Create a 1 EUR test expense with recurrence left at No, correct it and cancel it; restore advanced dates if necessary.
+4. Inspect the price pivot and full NAV precision. Try an inline new-product purchase and cancel at review unless intentionally testing a fictional purchase. Keep real holdings unchanged.
+5. Create, inspect, edit, reread and remove an interval budget. Check monthly compatibility too. Periods predating tracking must disclose incomplete data, not zero spending.
+6. Open goals/assignments in Planning and pending requests in Configuration. Check theme persistence and the changed mobile layouts.
 
 ## Principal activation remains separate
 
-Make a fresh native backup and audit/reconcile the current principal's inputs, balances, units, capital, debt, settings and native calculations. Validate an isolated copy with the new backend before preparing the real principal. Use its separate private Apps Script project/deployment and explicitly configured production binding; preserve the test pair. A new project needs all 15 files for its first installation; the two-file comparison applies to an existing complete 3.9.3 project. Switch the app only after owner authorization and completed pending-request recovery, then compare the first production read with the saved baseline and enable production prices there. Follow [Operations](OPERATIONS.md) for the complete recovery/cutover procedure.
+Audit the principal's inputs, balances, units, capital, debt, settings and native calculation ranges. Resolve the previously detected incomplete principal expense aggregation range. Validate an isolated copy before preparing the principal.
 
-Repository tests use fictional data. They do not certify a physical phone, owner login, the private deployment or current provider publication. The application is technically validated; fresh prices and principal-workbook acceptance remain live checks.
+Use a separate private production project/deployment with explicit production binding. A new project needs all 15 files; incremental comparisons apply only to a known existing installation. Switch only after owner authorization and request recovery. Preserve the test pair.
+
+Repository tests use fictional data. They do not certify the private deployment, physical phone, owner login or latest provider publication. See [Operations](OPERATIONS.md) for recovery and cutover.

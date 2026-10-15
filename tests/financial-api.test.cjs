@@ -80,6 +80,41 @@ test('texto con fórmulas o HTML se guarda como texto literal sin ejecutar ni mo
   assert.deepEqual(r.formulas(), before);
   assert.equal(r.state().tables.tMovimientos[0].Concepto, concept);
 });
+test('un gasto nuevo por defecto no es recurrente; la lectura traduce vacíos antiguos y deja ingresos vacíos', () => {
+  const r = runtime();
+  r.init();
+  const { recurring, ...withoutRecurrence } = expense();
+  assert.equal(recurring, false);
+  assert.equal(
+    r.transact([
+      withoutRecurrence,
+      expense({ concept: 'Nullable recurrence', recurring: null }),
+    ]).ok,
+    true,
+  );
+  assert.equal(r.state().tables.tMovimientos[0].Recurrente, 'No');
+  assert.equal(r.state().tables.tMovimientos[1].Recurrente, 'No');
+  assert.equal(
+    r.transact([
+      {
+        process: 'ingreso',
+        date: '2026-01-03',
+        concept: 'Nómina ficticia',
+        account: 'Cuenta A',
+        category: 'Nómina',
+        amount: 30,
+      },
+    ]).ok,
+    true,
+  );
+  r.setInput('tMovimientos', 0, 'Recurrente', null);
+  const persisted = r.state().tables.tMovimientos[0].Recurrente;
+  const read = r.api({ action: 'read' });
+  assert.equal(persisted, null);
+  assert.equal(read.tables.tMovimientos[0].Recurrente, 'No');
+  assert.equal(read.tables.tMovimientos[1].Recurrente, 'No');
+  assert.equal(read.tables.tMovimientos[2].Recurrente, null);
+});
 test('preparación idempotente conserva entradas, fórmulas y observación antigua sin inventar una hora', () => {
   const r = runtime(),
     inputs = JSON.stringify(r.state().tables);
@@ -88,7 +123,7 @@ test('preparación idempotente conserva entradas, fórmulas y observación antig
     formulas = r.formulas();
   assert.equal(r.init().ok, true);
   assert.equal(r.writes.length, count);
-  assert.equal(r.book().sheets.length, 21);
+  assert.equal(r.book().sheets.length, 22);
   assert.equal(JSON.stringify(r.state().tables), inputs);
   assert.deepEqual(r.formulas(), formulas);
   const result = r.api({ action: 'read' });

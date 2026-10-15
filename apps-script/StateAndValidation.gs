@@ -17,6 +17,9 @@ function revision_(s) {
     observations: s.technical.observations,
     funds: s.technical.funds,
     ...(s.technical.budgets?.length ? { budgets: s.technical.budgets } : {}),
+    ...(s.technical.intervalBudgets?.length
+      ? { intervalBudgets: s.technical.intervalBudgets }
+      : {}),
   });
 }
 
@@ -536,6 +539,26 @@ function validateFinancialState_(s) {
     if (row[4] && row[2] !== null)
       check_(
         categories.get(row[2])?.Grupo === 'Gastos',
+        'Subcategoría de presupuesto desconocida.',
+      );
+  });
+  const intervalIds = new Set();
+  (s.technical.intervalBudgets || []).forEach((row) => {
+    check_(
+      typeof row[0] === 'string' && /^BUD-I-[A-Za-z0-9-]{1,100}$/.test(row[0]),
+      'ID de límite por intervalo inválido.',
+    );
+    check_(!intervalIds.has(row[0]), 'ID de límite por intervalo duplicado.');
+    intervalIds.add(row[0]);
+    text_(row[1], 'Título');
+    const start = serialDate_(row[2]),
+      end = blank_(row[3]) ? null : serialDate_(row[3]);
+    check_(end === null || end >= start, 'Intervalo de presupuesto inválido.');
+    moneyInput_(row[5], 'Límite');
+    check_(row[6] === 0 || row[6] === 1, 'Estado de límite inválido.');
+    if (row[6] && row[4] !== null)
+      check_(
+        categories.get(row[4])?.Grupo === 'Gastos',
         'Subcategoría de presupuesto desconocida.',
       );
   });

@@ -1,6 +1,6 @@
 'use strict';
-const CACHE = "finances-32009d616b02487c";
-const ASSETS = ["index.html","styles.css","connection.js","api.js","calculators.js","app.js","domain.js","queue.js","finance.js","history.js","history-template.csv","analytics.js","dashboard.js","charts.js","pwa.js","config.json","manifest.webmanifest","icon.svg","icon-maskable.svg","icon-192.png","icon-512.png","icon-maskable-192.png","icon-maskable-512.png","install.html","install.js"];
+const CACHE = "finances-8b6009bc4adbe6ce";
+const ASSETS = ["index.html","styles.css","chart-controls.css","connection.js","api.js","calculators.js","app.js","domain.js","queue.js","finance.js","history.js","history-template.csv","analytics.js","insights.js","wealth.js","dashboard.js","charts.js","pwa.js","config.json","manifest.webmanifest","icon.svg","icon-maskable.svg","icon-192.png","icon-512.png","icon-maskable-192.png","icon-maskable-512.png","install.html","install.js"];
 const urls = () => ASSETS.map(file => new URL(file, self.registration.scope).href);
 self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(urls()))); });
 self.addEventListener('activate', event => { event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('finances-') && key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim())); });

@@ -303,6 +303,43 @@ function mutationRequests_(before, after, requestId, now, result) {
       previousBudgets,
       nextBudgets.slice(previousBudgets.length),
     );
+  const previousIntervalBudgets = before.technical.intervalBudgets || [];
+  const nextIntervalBudgets = after.technical.intervalBudgets || [];
+  nextIntervalBudgets.forEach((row, i) => {
+    if (canonical_(row) === canonical_(previousIntervalBudgets[i])) return;
+    if (!before.tech.intervalBudgets)
+      fail_(
+        'UPDATE_REQUIRED',
+        'Prepara el backend para límites por intervalo.',
+      );
+    if (i < previousIntervalBudgets.length)
+      requests.push({
+        updateCells: {
+          start: {
+            sheetId: before.tech.intervalBudgets.id,
+            rowIndex: i + 1,
+            columnIndex: 0,
+          },
+          rows: [{ values: row.map(cellValue_) }],
+          fields: 'userEnteredValue',
+        },
+      });
+    audit.push([
+      requestId,
+      now,
+      'presupuestos_intervalo',
+      row[0],
+      canonical_(previousIntervalBudgets[i] || null),
+      canonical_(row),
+    ]);
+  });
+  if (nextIntervalBudgets.length > previousIntervalBudgets.length)
+    appendTechnical_(
+      requests,
+      before.tech.intervalBudgets,
+      previousIntervalBudgets,
+      nextIntervalBudgets.slice(previousIntervalBudgets.length),
+    );
   appendTechnical_(requests, before.tech.audit, before.technical.audit, audit);
   appendTechnical_(requests, before.tech.requests, before.technical.requests, [
     [

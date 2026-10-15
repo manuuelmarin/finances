@@ -30,7 +30,10 @@ function applyOperations_(
         ),
         Recuperable: o.recoverable || 0,
         Localización: blank_(o.location) ? null : o.location,
-        Recurrente: type === 'Gasto' ? recurrence_(o.recurring) : null,
+        Recurrente:
+          type === 'Gasto'
+            ? recurrence_(blank_(o.recurring) ? 'No' : o.recurring)
+            : null,
       },
       false,
     );
@@ -689,6 +692,72 @@ function applyOperations_(
       }
       row[8] = now;
       primary = row[0];
+    } else if (
+      p === 'presupuesto_intervalo' ||
+      p === 'quitar_presupuesto_intervalo'
+    ) {
+      if (!s.tech.intervalBudgets)
+        fail_(
+          'UPDATE_REQUIRED',
+          'Prepara el backend para límites por intervalo.',
+        );
+      const rows = s.technical.intervalBudgets;
+      let row;
+      if (p === 'quitar_presupuesto_intervalo') {
+        const id = required(o, 'id');
+        check_(
+          typeof id === 'string' && /^BUD-I-[A-Za-z0-9-]{1,100}$/.test(id),
+          'ID de límite inválido.',
+        );
+        row = rows.find((r) => r[0] === id && r[6]);
+        check_(row, 'Límite inexistente.');
+        row[6] = 0;
+      } else {
+        const title = required(o, 'title'),
+          start = required(o, 'start'),
+          end = blank_(o.end) ? null : o.end,
+          category = blank_(o.category) ? null : o.category,
+          amount = required(o, 'amount');
+        text_(title, 'Título');
+        const startSerial = serialDate_(start),
+          endSerial = end === null ? null : serialDate_(end);
+        check_(
+          endSerial === null || endSerial >= startSerial,
+          'La fecha final debe ser igual o posterior a la inicial.',
+        );
+        if (category !== null)
+          check_(
+            s.tables.tCategorias.some(
+              (c) => c.Subcategoría === category && c.Grupo === 'Gastos',
+            ),
+            'Subcategoría de gasto desconocida.',
+          );
+        moneyInput_(amount, 'Límite');
+        const id = blank_(o.id) ? null : o.id;
+        if (id !== null) {
+          check_(
+            typeof id === 'string' && /^BUD-I-[A-Za-z0-9-]{1,100}$/.test(id),
+            'ID de límite inválido.',
+          );
+          row = rows.find((r) => r[0] === id && r[6]);
+          check_(row, 'Límite inexistente.');
+          row.splice(1, 6, title, startSerial, endSerial, category, amount, 1);
+        } else {
+          row = [
+            'BUD-I-' + requestId + '-' + (index + 1),
+            title,
+            startSerial,
+            endSerial,
+            category,
+            amount,
+            1,
+            now,
+          ];
+          rows.push(row);
+        }
+      }
+      row[7] = now;
+      primary = row[0];
     } else if (p === 'presupuesto' || p === 'quitar_presupuesto') {
       const month = required(o, 'month');
       check_(
@@ -873,6 +942,13 @@ function applyOperations_(
           if (r[2] === old) {
             r[2] = value;
             r[5] = now;
+          }
+        });
+      if (o.kind === 'subcategoria')
+        (s.technical.intervalBudgets || []).forEach((r) => {
+          if (r[4] === old) {
+            r[4] = value;
+            r[7] = now;
           }
         });
       (s.technical.archives || []).forEach((r) => {

@@ -3,7 +3,7 @@
   <head>
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
     />
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -16,6 +16,7 @@
     />
     <title>Finanzas · Resumen</title>
     <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="chart-controls.css" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <script src="connection.js" defer></script>
@@ -25,6 +26,8 @@
     <script src="queue.js" defer></script>
     <script src="analytics.js" defer></script>
     <script src="charts.js" defer></script>
+    <script src="insights.js" defer></script>
+    <script src="wealth.js" defer></script>
     <script src="dashboard.js" defer></script>
     <script src="history.js" defer></script>
     <script src="finance.js" defer></script>
@@ -124,20 +127,11 @@
         </button>
         <button type="button" class="nav-item" data-view="budgets">
           <svg class="icon" aria-hidden="true"><use href="#icon-target" /></svg
-          ><span>Presupuestos</span>
+          ><span>Planificación</span>
         </button>
         <button type="button" class="nav-item" data-view="salary">
           <svg class="icon" aria-hidden="true"><use href="#icon-wallet" /></svg
           ><span>Salario</span>
-        </button>
-        <button type="button" class="nav-item" data-view="goals">
-          <svg class="icon" aria-hidden="true"><use href="#icon-target" /></svg
-          ><span>Objetivos</span>
-        </button>
-        <button type="button" class="nav-item" data-view="activity">
-          <svg class="icon" aria-hidden="true"><use href="#icon-layers" /></svg
-          ><span>Actividad</span
-          ><span data-pending-count class="count-badge" hidden></span>
         </button>
         <button type="button" class="nav-item" data-view="tools">
           <svg class="icon" aria-hidden="true"><use href="#icon-tools" /></svg
@@ -145,7 +139,7 @@
         </button>
         <button type="button" class="nav-item" data-view="connection">
           <svg class="icon" aria-hidden="true"><use href="#icon-sliders" /></svg
-          ><span>Ajustes</span>
+          ><span>Configuración</span>
         </button>
       </nav>
       <div class="sidebar-bottom">
@@ -265,19 +259,7 @@
               class="button button-primary"
               data-operation="gasto"
             >
-              + Gasto</button
-            ><button
-              type="button"
-              class="button button-secondary"
-              data-operation="ingreso"
-            >
-              + Ingreso</button
-            ><button
-              type="button"
-              class="button button-secondary"
-              data-operation="traspaso"
-            >
-              Transferencia
+              Nuevo movimiento
             </button>
           </div>
         </div>
@@ -337,12 +319,12 @@
           </div>
           <div class="analysis-controls">
             <label class="field compact-field"
-              >Mes<input id="spending-month" type="month" /></label
-            ><label class="field"
-              >Categorías<select id="spending-exclude">
-                <option value="">Todas las categorías</option>
-              </select></label
-            >
+              >Mes<input id="spending-month" type="month"
+            /></label>
+            <div class="field">
+              <span>Categorías</span>
+              <div id="spending-categories"></div>
+            </div>
           </div>
           <div id="spending-summary" class="kpi-grid analysis-kpis"></div>
           <p id="spending-note" class="calculator-note"></p>
@@ -363,20 +345,9 @@
               class="button button-primary"
               data-operation="compra"
             >
-              Comprar</button
-            ><button
-              type="button"
-              class="button button-secondary"
-              data-operation="venta"
-            >
-              Vender</button
-            ><button
-              type="button"
-              class="button button-secondary"
-              data-operation="producto"
-            >
-              Nuevo producto</button
-            ><button
+              Registrar operación
+            </button>
+            <button
               id="finance-prices"
               class="button button-secondary"
               type="button"
@@ -553,46 +524,9 @@
         </div>
         <div data-register-slot="salary"></div>
         <section class="chart-section">
-          <h2 class="section-title">Histórico de nóminas</h2>
           <p id="salary-cut" class="calculator-note"></p>
           <div id="salary-charts" class="charts-grid"></div>
-          <h2 class="section-title">Ahorro mensual</h2>
-          <div id="salary-saving-charts" class="charts-grid"></div>
         </section>
-      </section>
-      <section
-        id="view-goals"
-        class="view"
-        aria-labelledby="goals-title"
-        hidden
-      >
-        <div class="page-heading">
-          <div>
-            <h1 id="goals-title">Objetivos</h1>
-            <p class="page-description">
-              Metas de ahorro y asignaciones de activos existentes.
-            </p>
-          </div>
-          <div class="quick-actions">
-            <button
-              type="button"
-              class="button button-primary"
-              data-operation="objetivo"
-            >
-              Crear objetivo</button
-            ><button
-              type="button"
-              class="button button-secondary"
-              id="goal-assign-new"
-            >
-              Asignar activos
-            </button>
-          </div>
-        </div>
-        <div id="goal-availability" class="budget-grid"></div>
-        <div id="saving-goals" class="budget-grid"></div>
-        <div id="goal-charts" class="charts-grid"></div>
-        <div data-register-slot="goals"></div>
       </section>
       <section
         id="view-budgets"
@@ -602,9 +536,9 @@
       >
         <div class="page-heading">
           <div>
-            <h1 id="budgets-title">Presupuestos</h1>
+            <h1 id="budgets-title">Planificación</h1>
             <p class="page-description">
-              Límites de gasto por mes y categoría.
+              Límites de gasto con fechas propias y objetivos de ahorro.
             </p>
           </div>
           <button
@@ -618,7 +552,7 @@
         </div>
         <div class="budget-overview">
           <label class="field"
-            >Mes<input type="month" id="budget-month"
+            >Ver mes<input type="month" id="budget-month"
           /></label>
           <div>
             <span class="section-kicker">Gasto propio</span
@@ -627,42 +561,45 @@
         </div>
         <p id="budget-note" class="calculator-note"></p>
         <div id="budget-analysis" class="charts-grid"></div>
-        <div id="budget-cards" class="budget-grid"></div>
-      </section>
-      <section
-        id="view-activity"
-        class="view"
-        aria-labelledby="activity-title"
-        hidden
-      >
-        <div class="page-heading">
-          <div>
-            <h1 id="activity-title">Actividad</h1>
-            <p class="page-description">Estado de las solicitudes a Google.</p>
-          </div>
-          <button
-            id="finance-sync"
-            class="button button-primary"
-            type="button"
-            disabled
-          >
-            Enviar pendientes
-          </button>
-        </div>
-        <section class="queue-card" aria-labelledby="queue-title">
-          <div class="section-heading">
-            <h2 id="queue-title">Pendientes</h2>
-            <span id="pending-total" class="count-badge">0</span>
-          </div>
-          <div id="finance-queue"></div>
+        <section id="budget-details" aria-live="polite" hidden>
+          <h2 id="budget-detail-title">Evolución del límite</h2>
+          <p id="budget-detail-summary" class="calculator-note"></p>
+          <div id="budget-detail-chart" class="charts-grid"></div>
         </section>
-        <details id="confirmed-history" class="section-details">
-          <summary>
-            Historial confirmado
-            <span id="history-total" class="count-badge">0</span>
-          </summary>
-          <div id="finance-history"></div>
-        </details>
+        <div id="budget-cards" class="budget-grid"></div>
+        <section
+          id="goals-panel"
+          class="goal-panel"
+          aria-labelledby="goals-title"
+        >
+          <div class="section-heading goal-heading">
+            <div>
+              <h2 id="goals-title">Objetivos de ahorro</h2>
+              <p class="page-description">
+                Metas y asignaciones de activos existentes.
+              </p>
+            </div>
+            <div class="quick-actions goal-actions">
+              <button
+                type="button"
+                class="button button-primary"
+                data-operation="objetivo"
+              >
+                Crear objetivo</button
+              ><button
+                type="button"
+                class="button button-secondary"
+                id="goal-assign-new"
+              >
+                Asignar activos
+              </button>
+            </div>
+          </div>
+          <div id="goal-availability" class="budget-grid"></div>
+          <div id="saving-goals" class="budget-grid"></div>
+          <div id="goal-charts" class="charts-grid"></div>
+          <div data-register-slot="goals"></div>
+        </section>
       </section>
       <section
         id="view-tools"
@@ -1294,7 +1231,9 @@
         aria-labelledby="connection-title"
         hidden
       >
-        <div class="page-heading"><h1 id="connection-title">Ajustes</h1></div>
+        <div class="page-heading">
+          <h1 id="connection-title">Configuración</h1>
+        </div>
         <section
           id="connection-card"
           class="connection-card"
@@ -1326,12 +1265,11 @@
           </div>
           <div class="connection-actions">
             <button
-              id="connect"
+              id="system-check"
               class="button button-primary"
               type="button"
-              disabled
             >
-              Comprobar conexión</button
+              Comprobar sistema</button
             ><button
               id="setup-toggle"
               class="button button-secondary"
@@ -1343,11 +1281,78 @@
           <p class="calculator-note">
             Mantén abierta la ventana de Google mientras uses el libro.
           </p>
+          <div id="system-result" role="status" aria-live="polite"></div>
         </section>
+        <section
+          class="settings-preferences"
+          aria-labelledby="appearance-title"
+        >
+          <div>
+            <h2 id="appearance-title">Apariencia</h2>
+            <p class="calculator-note">
+              Elige el tema de esta aplicación. La preferencia se guarda en este
+              dispositivo.
+            </p>
+          </div>
+          <label class="field theme-choice"
+            >Tema<select id="theme-preference" aria-label="Tema de color">
+              <option value="system">Según el dispositivo</option>
+              <option value="light">Claro</option>
+              <option value="dark">Oscuro</option>
+              <option value="warm">Cálido</option>
+            </select></label
+          >
+        </section>
+        <details id="activity-panel" class="section-details">
+          <summary>
+            Actividad y sincronización
+            <span data-pending-count class="count-badge" hidden></span>
+          </summary>
+          <div class="activity-content">
+            <div class="section-heading">
+              <div>
+                <h2 id="activity-title">Solicitudes a Google</h2>
+                <p class="page-description">
+                  Operaciones pendientes y registros confirmados.
+                </p>
+              </div>
+              <button
+                id="finance-sync"
+                class="button button-primary"
+                type="button"
+                disabled
+              >
+                Enviar pendientes
+              </button>
+            </div>
+            <section class="queue-card" aria-labelledby="queue-title">
+              <div class="section-heading">
+                <h2 id="queue-title">Pendientes</h2>
+                <span id="pending-total" class="count-badge">0</span>
+              </div>
+              <div id="finance-queue"></div>
+            </section>
+            <details id="confirmed-history" class="section-details">
+              <summary>
+                Historial confirmado
+                <span id="history-total" class="count-badge">0</span>
+              </summary>
+              <div id="finance-history"></div>
+            </details>
+          </div>
+        </details>
         <details id="connection-diagnostics" class="section-details">
-          <summary>Diagnóstico del sistema</summary>
+          <summary>Comprobaciones individuales</summary>
           <p class="calculator-note">Comprobaciones de solo lectura.</p>
           <div class="connection-actions">
+            <button
+              id="connect"
+              class="button button-secondary"
+              type="button"
+              disabled
+            >
+              Comprobar conexión
+            </button>
             <button
               id="backend-check"
               class="button button-secondary"
@@ -1359,7 +1364,7 @@
               class="button button-secondary"
               type="button"
             >
-              Comprobar sistema
+              Comprobar resumen y precios
             </button>
           </div>
           <p id="backend-result" role="status" aria-live="polite"></p>
@@ -1431,7 +1436,7 @@
           </p>
           <p class="calculator-note">
             Para acumular precios cada día sin abrir la app, instala la entrega
-            de Google 3.9.4 y ejecuta
+            de Google 3.10.0 y ejecuta
             <code>enableDailyPrices</code> una vez desde el editor del proyecto
             conectado. Actúa sobre el entorno ya configurado. Para detenerla,
             ejecuta <code>disableDailyPrices</code>.
@@ -1467,7 +1472,7 @@
       </section>
       <footer class="workspace-footer">
         <p id="app-version" class="app-version">
-          App 3.9.4 · <span data-finance-environment>Sin conectar</span
+          App 3.10.0 · <span data-finance-environment>Sin conectar</span
           ><span id="pwa-status" hidden></span>
         </p>
       </footer>
@@ -1497,7 +1502,7 @@
       </button>
       <button type="button" class="mobile-nav-item" data-view="budgets">
         <svg class="icon" aria-hidden="true"><use href="#icon-target" /></svg
-        ><span>Presupuestos</span></button
+        ><span>Planificación</span></button
       ><button
         id="mobile-menu"
         class="mobile-nav-item"
@@ -1535,22 +1540,13 @@
           <svg class="icon" aria-hidden="true"><use href="#icon-wallet" /></svg
           ><span>Salario</span>
         </button>
-        <button type="button" class="nav-item" data-view="goals">
-          <svg class="icon" aria-hidden="true"><use href="#icon-target" /></svg
-          ><span>Objetivos</span>
-        </button>
-        <button type="button" class="nav-item" data-view="activity">
-          <svg class="icon" aria-hidden="true"><use href="#icon-layers" /></svg
-          ><span>Actividad</span
-          ><span data-pending-count class="count-badge" hidden></span>
-        </button>
         <button type="button" class="nav-item" data-view="tools">
           <svg class="icon" aria-hidden="true"><use href="#icon-tools" /></svg
           ><span>Calculadoras</span>
         </button>
         <button type="button" class="nav-item" data-view="connection">
           <svg class="icon" aria-hidden="true"><use href="#icon-sliders" /></svg
-          ><span>Ajustes</span>
+          ><span>Configuración</span>
         </button>
       </nav>
     </dialog>
@@ -1682,17 +1678,35 @@
       class="setup-dialog operation-dialog"
       aria-labelledby="budget-title"
     >
-      <h2 id="budget-title">Límite mensual de gasto</h2>
+      <h2 id="budget-title">Límite de gasto</h2>
       <p class="calculator-note">
-        Se guarda en tu libro mediante una solicitud revisada. Un límite de cero
-        significa no gastar. No se copia a meses futuros.
+        Define un intervalo y un límite de gasto propio. Sin fecha final, sigue
+        vigente hasta el corte del informe.
       </p>
       <form id="budget-form">
         <div class="form-grid">
+          <input id="budget-edit-id" type="hidden" />
           <label class="field"
-            >Mes<input id="budget-edit-month" type="month" required /></label
+            >Formato<select id="budget-mode">
+              <option value="interval">Intervalo</option>
+              <option value="month">Mes natural</option>
+            </select></label
+          >
+          <label id="budget-legacy-month-wrap" class="field" hidden
+            >Mes<input id="budget-edit-month" type="month"
+          /></label>
+          <label id="budget-title-wrap" class="field"
+            >Título<input
+              id="budget-title-input"
+              type="text"
+              maxlength="100"
+              required /></label
+          ><label id="budget-start-wrap" class="field"
+            >Desde<input id="budget-start" type="date" required /></label
+          ><label id="budget-end-wrap" class="field"
+            >Hasta (opcional)<input id="budget-end" type="date" /></label
           ><label class="field"
-            >Alcance<select id="budget-category"></select></label
+            >Subcategoría<select id="budget-category"></select></label
           ><label class="field"
             >Límite EUR<input
               id="budget-amount"

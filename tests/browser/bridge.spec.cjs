@@ -166,17 +166,22 @@ async function open(page) {
   await expect(page.locator('#finance-kpis > article')).toHaveCount(3);
   await expect(page.locator('#finance-kpis')).toContainText(/1[.]?015,00/);
   await expect(page.locator('#finance-kpis')).toContainText('Patrimonio neto');
+  await expect(page.locator('#finance-kpis')).toContainText('Liquidez');
   await expect(page.locator('#finance-kpis')).toContainText(
-    'Saldo libre del mes',
+    'Variación del patrimonio',
   );
   await expect(
     page.locator('#dashboard-charts .asset-breakdown'),
-  ).toContainText('Efectivo');
+  ).toContainText('Liquidez · saldo en cuentas');
   await expect(
     page.locator('#dashboard-charts .asset-breakdown'),
   ).toContainText(/1[.]?000,00/);
-  await expect(page.locator('#finance-kpis')).toContainText('Inversiones');
-  await expect(page.locator('#finance-kpis')).toContainText(/15,00/);
+  await expect(
+    page.locator('#dashboard-charts .asset-breakdown'),
+  ).toContainText('Inversiones');
+  await expect(
+    page.locator('#dashboard-charts .asset-breakdown'),
+  ).toContainText(/15,00/);
   return google;
 }
 
@@ -269,6 +274,7 @@ test('conectar, comprobar y registrar reutilizan una sola ventana con Google 3.6
   page.on('popup', () => popups++);
   await page.goto(origin + '/finances/');
   await navigate(page, 'connection');
+  await diagnostic(page);
   const first = page.waitForEvent('popup');
   await page.locator('#connect').click();
   const google = await first;
@@ -394,24 +400,23 @@ test('cerrar Google durante comprobar sistema muestra un aviso claro y abre una 
   page.on('popup', () => popups++);
   const google = await open(page);
   await navigate(page, 'connection');
-  await diagnostic(page);
-  await page.locator('#acceptance-check').click();
+  await page.locator('#system-check').click();
   await expect
     .poll(() => calls.some((c) => c.action === 'acceptance'))
     .toBe(true);
   await google.close();
-  await expect(page.locator('#acceptance-result')).toContainText(
+  await expect(page.locator('#system-result')).toContainText(
     'Se ha cerrado la ventana de Google',
   );
-  await expect(page.locator('#acceptance-result')).not.toContainText(
+  await expect(page.locator('#system-result')).not.toContainText(
     'GOOGLE_WINDOW_CLOSED',
   );
+  options.holdAction = null;
   const replacement = page.waitForEvent('popup');
-  await diagnostic(page);
-  await page.locator('#backend-check').click();
+  await page.locator('#system-check').click();
   const reopened = await replacement;
-  await expect(page.locator('#backend-result')).toContainText(
-    'Backend verificado',
+  await expect(page.locator('#system-result')).toContainText(
+    'Revisa los apartados indicados en el diagnóstico detallado.',
   );
   expect(popups).toBe(2);
   expect(reopened.isClosed()).toBe(false);
@@ -427,16 +432,12 @@ test('comprobación en curso bloquea duplicados y descarta el libro cambiado des
   page.on('popup', () => popups++);
   const google = await open(page);
   await navigate(page, 'connection');
-  await diagnostic(page);
-  await page.locator('#acceptance-check').click();
+  await page.locator('#system-check').click();
   await expect
     .poll(() => calls.some((c) => c.action === 'acceptance'))
     .toBe(true);
-  await diagnostic(page);
-  await page.locator('#backend-check').click();
-  await expect(page.locator('#backend-result')).toContainText(
-    'Hay una lectura o un envío en curso',
-  );
+  await expect(page.locator('#system-check')).toBeDisabled();
+  await expect(page.locator('#backend-check')).toBeDisabled();
   expect(popups).toBe(1);
   const other = await context.newPage();
   await other.goto(origin + '/finances/');
@@ -446,10 +447,10 @@ test('comprobación en curso bloquea duplicados y descarta el libro cambiado des
       'https://script.google.com/macros/s/fixture-second-book/exec',
     ),
   );
-  await expect(page.locator('#acceptance-result')).toContainText(
+  await expect(page.locator('#system-result')).toContainText(
     'La configuración cambió',
   );
-  await expect(page.locator('#acceptance-result')).not.toContainText(
+  await expect(page.locator('#system-result')).not.toContainText(
     'Comprobaciones técnicas correctas',
   );
   expect(google.isClosed()).toBe(true);

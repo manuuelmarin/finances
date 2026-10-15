@@ -5,14 +5,16 @@ const titles = {
   book: 'Movimientos',
   investments: 'Inversiones',
   accounts: 'Cuentas',
-  budgets: 'Presupuestos',
+  budgets: 'Planificación',
   salary: 'Salario',
-  goals: 'Objetivos',
-  activity: 'Actividad',
   tools: 'Calculadoras',
-  connection: 'Ajustes',
+  connection: 'Configuración',
 };
 const views = Object.keys(titles);
+const legacyViews = { goals: 'budgets', activity: 'connection' };
+function canonicalView(view) {
+  return legacyViews[view] || view;
+}
 const navigationDialog = document.getElementById('navigation-dialog');
 document.getElementById('mobile-menu').addEventListener('click', () => {
   navigationDialog.showModal();
@@ -21,6 +23,7 @@ document.getElementById('navigation-close').addEventListener('click', () => {
   navigationDialog.close();
 });
 function navigate(view, focus = false) {
+  view = canonicalView(view);
   if (!views.includes(view)) view = 'home';
   if (navigationDialog.open) navigationDialog.close();
   for (const name of views)
@@ -53,7 +56,7 @@ for (const link of document.querySelectorAll('[data-view]'))
   link.addEventListener('click', (event) => {
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
       return;
-    const view = link.dataset.view;
+    const view = canonicalView(link.dataset.view);
     if (!views.includes(view)) return;
     event.preventDefault();
     if (navigationDialog.open) navigationDialog.close();
@@ -61,10 +64,19 @@ for (const link of document.querySelectorAll('[data-view]'))
     else location.hash = view;
   });
 window.addEventListener('hashchange', () => {
-  const view = location.hash.slice(1);
-  if (views.includes(view) || !view) navigate(view, true);
+  const requested = location.hash.slice(1);
+  const view = canonicalView(requested);
+  if (views.includes(view) || !requested) {
+    if (requested && view !== requested)
+      history.replaceState(null, '', '#' + view);
+    navigate(view, true);
+  }
 });
-navigate(location.hash.slice(1));
+const initialHash = location.hash.slice(1);
+const initialView = canonicalView(initialHash);
+if (initialHash && initialHash !== initialView && views.includes(initialView))
+  history.replaceState(null, '', '#' + initialView);
+navigate(initialView);
 
 const euros = new Intl.NumberFormat('es-ES', {
   style: 'currency',
@@ -194,3 +206,24 @@ for (const event of ['input', 'reset'])
     document.getElementById('repayment-result').hidden = true;
     calculatorMessage('repayment-message', '');
   });
+
+const themeSelect = document.getElementById('theme-preference');
+const themeStorageKey = 'finances.theme';
+function savedTheme() {
+  try {
+    return localStorage.getItem(themeStorageKey) || 'system';
+  } catch {
+    return 'system';
+  }
+}
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  if (themeSelect) themeSelect.value = theme;
+}
+applyTheme(savedTheme());
+themeSelect?.addEventListener('change', () => {
+  applyTheme(themeSelect.value);
+  try {
+    localStorage.setItem(themeStorageKey, themeSelect.value);
+  } catch {}
+});

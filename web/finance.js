@@ -59,7 +59,7 @@
       EMBEDDED_CONTEXT:
         'Abre Finanzas en su propia ventana para acceder a tu libro.',
       UPDATE_REQUIRED:
-        'Actualiza todos los archivos del backend desde el instalador 3.9.3 y publica Nueva versión de la implementación existente. Guardar el editor no actualiza el enlace /exec.',
+        'Actualiza los archivos marcados como nuevos o modificados en el instalador 3.10.0 y publica Nueva versión de la implementación existente. Guardar el editor no actualiza el enlace /exec.',
       POPUP_BLOCKED:
         'Permite abrir la ventana de Google y vuelve a pulsar Abrir mi libro.',
       NOT_CONNECTED: 'Abre Google para leer o enviar los pendientes.',
@@ -463,6 +463,11 @@
   }
   const tableState = new Map();
   function cell(key, value) {
+    if (
+      key === 'Recurrente' &&
+      (value === null || value === undefined || value === '')
+    )
+      return 'No';
     const labels = {
       desconocido: 'Hora o corte desconocido',
       cierre_dia: 'Cierre del día',
@@ -476,6 +481,10 @@
       return labels[value];
     if (value === null || value === undefined || value === '')
       return 'Sin dato';
+    if (/Fecha|^date$/.test(key) && /^\d{4}-\d{2}-\d{2}$/.test(value))
+      return new Intl.DateTimeFormat('es-ES', { timeZone: 'UTC' }).format(
+        new Date(value + 'T00:00:00Z'),
+      );
     if (typeof value === 'number') {
       if (/Rentabilidad|Peso|Avance/.test(key))
         return new Intl.NumberFormat('es-ES', {
@@ -499,7 +508,27 @@
         key,
       );
     const percentageColumn = (key) => /Rentabilidad|Peso|Avance/.test(key);
+    const categoricalColumn = (key) =>
+      /^(Tipo|Origen|Destino|Subcategoría|Localización|Recurrente|Cuenta|Clase|Grupo|Subgrupo|Categoría|Objetivo|Origen|Alcance|Comparación)$/.test(
+        key,
+      );
     const dateColumn = (key) => /Fecha|^date$/.test(key);
+    const categoryFilterValue = (key, value) => {
+      if (
+        key === 'Recurrente' &&
+        (value === null || value === undefined || value === '')
+      )
+        return 'false';
+      return value === null || value === undefined || value === ''
+        ? '__empty__'
+        : String(value);
+    };
+    const categoryFilterLabel = (key, value) =>
+      value === '__empty__'
+        ? 'Sin dato'
+        : key === 'Recurrente' && value === 'false'
+          ? 'No'
+          : cell(key, value);
     const filtered = rows.filter((row) =>
       visibleColumns.every(([key]) => {
         const filter = state.filters[key] || {};
@@ -521,6 +550,11 @@
                   : filter.max))
           );
         }
+        if (categoricalColumn(key))
+          return (
+            !filter.values?.length ||
+            filter.values.includes(categoryFilterValue(key, row[key]))
+          );
         return (
           !filter.text ||
           D.normalize(cell(key, row[key])).includes(D.normalize(filter.text))
@@ -555,8 +589,10 @@
     tools.append(
       button('Limpiar filtros', () => {
         state.filters = {};
+        state.openFilterKey = null;
+        state.focusFilterValue = undefined;
         table(parent, rows, columns, name, actions);
-        parent.querySelector('.column-filter')?.focus();
+        parent.querySelector('.table-tools button')?.focus();
       }),
       button('Exportar CSV filtrado', () => {
         const blob = new Blob([D.csv(filtered, visibleColumns)], {
@@ -599,35 +635,115 @@
       th.append(sort);
       const filterCell = el('td');
       filterCell.dataset.label = 'Filtrar ' + title;
-      for (const part of numericColumn(key) || dateColumn(key)
-        ? ['min', 'max']
-        : ['text']) {
-        const input = el('input', undefined, 'column-filter');
-        input.type = dateColumn(key)
-          ? 'date'
-          : numericColumn(key)
-            ? 'number'
-            : 'search';
-        if (input.type === 'number') input.step = 'any';
-        input.value = state.filters[key]?.[part] || '';
-        input.setAttribute(
-          'aria-label',
-          'Filtrar ' +
-            title +
-            (part === 'min' ? ' desde' : part === 'max' ? ' hasta' : '') +
-            (percentageColumn(key) ? ' en porcentaje' : ''),
+      if (categoricalColumn(key)) {
+        const dropdown = el('details', undefined, 'column-multiselect');
+        dropdown.dataset.filterKey = key + '-values';
+        dropdown.open = state.openFilterKey === key;
+        dropdown.style.position = 'relative';
+        dropdown.style.minWidth = '120px';
+        const selected = state.filters[key]?.values || [];
+        const values = [
+          ...new Set(rows.map((row) => categoryFilterValue(key, row[key]))),
+        ].sort((a, b) =>
+          categoryFilterLabel(key, a).localeCompare(
+            categoryFilterLabel(key, b),
+            'es',
+            { numeric: true },
+          ),
         );
-        input.dataset.filterKey = key + '-' + part;
-        input.placeholder =
-          (part === 'min' ? 'Desde' : part === 'max' ? 'Hasta' : 'Filtrar') +
-          (percentageColumn(key) ? ' %' : '');
-        input.addEventListener('change', () => {
-          state.filters[key] = { ...state.filters[key], [part]: input.value };
-          limit = 50;
-          table(parent, rows, columns, name, actions);
-          parent.querySelector(`[data-filter-key="${key}-${part}"]`)?.focus();
+        const allSelected =
+          selected.length === 0 || selected.length === values.length;
+        const summary = el(
+          'summary',
+          allSelected ? 'Todos' : `${selected.length} seleccionados`,
+        );
+        summary.setAttribute('aria-label', 'Filtrar ' + title);
+        summary.style.display = 'flex';
+        summary.style.alignItems = 'center';
+        summary.style.minHeight = '44px';
+        summary.style.padding = '8px';
+        summary.style.border = '1px solid var(--line)';
+        summary.style.borderRadius = '6px';
+        summary.style.background = 'var(--bg)';
+        summary.style.cursor = 'pointer';
+        const checklist = el('div', undefined, 'column-multiselect-options');
+        checklist.style.position = 'absolute';
+        checklist.style.top = '100%';
+        checklist.style.left = '0';
+        checklist.style.zIndex = '5';
+        checklist.style.minWidth = '180px';
+        checklist.style.maxHeight = '200px';
+        checklist.style.overflowY = 'auto';
+        checklist.style.padding = '6px';
+        checklist.style.border = '1px solid var(--line)';
+        checklist.style.borderRadius = '6px';
+        checklist.style.background = 'var(--panel, var(--bg))';
+        for (const value of values) {
+          const item = el('label', undefined, 'column-multiselect-option');
+          item.style.display = 'flex';
+          item.style.alignItems = 'center';
+          item.style.gap = '8px';
+          item.style.minHeight = '38px';
+          item.style.padding = '4px 6px';
+          const checkbox = el('input');
+          checkbox.type = 'checkbox';
+          checkbox.value = value;
+          checkbox.checked = selected.includes(value) || allSelected;
+          checkbox.dataset.filterValue = value;
+          checkbox.setAttribute(
+            'aria-label',
+            title + ': ' + categoryFilterLabel(key, value),
+          );
+          checkbox.addEventListener('change', () => {
+            const next = new Set(state.filters[key]?.values || values);
+            if (checkbox.checked) next.add(value);
+            else next.delete(value);
+            state.filters[key] = { values: [...next] };
+            state.openFilterKey = key;
+            state.focusFilterValue = value;
+            limit = 50;
+            table(parent, rows, columns, name, actions);
+          });
+          item.append(checkbox, el('span', categoryFilterLabel(key, value)));
+          checklist.append(item);
+        }
+        dropdown.addEventListener('toggle', () => {
+          if (!dropdown.isConnected) return;
+          state.openFilterKey = dropdown.open ? key : null;
         });
-        filterCell.append(input);
+        dropdown.append(summary, checklist);
+        filterCell.append(dropdown);
+      } else {
+        for (const part of numericColumn(key) || dateColumn(key)
+          ? ['min', 'max']
+          : ['text']) {
+          const input = el('input', undefined, 'column-filter');
+          input.type = dateColumn(key)
+            ? 'date'
+            : numericColumn(key)
+              ? 'number'
+              : 'search';
+          if (input.type === 'number') input.step = 'any';
+          input.value = state.filters[key]?.[part] || '';
+          input.setAttribute(
+            'aria-label',
+            'Filtrar ' +
+              title +
+              (part === 'min' ? ' desde' : part === 'max' ? ' hasta' : '') +
+              (percentageColumn(key) ? ' en porcentaje' : ''),
+          );
+          input.dataset.filterKey = key + '-' + part;
+          input.placeholder =
+            (part === 'min' ? 'Desde' : part === 'max' ? 'Hasta' : 'Filtrar') +
+            (percentageColumn(key) ? ' %' : '');
+          input.addEventListener('change', () => {
+            state.filters[key] = { ...state.filters[key], [part]: input.value };
+            limit = 50;
+            table(parent, rows, columns, name, actions);
+            parent.querySelector(`[data-filter-key="${key}-${part}"]`)?.focus();
+          });
+          filterCell.append(input);
+        }
       }
       filterRow.append(filterCell);
       if (rows.some((row) => typeof row[key] === 'number'))
@@ -644,9 +760,15 @@
       for (const [key, label] of visibleColumns) {
         const td = el('td');
         if (key === 'Fuente') td.append(priceSource(row[key]));
-        else td.textContent = cell(key, row[key]);
+        else
+          td.textContent =
+            name === 'tPrecios' && typeof row[key] === 'number'
+              ? numbers.format(row[key])
+              : cell(key, row[key]);
         td.dataset.label = label || key;
         if (typeof row[key] === 'number') td.className = 'numeric';
+        if (name === 'tPrecios' && typeof row[key] === 'number')
+          td.classList.add('price-value');
         tr.append(td);
       }
       let detailRow;
@@ -675,6 +797,17 @@
           toggle.setAttribute('aria-controls', detailRow.id);
           td.append(toggle);
         }
+        if (name === 'tPrecios') {
+          for (const quote of row.__quotes || []) {
+            const label =
+              snapshot?.tables?.tProductos?.find((p) => p.ID === quote.Producto)
+                ?.Producto || 'precio';
+            td.append(
+              button('Corregir ' + label, () => editRow(name, quote)),
+              button('Anular ' + label, () => cancelRow(name, quote)),
+            );
+          }
+        }
         if (['tCuentas', 'tCategorias'].includes(name)) {
           const kind = name === 'tCuentas' ? 'account' : 'category',
             reference = row[name === 'tCuentas' ? 'Cuenta' : 'Subcategoría'];
@@ -697,10 +830,11 @@
             }),
           );
         }
-        td.append(
-          button('Corregir', () => editRow(name, row)),
-          button('Anular', () => cancelRow(name, row)),
-        );
+        if (name !== 'tPrecios')
+          td.append(
+            button('Corregir', () => editRow(name, row)),
+            button('Anular', () => cancelRow(name, row)),
+          );
         tr.append(td);
       }
       body.append(tr);
@@ -722,6 +856,21 @@
     t.append(body);
     wrap.append(tools, t);
     parent.append(wrap);
+    if (state.openFilterKey) {
+      const dropdown = parent.querySelector(
+        `[data-filter-key="${state.openFilterKey}-values"]`,
+      );
+      if (dropdown) {
+        dropdown.open = true;
+        const value = state.focusFilterValue;
+        if (value !== undefined) {
+          [...dropdown.querySelectorAll('input[type="checkbox"]')]
+            .find((input) => input.value === value)
+            ?.focus();
+          state.focusFilterValue = undefined;
+        }
+      }
+    }
     if (filtered.length > limit)
       parent.append(
         button(`Mostrar más (${filtered.length - limit})`, () => {
@@ -766,7 +915,7 @@
       ['Retención'],
       ['Importe'],
     ],
-    tPrecios: [['Producto'], ['ISIN'], ['Fecha'], ['VL EUR'], ['Fuente']],
+    tPrecios: [['Fecha']],
     tCuentas: [
       ['Cuenta'],
       ['Saldo inicial'],
@@ -853,6 +1002,7 @@
   }
   function registerContext(view) {
     activeView = view;
+    if (view === 'budgets') view = 'goals';
     if (!registerViews[view]) return;
     registerView = view;
     document
@@ -927,13 +1077,26 @@
         Concepto: transferConcepts.get(row.ID) || null,
       }));
     }
+    let viewColumns = columns[name];
+    if (name === 'tPrecios') {
+      const products = snapshot?.tables?.tProductos || [];
+      const byDate = new Map();
+      for (const quote of rows) {
+        const date = quote.Fecha;
+        if (!byDate.has(date)) byDate.set(date, { Fecha: date });
+        byDate.get(date)[quote.Producto] = quote['VL EUR'];
+        (byDate.get(date).__quotes ||= []).push(quote);
+      }
+      rows = [...byDate.values()];
+      viewColumns = [['Fecha'], ...products.map((p) => [p.ID, p.Producto])];
+    }
     rows = rows.filter((row) => {
       const date = row.Fecha || row['Fecha cobro'] || row.date;
       return (
         (!from || (date && date >= from)) &&
         (!to || (date && date <= to)) &&
         (!query ||
-          columns[name].some(([k]) =>
+          viewColumns.some(([k]) =>
             D.normalize(displayValue(k, row[k], snapshot)).includes(query),
           ))
       );
@@ -962,7 +1125,7 @@
           ),
         );
     const parent = $('finance-register');
-    table(parent, rows, columns[name], name, name !== 'observations');
+    table(parent, rows, viewColumns, name, name !== 'observations');
     if (name === 'tProductos' || name === 'tPrecios') {
       const panel = el('details', undefined, 'price-panel');
       panel.append(el('summary', 'Fuentes de precios'));
@@ -1020,11 +1183,29 @@
           : 'Copia de pruebas'
         : 'Sin libro abierto';
     $('finance-cut').textContent = snapshot
-      ? `Inicio ${snapshot.settings.start} · informe ${snapshot.settings.asof} · valoración ${snapshot.settings.valuation}. Resumen: ${Object.entries(
-          snapshot.summary?.filters || {},
-        )
-          .map(([k, v]) => k + ' ' + v)
-          .join(' · ')}.`
+      ? 'Informe ' +
+        cell('date', snapshot.settings.asof) +
+        (snapshot.settings.valuation !== snapshot.settings.asof
+          ? ' · valoración ' + cell('date', snapshot.settings.valuation)
+          : '')
+      : '';
+    let reportInfo = $('report-source-info');
+    if (!reportInfo) {
+      reportInfo = el('details', undefined, 'report-info');
+      reportInfo.id = 'report-source-info';
+      const summary = el('summary', 'i');
+      summary.setAttribute('aria-label', 'Alcance de los datos del informe');
+      reportInfo.append(summary, el('p'));
+      $('finance-cut').after(reportInfo);
+    }
+    reportInfo.hidden = !snapshot;
+    reportInfo.querySelector('p').textContent = snapshot
+      ? 'Seguimiento desde ' +
+        cell('date', snapshot.settings.start) +
+        '. Filtros del resumen de Sheets: ' +
+        Object.entries(snapshot.summary?.filters || {})
+          .map(([key, value]) => key + ': ' + value)
+          .join(' · ')
       : '';
     const warnings = [];
     if (snapshot?.calculationState === 'needs_review')
@@ -1222,7 +1403,16 @@
     let input;
     if (['select', 'boolean', 'nullableBoolean'].includes(f.type)) {
       input = el('select');
-      input.append(new Option(f.required ? 'Selecciona…' : 'Sin dato', ''));
+      input.append(
+        new Option(
+          f.type === 'nullableBoolean'
+            ? 'No'
+            : f.required
+              ? 'Selecciona…'
+              : 'Sin dato',
+          f.type === 'nullableBoolean' ? 'false' : '',
+        ),
+      );
       const values =
         f.type === 'select'
           ? D.options(f.source, snapshot, $('operation-kind').value, {
@@ -1231,10 +1421,14 @@
               _editingMovement: editing?.contextual,
               ...Object.fromEntries(new FormData($('operation-form'))),
             })
-          : [
-              ['true', 'Sí'],
-              ['false', 'No'],
-            ];
+          : f.type === 'nullableBoolean'
+            ? [['true', 'Sí']]
+            : [
+                ['true', 'Sí'],
+                ['false', 'No'],
+              ];
+      if (f.key === 'product' && $('operation-kind').value === 'compra')
+        values.push(['__new_product__', '＋ Nuevo producto']);
       for (const [id, name] of values)
         input.append(new Option(presentation(name), id));
     } else {
@@ -1249,6 +1443,11 @@
     input.id = 'operation-' + f.key;
     input.required = f.required;
     if (value !== null && value !== undefined) input.value = String(value);
+    if (f.key === 'product' && $('operation-kind').value === 'compra')
+      input.addEventListener('change', () => {
+        if (input.value === '__new_product__')
+          processFields(Object.fromEntries(new FormData($('operation-form'))));
+      });
     label.append(input);
     return label;
   }
@@ -1268,9 +1467,22 @@
       day: '2-digit',
     }).format(new Date());
     const simple = ['gasto', 'ingreso', 'traspaso'].includes(process);
+    const investment = ['compra', 'venta', 'rendimiento'].includes(process);
     const additional = el('details', undefined, 'operation-additional');
     additional.open = additionalOpen;
-    additional.append(el('summary', 'Opciones adicionales'));
+    additional.append(
+      el(
+        'summary',
+        investment ? 'Opciones avanzadas ⓘ' : 'Opciones adicionales',
+      ),
+    );
+    if (investment)
+      additional.append(
+        el(
+          'p',
+          'Comisiones y retenciones son opcionales. Activa «Operación histórica» solo para operaciones anteriores al inicio del seguimiento que no deben crear caja.',
+        ),
+      );
     for (const f of spec.fields) {
       let initial = f.initial;
       if (f.type === 'date' && f.required)
@@ -1283,12 +1495,25 @@
           : f,
         initial,
       );
+      const advancedInvestmentField =
+        investment && ['fee', 'tax', 'historical'].includes(f.key);
       if (
-        simple &&
-        !['date', 'account', 'from', 'to', 'category', 'amount'].includes(f.key)
-      )
+        (simple &&
+          !['date', 'account', 'from', 'to', 'category', 'amount'].includes(
+            f.key,
+          )) ||
+        advancedInvestmentField
+      ) {
         additional.append(field);
-      else parent.append(field);
+        if (f.key === 'historical')
+          additional.append(
+            el(
+              'small',
+              'Úsalo solo para posiciones anteriores al inicio del seguimiento que no deben crear una entrada de caja.',
+              'field-hint',
+            ),
+          );
+      } else parent.append(field);
     }
     if (simple) {
       additional.append(
@@ -1300,6 +1525,56 @@
         ),
       );
       parent.append(additional);
+    }
+    if (investment) parent.append(additional);
+    if (process === 'compra' && values.product === '__new_product__') {
+      const section = el('section', undefined, 'inline-new-product');
+      section.append(
+        el('h3', 'Nuevo producto'),
+        el(
+          'p',
+          'Se creará una posición base de cero y la compra se registrará una sola vez. El producto, su ISIN y la compra se revisan juntos.',
+        ),
+      );
+      const productSpec = D.processes.producto.fields;
+      for (const original of productSpec) {
+        if (['units', 'cost', 'isin', 'referenceName'].includes(original.key))
+          continue;
+        const key = 'newProduct_' + original.key;
+        let initial =
+          original.key === 'date' ? values.date || today : original.initial;
+        if (Object.hasOwn(values, key)) initial = values[key];
+        section.append(fieldInput({ ...original, key }, initial));
+      }
+      for (const key of ['isin', 'referenceName']) {
+        const original = productSpec.find((field) => field.key === key);
+        const prefixed = { ...original, key: 'newProduct_' + key };
+        section.append(fieldInput(prefixed, values[prefixed.key]));
+      }
+      parent.append(section);
+    }
+    if (investment) {
+      const advanced = el('details', undefined, 'operation-advanced-links');
+      advanced.append(
+        el('summary', 'ⓘ ISIN y precios manuales'),
+        el(
+          'p',
+          'Vincula un ISIN para consultar precios de fondos o registra un valor liquidativo manual con su fecha efectiva y fuente.',
+        ),
+        button('Configurar ISIN', () => {
+          $('operation-dialog').close();
+          void newOperation('vincular_isin');
+        }),
+        button('Registrar precio manual', () => {
+          $('operation-dialog').close();
+          void newOperation('precio');
+        }),
+        button('Registrar dividendo o distribución', () => {
+          $('operation-dialog').close();
+          void newOperation('rendimiento');
+        }),
+      );
+      parent.append(advanced);
     }
     if (
       [
@@ -1314,7 +1589,13 @@
       ].includes(process)
     ) {
       const templates = el('details', undefined, 'operation-templates');
-      templates.append(el('summary', 'Plantillas de este libro'));
+      templates.append(el('summary', 'ⓘ Plantillas de este libro'));
+      templates.append(
+        el(
+          'p',
+          'Una plantilla reutiliza los datos de un movimiento. Por ejemplo, «Café habitual» guarda la cuenta y la categoría; puedes cambiar fecha e importe antes de confirmar. Guardar la plantilla no registra un gasto.',
+        ),
+      );
       if (!snapshot?.capabilities?.templates)
         templates.append(
           el('p', 'Actualiza el backend para guardar y reutilizar plantillas.'),
@@ -1905,7 +2186,9 @@
     try {
       if (!snapshot || !queue) throw Error('READ_REQUIRED');
       const values = Object.fromEntries(new FormData(event.target));
-      let op, label;
+      let op,
+        label,
+        operations = null;
       if (editing?.payroll || editing?.contextual) {
         const kind = editing.payroll ? 'nomina' : editing.kind;
         op = D.operation(kind, values);
@@ -1958,16 +2241,44 @@
           !String(values.concept || '').trim()
         )
           values.concept = D.processes[process].label;
-        op = D.operation(process, values);
-        label =
-          D.processes[process].label +
-          (op.concept ? ' · ' + op.concept : op.name ? ' · ' + op.name : '');
+        if (process === 'compra' && values.product === '__new_product__') {
+          const productName = values.newProduct_name;
+          const product = D.operation('producto', {
+            name: productName,
+            account: values.newProduct_account,
+            class: values.newProduct_class,
+            date: values.newProduct_date,
+            units: '0',
+            cost: '0',
+          });
+          product.alias = 'newProduct';
+          const bind = D.operation('vincular_isin', {
+            product: '$newProduct',
+            isin: values.newProduct_isin,
+            referenceName: values.newProduct_referenceName || productName,
+          });
+          op = D.operation('compra', { ...values, product: '$newProduct' });
+          operations = [product, bind, op];
+          label = 'Compra · ' + (op.concept || productName);
+        } else {
+          op = D.operation(process, values);
+          label =
+            D.processes[process].label +
+            (op.concept ? ' · ' + op.concept : op.name ? ' · ' + op.name : '');
+        }
       }
       const transferNote =
         op.process === 'traspaso_fondo'
           ? `Importe ejecutado: ${displayValue('amount', op.amount, snapshot)}. Valor bruto de salida: ${(op.outUnits * op.outPrice).toLocaleString('es-ES', { maximumFractionDigits: 12 })} EUR; valor bruto de entrada: ${(op.inUnits * op.inPrice).toLocaleString('es-ES', { maximumFractionDigits: 12 })} EUR. Diferencia de valoración por precisión: ${(op.inUnits * op.inPrice - op.outUnits * op.outPrice).toLocaleString('es-ES', { maximumFractionDigits: 12 })} EUR. Se conservan las participaciones y los valores liquidativos reales. No se registra caja; las aportaciones se trasladan sin esa diferencia.`
           : undefined;
-      showReview([op], label, null, transferNote);
+      showReview(
+        operations || [op],
+        label,
+        null,
+        operations
+          ? 'Se crea una posición base de cero, se vincula el ISIN y se registra esta compra dentro del mismo lote. Solo la compra genera caja; Google valida el lote entero antes de guardar.'
+          : transferNote,
+      );
     } catch (error) {
       $('operation-error').textContent = errorText(error);
       $('operation-error').hidden = false;
@@ -2021,15 +2332,7 @@
       'devolucion_gasto',
       'cobro_compartido',
     ],
-    investments: [
-      'compra',
-      'venta',
-      'rendimiento',
-      'traspaso_fondo',
-      'producto',
-      'precio',
-      'vincular_isin',
-    ],
+    investments: ['compra', 'venta', 'traspaso_fondo'],
     accounts: [
       'cuenta',
       'saldo_observado',
@@ -2052,7 +2355,12 @@
       : Object.values(viewProcesses).find((list) => list.includes(process)) ||
         choices;
     $('operation-kind').replaceChildren();
-    for (const key of contextual)
+    const selectedChoices = contextual.includes(process)
+      ? contextual
+      : typeof process === 'string' && D.processes[process]?.ui !== false
+        ? [...contextual, process]
+        : contextual;
+    for (const key of selectedChoices)
       if (D.processes[key]?.ui !== false && D.processes[key])
         $('operation-kind').append(new Option(D.processes[key].label, key));
   }

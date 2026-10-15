@@ -181,6 +181,24 @@ test('cada columna permite ordenar con teclado y filtrar texto, fecha y número'
     await expect(
       register.locator('th').filter({ hasText: field }),
     ).toBeVisible();
+  const locationFilter = register.locator(
+    '[data-filter-key="Localización-values"]',
+  );
+  await locationFilter.locator('summary').click();
+  const madrid = locationFilter.getByRole('checkbox', {
+    name: 'Localización: Madrid',
+  });
+  const noLocation = locationFilter.getByRole('checkbox', {
+    name: 'Localización: Sin dato',
+  });
+  await noLocation.uncheck();
+  await expect(locationFilter).toHaveJSProperty('open', true);
+  await expect(noLocation).toBeFocused();
+  await expect(register.locator('tbody')).toContainText('Metro');
+  await expect(register.locator('tbody')).not.toContainText('Café de prueba');
+  await register
+    .getByRole('button', { name: 'Limpiar filtros', exact: true })
+    .click();
   const sort = register.getByRole('button', {
     name: 'Ordenar por Importe',
     exact: true,
@@ -281,7 +299,7 @@ test('inversiones obtiene ISIN del catálogo y limita los enlaces de fuentes', a
   await expect(page.locator('#finance-register')).toContainText('ES0123456789');
   await page.locator('#register-tab-tPrecios').click();
   const links = page.locator('#finance-register a');
-  await expect(links).toHaveCount(2);
+  await expect(links).toHaveCount(1);
   await expect(links.first()).toHaveText('Fuente');
   await expect(links.first()).toHaveAttribute('rel', 'noopener noreferrer');
   await expect(page.locator('#finance-register')).not.toContainText('https://');
@@ -293,9 +311,9 @@ test('inversiones obtiene ISIN del catálogo y limita los enlaces de fuentes', a
   await expect(page.locator('#finance-register .finance-table a')).toHaveCount(
     0,
   );
-  await expect(page.locator('#finance-register .finance-table')).toContainText(
-    'Fuente sin enlace verificado',
-  );
+  await expect(
+    page.locator('#finance-register .finance-table'),
+  ).not.toContainText('Fuente');
 });
 
 test('@responsive móvil conserva filtros y orden en la tabla sin desbordar la página', async ({
@@ -424,4 +442,92 @@ test('@responsive payroll opens a unified editor and reviews old/new values; can
   await row.getByRole('button', { name: 'Anular', exact: true }).click();
   await expect(page.locator('#review-note')).toContainText('1 nóminas');
   await expect(page.locator('#review-note')).toContainText('80 EUR');
+});
+
+test('compra crea producto, vincula ISIN y registra caja en un único lote revisado', async ({
+  page,
+}) => {
+  await setupRecords(page);
+  await navigate(page, 'investments');
+  await page.locator('#view-investments [data-operation=compra]').click();
+  await expect(
+    page.locator('#operation-price').locator('xpath=..'),
+  ).toContainText('Precio');
+  await expect(page.locator('#operation-location')).toHaveCount(0);
+  await expect(page.locator('.operation-additional summary')).toContainText(
+    'Opciones avanzadas',
+  );
+  await page.locator('#operation-product').selectOption('__new_product__');
+  await expect(page.locator('.inline-new-product')).toContainText(
+    'posición base de cero',
+  );
+  await page.locator('#operation-newProduct_name').fill('Fondo nuevo');
+  await page
+    .locator('#operation-newProduct_account')
+    .selectOption({ label: 'Cuenta A' });
+  await page
+    .locator('#operation-newProduct_class')
+    .selectOption('Renta variable');
+  await page.locator('#operation-newProduct_date').fill('2026-01-02');
+  await page.locator('#operation-newProduct_isin').fill('ES0112611001');
+  await page
+    .locator('#operation-newProduct_referenceName')
+    .fill('Fondo nuevo clase A');
+  await page.locator('#operation-date').fill('2026-01-02');
+  await page.locator('#operation-concept').fill('Compra inicial');
+  await page.locator('#operation-units').fill('2');
+  await page.locator('#operation-price').fill('5');
+  await page.locator('#operation-form button[type=submit]').click();
+  await expect(page.locator('#review-fields')).toContainText('Fondo nuevo');
+  await expect(page.locator('#review-fields')).toContainText('ES0112611001');
+  await expect(page.locator('#review-fields')).toContainText('$newProduct');
+  await expect(page.locator('#review-note')).toContainText(
+    'Solo la compra genera caja',
+  );
+});
+
+test('filtros de categoría mantienen varias cuentas seleccionadas con lógica OR', async ({
+  page,
+}) => {
+  await setupRecords(page, (seed) => {
+    seed.tables.tCuentas.push({ Cuenta: 'Cuenta C', 'Saldo calculado': 0 });
+    seed.tables.tMovimientos.push({
+      ID: 'THIRD',
+      Fecha: '2026-01-03',
+      Tipo: 'Gasto',
+      Concepto: 'Compra tercera cuenta',
+      Origen: 'Cuenta C',
+      Importe: 1,
+      Recuperable: 0,
+      Subcategoría: 'Café',
+      Localización: null,
+      Recurrente: false,
+    });
+  });
+  const register = page.locator('#finance-register');
+  const originFilter = register.locator('[data-filter-key="Origen-values"]');
+  await originFilter.locator('summary').click();
+  const accountA = originFilter.getByRole('checkbox', {
+    name: 'Origen: Cuenta A',
+  });
+  const cash = originFilter.getByRole('checkbox', { name: 'Origen: Efectivo' });
+  await originFilter
+    .getByRole('checkbox', { name: 'Origen: Cuenta C' })
+    .uncheck();
+  await expect(originFilter.locator('summary')).toHaveText('2 seleccionados');
+  await expect(originFilter).toHaveJSProperty('open', true);
+  await expect(register.locator('tbody')).toContainText('Café de prueba');
+  await expect(register.locator('tbody')).toContainText('Metro');
+  await expect(register.locator('tbody')).not.toContainText(
+    'Compra tercera cuenta',
+  );
+  await accountA.uncheck();
+  await expect(register.locator('tbody')).not.toContainText('Café de prueba');
+  await expect(register.locator('tbody')).toContainText('Metro');
+  await register
+    .getByRole('button', { name: 'Limpiar filtros', exact: true })
+    .click();
+  await expect(register.locator('tbody')).toContainText(
+    'Compra tercera cuenta',
+  );
 });

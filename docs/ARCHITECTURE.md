@@ -1,6 +1,6 @@
 # Architecture
 
-Finanzas 3.9.4 uses workbook model 3 and API 3.3.0. The environment remains `ENVIRONMENT=test`; this document does not authorize production cutover.
+Finanzas 3.10.0 uses workbook model 3 and API 3.3.0. The environment remains `ENVIRONMENT=test`; this document does not authorize production cutover.
 
 ## Components
 
@@ -27,9 +27,9 @@ Dates are ISO: `settings.start` begins tracking, `settings.asof` sets the report
 
 Sheets calculates results. Cash series reconstruct balances from account opening balances and transactions. External observations are reconciled only with comparable cutoffs. Historical purchases are not new cash movements; description/amount alone cannot deduplicate transactions.
 
-Monthly budgets may be overall or expense-subcategory limits; zero is valid. They create no transactions or carryover. Personal expenses subtract recoverable shares and owner refunds; transfers, purchases, shared reimbursements and debt are excluded. Overall/category limits stay independent; missing overall limits do not imply available balance. Goals retain `tObjetivos`/`tAsignaciones`. Budget changes update revision through `presupuesto`/`quitar_presupuesto` and the financial batch.
+Budgets cover calendar months, closed date intervals or ongoing periods, with overall or expense-subcategory scope; zero is valid. Custom intervals use the hidden `_Finanzas_PresupuestosIntervalos` support table and `supportsCustomBudgets`; absent schema rejects new writes with `UPDATE_REQUIRED`. They create no transactions or carryover. Personal expenses subtract recoverable shares and owner refunds; transfers, purchases, shared reimbursements and debt are excluded. Overall/category limits stay independent; missing overall limits do not imply available balance. Goals retain `tObjetivos`/`tAsignaciones`. Budget changes update revision through `presupuesto`/`quitar_presupuesto` and the financial batch.
 
-Charts use snapshot/native results; filters never write. Calculators are estimates with explicit, constant assumptions. Price history never interpolates or applies current NAV retrospectively. TWR links observed valuations; insufficient valuation around a flow interrupts it. Missing initial history identifies a calculable start and unknown earlier returns. Net-contribution returns do not replace TWR/native returns. See [PRICES.md](../apps-script/PRICES.md).
+Charts use snapshot/native results; date filters and local SVG/PNG/CSV exports never write. CSV text is neutralized against formula injection. Historical net worth reconstructs cash, linked debt and investments on matching actual valuation dates; it is not portfolio return. Calculators are estimates with explicit, constant assumptions. Price history never interpolates or applies current NAV retrospectively. TWR links observed valuations; insufficient valuation around a flow interrupts it. Missing initial history identifies a calculable start and unknown earlier returns. Net-contribution returns do not replace TWR/native returns. See [PRICES.md](../apps-script/PRICES.md).
 
 ## Writes and recovery
 

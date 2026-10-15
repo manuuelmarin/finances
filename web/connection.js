@@ -280,7 +280,7 @@ if (typeof document !== 'undefined') {
         new Date(data.checkedAt).toLocaleString('es-ES');
       const versionDetail = document.createElement('p');
       versionDetail.textContent =
-        'App 3.9.3 · Google ' +
+        'App 3.10.0 · Google ' +
         (data.buildVersion || 'Sin dato') +
         ' · API ' +
         (data.apiVersion || 'Sin dato') +
@@ -304,6 +304,10 @@ if (typeof document !== 'undefined') {
           : 'Actualiza Apps Script para habilitar las operaciones.',
       );
     }
+
+    window.addEventListener('finances:connection-checked', (event) => {
+      if (event.detail?.ok) received(event.detail);
+    });
 
     deploymentUrl = savedDeployment(storage());
     configuredLocally = Boolean(deploymentUrl);

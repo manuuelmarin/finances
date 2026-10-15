@@ -45,8 +45,8 @@ const FinanceDomain = (() => {
     true,
     'expenses',
   );
-  const fee = field('fee', 'Comisión EUR', 'money', true, null, '0');
-  const tax = field('tax', 'Retención EUR', 'money', true, null, '0');
+  const fee = field('fee', 'Comisión EUR', 'money', false, null, '0');
+  const tax = field('tax', 'Retención EUR', 'money', false, null, '0');
   const historical = field(
     'historical',
     'Operación anterior al inicio, sin caja nueva',
@@ -117,7 +117,14 @@ const FinanceDomain = (() => {
         amount,
         recoverable,
         location,
-        field('recurring', 'Recurrente', 'nullableBoolean', false),
+        field(
+          'recurring',
+          'Recurrente',
+          'nullableBoolean',
+          false,
+          null,
+          'false',
+        ),
       ],
     },
     ingreso: {
@@ -177,10 +184,9 @@ const FinanceDomain = (() => {
         concept,
         product,
         field('units', 'Participaciones', 'decimal'),
-        field('price', 'Precio unitario EUR', 'decimal'),
+        field('price', 'Precio', 'decimal'),
         fee,
         historical,
-        location,
       ],
     },
     venta: {
@@ -190,11 +196,10 @@ const FinanceDomain = (() => {
         concept,
         product,
         field('units', 'Participaciones', 'decimal'),
-        field('price', 'Precio unitario EUR', 'decimal'),
+        field('price', 'Precio', 'decimal'),
         fee,
         tax,
         historical,
-        location,
       ],
     },
     rendimiento: {
@@ -207,7 +212,6 @@ const FinanceDomain = (() => {
         fee,
         tax,
         historical,
-        location,
       ],
     },
     precio: {
@@ -364,6 +368,10 @@ const FinanceDomain = (() => {
     const result = { process };
     for (const f of spec.fields) {
       const value = String(values[f.key] ?? '').trim();
+      if (!value && f.type === 'nullableBoolean') {
+        result[f.key] = false;
+        continue;
+      }
       if (!value) {
         if (f.required) throw Error('Completa ' + f.label + '.');
         result[f.key] = null;

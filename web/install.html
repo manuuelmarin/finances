@@ -3,7 +3,7 @@
   <head>
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self'; style-src 'self' 'sha256-s6aEEXbSnP6H1YElkpXaQof61Iw3IICP5AXoQ4NeVRM='; img-src 'self'; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'sha256-s6aEEXbSnP6H1YElkpXaQof61Iw3IICP5AXoQ4NeVRM='; img-src 'self' blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
     />
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -280,7 +280,7 @@
       <p class="eyebrow">GOOGLE SHEETS · CONEXIÓN PRIVADA</p>
       <h1>Instalación de Apps Script</h1>
       <p class="intro">
-        Archivos de Apps Script · Entrega 3.9.4. Instala los módulos
+        Archivos de Apps Script · Entrega 3.10.0. Instala los módulos
         del backend privado en el proyecto que ya está conectado.
       </p>
       <p class="notice">
@@ -293,7 +293,8 @@
         <label for="installed-release">¿Qué versión tienes instalada?</label>
         <select id="installed-release">
           <option value="">No sé / instalación nueva</option>
-          <option value="3.9.4">3.9.4</option>
+          <option value="3.10.0">3.10.0</option>
+<option value="3.9.4">3.9.4</option>
 <option value="3.9.3">3.9.3</option>
         </select>
         <p id="release-summary" role="status" aria-live="polite">
@@ -305,8 +306,8 @@
         >
         <p id="removed-files" hidden></p>
       </section>
-      <template id="install-releases" data-current-version="3.9.4"
-        >{"3.9.3":{"Code.gs":"9ffe7cdef6cb4f3f4189fe9ab064ca11c3014851476212a0ca38ce25ba0f763e","Configuration.gs":"4748f6ee5e214687e22531f0bf5056dc380e8c3ebcf348755813bbeb2e06f4c4","AccessAndUtilities.gs":"ee4a4abcc5f5a963178f65f4591a068c222fc79041e1a9c0bc6b600448107333","BackendAndReporting.gs":"f8d3cf3d70536e2afbf7b3ae2a3d413bcc4e9d4af8af5f7f229e31d3bdebc405","DailyHistory.gs":"58cd749c210b0a9f16bf5fffb60e9f40bbd608f7890a42af280a4a92fcab6f6a","DailyPriceAutomation.gs":"347e4ff8f0c0f207d02076a0a4964650f0458b5954396f44c1759d80b374c7a9","OperatorChecks.gs":"7066876c821b99b83527ddaa92c749024c30e899152611178bb866c6f75c347e","PriceHistory.gs":"24900e2ae46f43faf843c0e9f5bf728540f260c132ad24ed1c87feb382b099cd","PriceProvidersAndRefresh.gs":"936c8fbb8b7b0b8fdf00e7a12df7de0154b9b134983004ea1a252237cd8988ed","StateAndValidation.gs":"1eb75be16e737a96a7f123ab8b1d8d9786c27c9a787407f7363a5303d7e2dbc6","Operations.gs":"9597cbfd971a074def13da1c74fa613a7d4a0d5df467a8b01154cdd8062dcd11","SupportAndCapacity.gs":"6781747c2f0ac15b1a963056a1f90cdefb716f5a9f904cb2222cbcd561e9e58e","Transactions.gs":"a837477bd9745fffcbea6016d0764e1a7f7b0ae961ffe856603b721a1ee6c01b","Bridge.html":"ff2067f09bdb3459a4089e108d34e5f12555d649b86649fca438f1e7f67e04a4","appsscript.json":"6d9e30fcdbf21cec70850bceb611d2c88dc7d79139f0bd1ffe19f91a6b1d50f8"},"3.9.4":{"Code.gs":"9ffe7cdef6cb4f3f4189fe9ab064ca11c3014851476212a0ca38ce25ba0f763e","Configuration.gs":"eebd9655072baca95d9cb8c10ea33d24df412d4f2b273a29a818da02330163ad","AccessAndUtilities.gs":"ee4a4abcc5f5a963178f65f4591a068c222fc79041e1a9c0bc6b600448107333","BackendAndReporting.gs":"f8d3cf3d70536e2afbf7b3ae2a3d413bcc4e9d4af8af5f7f229e31d3bdebc405","DailyHistory.gs":"58cd749c210b0a9f16bf5fffb60e9f40bbd608f7890a42af280a4a92fcab6f6a","DailyPriceAutomation.gs":"347e4ff8f0c0f207d02076a0a4964650f0458b5954396f44c1759d80b374c7a9","OperatorChecks.gs":"7066876c821b99b83527ddaa92c749024c30e899152611178bb866c6f75c347e","PriceHistory.gs":"24900e2ae46f43faf843c0e9f5bf728540f260c132ad24ed1c87feb382b099cd","PriceProvidersAndRefresh.gs":"936c8fbb8b7b0b8fdf00e7a12df7de0154b9b134983004ea1a252237cd8988ed","StateAndValidation.gs":"1eb75be16e737a96a7f123ab8b1d8d9786c27c9a787407f7363a5303d7e2dbc6","Operations.gs":"9597cbfd971a074def13da1c74fa613a7d4a0d5df467a8b01154cdd8062dcd11","SupportAndCapacity.gs":"6781747c2f0ac15b1a963056a1f90cdefb716f5a9f904cb2222cbcd561e9e58e","Transactions.gs":"a837477bd9745fffcbea6016d0764e1a7f7b0ae961ffe856603b721a1ee6c01b","Bridge.html":"8b311443805628c7bc6ccf65fb630f8f4cb62f6668666591095780c88080350e","appsscript.json":"6d9e30fcdbf21cec70850bceb611d2c88dc7d79139f0bd1ffe19f91a6b1d50f8"}}</template
+      <template id="install-releases" data-current-version="3.10.0"
+        >{"3.9.3":{"Code.gs":"9ffe7cdef6cb4f3f4189fe9ab064ca11c3014851476212a0ca38ce25ba0f763e","Configuration.gs":"4748f6ee5e214687e22531f0bf5056dc380e8c3ebcf348755813bbeb2e06f4c4","AccessAndUtilities.gs":"ee4a4abcc5f5a963178f65f4591a068c222fc79041e1a9c0bc6b600448107333","BackendAndReporting.gs":"f8d3cf3d70536e2afbf7b3ae2a3d413bcc4e9d4af8af5f7f229e31d3bdebc405","DailyHistory.gs":"58cd749c210b0a9f16bf5fffb60e9f40bbd608f7890a42af280a4a92fcab6f6a","DailyPriceAutomation.gs":"347e4ff8f0c0f207d02076a0a4964650f0458b5954396f44c1759d80b374c7a9","OperatorChecks.gs":"7066876c821b99b83527ddaa92c749024c30e899152611178bb866c6f75c347e","PriceHistory.gs":"24900e2ae46f43faf843c0e9f5bf728540f260c132ad24ed1c87feb382b099cd","PriceProvidersAndRefresh.gs":"936c8fbb8b7b0b8fdf00e7a12df7de0154b9b134983004ea1a252237cd8988ed","StateAndValidation.gs":"1eb75be16e737a96a7f123ab8b1d8d9786c27c9a787407f7363a5303d7e2dbc6","Operations.gs":"9597cbfd971a074def13da1c74fa613a7d4a0d5df467a8b01154cdd8062dcd11","SupportAndCapacity.gs":"6781747c2f0ac15b1a963056a1f90cdefb716f5a9f904cb2222cbcd561e9e58e","Transactions.gs":"a837477bd9745fffcbea6016d0764e1a7f7b0ae961ffe856603b721a1ee6c01b","Bridge.html":"ff2067f09bdb3459a4089e108d34e5f12555d649b86649fca438f1e7f67e04a4","appsscript.json":"6d9e30fcdbf21cec70850bceb611d2c88dc7d79139f0bd1ffe19f91a6b1d50f8"},"3.9.4":{"Code.gs":"9ffe7cdef6cb4f3f4189fe9ab064ca11c3014851476212a0ca38ce25ba0f763e","Configuration.gs":"eebd9655072baca95d9cb8c10ea33d24df412d4f2b273a29a818da02330163ad","AccessAndUtilities.gs":"ee4a4abcc5f5a963178f65f4591a068c222fc79041e1a9c0bc6b600448107333","BackendAndReporting.gs":"f8d3cf3d70536e2afbf7b3ae2a3d413bcc4e9d4af8af5f7f229e31d3bdebc405","DailyHistory.gs":"58cd749c210b0a9f16bf5fffb60e9f40bbd608f7890a42af280a4a92fcab6f6a","DailyPriceAutomation.gs":"347e4ff8f0c0f207d02076a0a4964650f0458b5954396f44c1759d80b374c7a9","OperatorChecks.gs":"7066876c821b99b83527ddaa92c749024c30e899152611178bb866c6f75c347e","PriceHistory.gs":"24900e2ae46f43faf843c0e9f5bf728540f260c132ad24ed1c87feb382b099cd","PriceProvidersAndRefresh.gs":"936c8fbb8b7b0b8fdf00e7a12df7de0154b9b134983004ea1a252237cd8988ed","StateAndValidation.gs":"1eb75be16e737a96a7f123ab8b1d8d9786c27c9a787407f7363a5303d7e2dbc6","Operations.gs":"9597cbfd971a074def13da1c74fa613a7d4a0d5df467a8b01154cdd8062dcd11","SupportAndCapacity.gs":"6781747c2f0ac15b1a963056a1f90cdefb716f5a9f904cb2222cbcd561e9e58e","Transactions.gs":"a837477bd9745fffcbea6016d0764e1a7f7b0ae961ffe856603b721a1ee6c01b","Bridge.html":"8b311443805628c7bc6ccf65fb630f8f4cb62f6668666591095780c88080350e","appsscript.json":"6d9e30fcdbf21cec70850bceb611d2c88dc7d79139f0bd1ffe19f91a6b1d50f8"},"3.10.0":{"Code.gs":"9ffe7cdef6cb4f3f4189fe9ab064ca11c3014851476212a0ca38ce25ba0f763e","Configuration.gs":"7e1a7049c00ed86009b4830352d1ddc121041c69fc35f3e478562c2267a56db9","AccessAndUtilities.gs":"ee4a4abcc5f5a963178f65f4591a068c222fc79041e1a9c0bc6b600448107333","BackendAndReporting.gs":"53f187848f5504e23a709095d1508a2490af08864857ccf476646bd01dbe2f30","DailyHistory.gs":"58cd749c210b0a9f16bf5fffb60e9f40bbd608f7890a42af280a4a92fcab6f6a","DailyPriceAutomation.gs":"347e4ff8f0c0f207d02076a0a4964650f0458b5954396f44c1759d80b374c7a9","OperatorChecks.gs":"7066876c821b99b83527ddaa92c749024c30e899152611178bb866c6f75c347e","PriceHistory.gs":"24900e2ae46f43faf843c0e9f5bf728540f260c132ad24ed1c87feb382b099cd","PriceProvidersAndRefresh.gs":"936c8fbb8b7b0b8fdf00e7a12df7de0154b9b134983004ea1a252237cd8988ed","StateAndValidation.gs":"61b46933838cd6d4d5f51faa6de94b4759ee9c218c7685a898744e4acb0c46b6","Operations.gs":"a24162d086d161f79bd45901d8a4e2270ea8c3cb1351c4754d863d022feca7ea","SupportAndCapacity.gs":"6781747c2f0ac15b1a963056a1f90cdefb716f5a9f904cb2222cbcd561e9e58e","Transactions.gs":"d9e1f386c49fab43ed1e73c34fba945e0d620163b98fd7554a06da715e17ba06","Bridge.html":"bbe3f25de7e577333d4ff09326ba326c8fbb6738e8909a81666b33270b96f928","appsscript.json":"6d9e30fcdbf21cec70850bceb611d2c88dc7d79139f0bd1ffe19f91a6b1d50f8"}}</template
       >
       <p id="copy-status" role="status" aria-live="polite"></p>
       <section class="code-section" aria-labelledby="file-1" data-file-name="Code.gs">
@@ -507,7 +508,7 @@ const TABLE_SCHEMA_ = [
 ];
 
 const API_VERSION_ = &#x27;3.3.0&#x27;;
-const BUILD_VERSION_ = &#x27;3.9.4&#x27;;
+const BUILD_VERSION_ = &#x27;3.10.0&#x27;;
 const DAILY_HISTORY_MARKER_ = &#x27;Finanzas · Histórico generado&#x27;;
 const DAILY_HISTORY_MAX_DAYS_ = 36525;
 const API_TRANSPORT_ = &#x27;finances.rpc.json.v1&#x27;;
@@ -647,6 +648,8 @@ const PROCESS_FIELDS_ = {
   ],
   presupuesto: [&#x27;month&#x27;, &#x27;category&#x27;, &#x27;amount&#x27;],
   quitar_presupuesto: [&#x27;month&#x27;, &#x27;category&#x27;],
+  presupuesto_intervalo: [&#x27;id&#x27;, &#x27;title&#x27;, &#x27;start&#x27;, &#x27;end&#x27;, &#x27;category&#x27;, &#x27;amount&#x27;],
+  quitar_presupuesto_intervalo: [&#x27;id&#x27;],
   gasto: [
     &#x27;date&#x27;,
     &#x27;concept&#x27;,
@@ -887,6 +890,19 @@ const TECH_SCHEMA_ = {
   budgets: [
     &#x27;_Finanzas_Presupuestos&#x27;,
     [&#x27;ID&#x27;, &#x27;Mes&#x27;, &#x27;Subcategoría&#x27;, &#x27;Límite EUR&#x27;, &#x27;Activo&#x27;, &#x27;Fecha registro&#x27;],
+  ],
+  intervalBudgets: [
+    &#x27;_Finanzas_PresupuestosIntervalos&#x27;,
+    [
+      &#x27;ID&#x27;,
+      &#x27;Título&#x27;,
+      &#x27;Desde&#x27;,
+      &#x27;Hasta&#x27;,
+      &#x27;Subcategoría&#x27;,
+      &#x27;Límite EUR&#x27;,
+      &#x27;Activo&#x27;,
+      &#x27;Fecha registro&#x27;,
+    ],
   ],
 };
 const DATE_FIELDS_ = [&#x27;Fecha&#x27;, &#x27;Fecha base&#x27;, &#x27;Fecha saldo&#x27;];
@@ -1687,6 +1703,14 @@ function publicSnapshot_(s) {
             if (!blank_(row[k])) row[k] = isoDate_(row[k]);
           },
         );
+        // Legacy expense rows with a blank nullable field mean “not recurring”.
+        // Normalize only the public projection; preparation never edits live input cells.
+        if (
+          name === &#x27;tMovimientos&#x27; &amp;&amp;
+          row.Tipo === &#x27;Gasto&#x27; &amp;&amp;
+          blank_(row.Recurrente)
+        )
+          row.Recurrente = &#x27;No&#x27;;
         return row;
       });
   });
@@ -1806,6 +1830,17 @@ function publicSnapshot_(s) {
     budgets: (s.technical.budgets || [])
       .filter((r) =&gt; r[4])
       .map((r) =&gt; ({ month: r[1], category: r[2], amount: r[3] })),
+    supportsCustomBudgets: !!s.tech.intervalBudgets,
+    intervalBudgets: (s.technical.intervalBudgets || [])
+      .filter((r) =&gt; r[6])
+      .map((r) =&gt; ({
+        id: r[0],
+        title: r[1],
+        start: isoDate_(r[2]),
+        end: blank_(r[3]) ? null : isoDate_(r[3]),
+        category: r[4],
+        amount: r[5],
+      })),
     charts: nativeCharts_(s, data),
     summary: nativeSummary_(s, data),
     bookKey: s.bookKey,
@@ -4472,6 +4507,9 @@ function historyRows_(state, request) {
     observations: s.technical.observations,
     funds: s.technical.funds,
     ...(s.technical.budgets?.length ? { budgets: s.technical.budgets } : {}),
+    ...(s.technical.intervalBudgets?.length
+      ? { intervalBudgets: s.technical.intervalBudgets }
+      : {}),
   });
 }
 
@@ -4994,6 +5032,26 @@ function validateFinancialState_(s) {
         &#x27;Subcategoría de presupuesto desconocida.&#x27;,
       );
   });
+  const intervalIds = new Set();
+  (s.technical.intervalBudgets || []).forEach((row) =&gt; {
+    check_(
+      typeof row[0] === &#x27;string&#x27; &amp;&amp; /^BUD-I-[A-Za-z0-9-]{1,100}$/.test(row[0]),
+      &#x27;ID de límite por intervalo inválido.&#x27;,
+    );
+    check_(!intervalIds.has(row[0]), &#x27;ID de límite por intervalo duplicado.&#x27;);
+    intervalIds.add(row[0]);
+    text_(row[1], &#x27;Título&#x27;);
+    const start = serialDate_(row[2]),
+      end = blank_(row[3]) ? null : serialDate_(row[3]);
+    check_(end === null || end &gt;= start, &#x27;Intervalo de presupuesto inválido.&#x27;);
+    moneyInput_(row[5], &#x27;Límite&#x27;);
+    check_(row[6] === 0 || row[6] === 1, &#x27;Estado de límite inválido.&#x27;);
+    if (row[6] &amp;&amp; row[4] !== null)
+      check_(
+        categories.get(row[4])?.Grupo === &#x27;Gastos&#x27;,
+        &#x27;Subcategoría de presupuesto desconocida.&#x27;,
+      );
+  });
   check_(
     new Set(t.tProductos.map((r) =&gt; r.Producto)).size === products.size,
     &#x27;Nombre de producto duplicado.&#x27;,
@@ -5396,7 +5454,10 @@ function synchronizeTradeCash_(s) {
         ),
         Recuperable: o.recoverable || 0,
         Localización: blank_(o.location) ? null : o.location,
-        Recurrente: type === &#x27;Gasto&#x27; ? recurrence_(o.recurring) : null,
+        Recurrente:
+          type === &#x27;Gasto&#x27;
+            ? recurrence_(blank_(o.recurring) ? &#x27;No&#x27; : o.recurring)
+            : null,
       },
       false,
     );
@@ -6055,6 +6116,72 @@ function synchronizeTradeCash_(s) {
       }
       row[8] = now;
       primary = row[0];
+    } else if (
+      p === &#x27;presupuesto_intervalo&#x27; ||
+      p === &#x27;quitar_presupuesto_intervalo&#x27;
+    ) {
+      if (!s.tech.intervalBudgets)
+        fail_(
+          &#x27;UPDATE_REQUIRED&#x27;,
+          &#x27;Prepara el backend para límites por intervalo.&#x27;,
+        );
+      const rows = s.technical.intervalBudgets;
+      let row;
+      if (p === &#x27;quitar_presupuesto_intervalo&#x27;) {
+        const id = required(o, &#x27;id&#x27;);
+        check_(
+          typeof id === &#x27;string&#x27; &amp;&amp; /^BUD-I-[A-Za-z0-9-]{1,100}$/.test(id),
+          &#x27;ID de límite inválido.&#x27;,
+        );
+        row = rows.find((r) =&gt; r[0] === id &amp;&amp; r[6]);
+        check_(row, &#x27;Límite inexistente.&#x27;);
+        row[6] = 0;
+      } else {
+        const title = required(o, &#x27;title&#x27;),
+          start = required(o, &#x27;start&#x27;),
+          end = blank_(o.end) ? null : o.end,
+          category = blank_(o.category) ? null : o.category,
+          amount = required(o, &#x27;amount&#x27;);
+        text_(title, &#x27;Título&#x27;);
+        const startSerial = serialDate_(start),
+          endSerial = end === null ? null : serialDate_(end);
+        check_(
+          endSerial === null || endSerial &gt;= startSerial,
+          &#x27;La fecha final debe ser igual o posterior a la inicial.&#x27;,
+        );
+        if (category !== null)
+          check_(
+            s.tables.tCategorias.some(
+              (c) =&gt; c.Subcategoría === category &amp;&amp; c.Grupo === &#x27;Gastos&#x27;,
+            ),
+            &#x27;Subcategoría de gasto desconocida.&#x27;,
+          );
+        moneyInput_(amount, &#x27;Límite&#x27;);
+        const id = blank_(o.id) ? null : o.id;
+        if (id !== null) {
+          check_(
+            typeof id === &#x27;string&#x27; &amp;&amp; /^BUD-I-[A-Za-z0-9-]{1,100}$/.test(id),
+            &#x27;ID de límite inválido.&#x27;,
+          );
+          row = rows.find((r) =&gt; r[0] === id &amp;&amp; r[6]);
+          check_(row, &#x27;Límite inexistente.&#x27;);
+          row.splice(1, 6, title, startSerial, endSerial, category, amount, 1);
+        } else {
+          row = [
+            &#x27;BUD-I-&#x27; + requestId + &#x27;-&#x27; + (index + 1),
+            title,
+            startSerial,
+            endSerial,
+            category,
+            amount,
+            1,
+            now,
+          ];
+          rows.push(row);
+        }
+      }
+      row[7] = now;
+      primary = row[0];
     } else if (p === &#x27;presupuesto&#x27; || p === &#x27;quitar_presupuesto&#x27;) {
       const month = required(o, &#x27;month&#x27;);
       check_(
@@ -6239,6 +6366,13 @@ function synchronizeTradeCash_(s) {
           if (r[2] === old) {
             r[2] = value;
             r[5] = now;
+          }
+        });
+      if (o.kind === &#x27;subcategoria&#x27;)
+        (s.technical.intervalBudgets || []).forEach((r) =&gt; {
+          if (r[4] === old) {
+            r[4] = value;
+            r[7] = now;
           }
         });
       (s.technical.archives || []).forEach((r) =&gt; {
@@ -7510,6 +7644,43 @@ function mutationRequests_(before, after, requestId, now, result) {
       previousBudgets,
       nextBudgets.slice(previousBudgets.length),
     );
+  const previousIntervalBudgets = before.technical.intervalBudgets || [];
+  const nextIntervalBudgets = after.technical.intervalBudgets || [];
+  nextIntervalBudgets.forEach((row, i) =&gt; {
+    if (canonical_(row) === canonical_(previousIntervalBudgets[i])) return;
+    if (!before.tech.intervalBudgets)
+      fail_(
+        &#x27;UPDATE_REQUIRED&#x27;,
+        &#x27;Prepara el backend para límites por intervalo.&#x27;,
+      );
+    if (i &lt; previousIntervalBudgets.length)
+      requests.push({
+        updateCells: {
+          start: {
+            sheetId: before.tech.intervalBudgets.id,
+            rowIndex: i + 1,
+            columnIndex: 0,
+          },
+          rows: [{ values: row.map(cellValue_) }],
+          fields: &#x27;userEnteredValue&#x27;,
+        },
+      });
+    audit.push([
+      requestId,
+      now,
+      &#x27;presupuestos_intervalo&#x27;,
+      row[0],
+      canonical_(previousIntervalBudgets[i] || null),
+      canonical_(row),
+    ]);
+  });
+  if (nextIntervalBudgets.length &gt; previousIntervalBudgets.length)
+    appendTechnical_(
+      requests,
+      before.tech.intervalBudgets,
+      previousIntervalBudgets,
+      nextIntervalBudgets.slice(previousIntervalBudgets.length),
+    );
   appendTechnical_(requests, before.tech.audit, before.technical.audit, audit);
   appendTechnical_(requests, before.tech.requests, before.technical.requests, [
     [
@@ -7590,7 +7761,7 @@ function initializeBackend_(config) {
       const appOrigin = document.getElementById(&#x27;origin&#x27;).textContent;
       const status = document.getElementById(&#x27;status&#x27;);
       const detail = document.getElementById(&#x27;detail&#x27;);
-      const BRIDGE_VERSION = &#x27;3.9.4&#x27;;
+      const BRIDGE_VERSION = &#x27;3.10.0&#x27;;
       const API_TRANSPORT = &#x27;finances.rpc.json.v1&#x27;;
       const errors = {
         INVALID_REQUEST:
@@ -7846,7 +8017,7 @@ function initializeBackend_(config) {
   </details>
 </section>
       <section class="configuration">
-        <p class="eyebrow">INSTALACIÓN · ENTREGA 3.9.4</p>
+        <p class="eyebrow">INSTALACIÓN · ENTREGA 3.10.0</p>
         <h2>Actualizar el proyecto conectado</h2>
         <ol>
           <li>

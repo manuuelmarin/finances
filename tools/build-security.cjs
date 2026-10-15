@@ -15,7 +15,7 @@ for (const file of ['index.html', 'install.html', 'preview.html']) {
     "default-src 'none'",
     "script-src 'self'",
     ['style-src', "'self'", ...styles].join(' '),
-    "img-src 'self'",
+    "img-src 'self' blob:",
     "font-src 'self'",
     "connect-src 'self'",
     "worker-src 'self'",

@@ -112,7 +112,7 @@ const TABLE_SCHEMA_ = [
 ];
 
 const API_VERSION_ = '3.3.0';
-const BUILD_VERSION_ = '3.9.4';
+const BUILD_VERSION_ = '3.10.0';
 const DAILY_HISTORY_MARKER_ = 'Finanzas · Histórico generado';
 const DAILY_HISTORY_MAX_DAYS_ = 36525;
 const API_TRANSPORT_ = 'finances.rpc.json.v1';
@@ -252,6 +252,8 @@ const PROCESS_FIELDS_ = {
   ],
   presupuesto: ['month', 'category', 'amount'],
   quitar_presupuesto: ['month', 'category'],
+  presupuesto_intervalo: ['id', 'title', 'start', 'end', 'category', 'amount'],
+  quitar_presupuesto_intervalo: ['id'],
   gasto: [
     'date',
     'concept',
@@ -492,6 +494,19 @@ const TECH_SCHEMA_ = {
   budgets: [
     '_Finanzas_Presupuestos',
     ['ID', 'Mes', 'Subcategoría', 'Límite EUR', 'Activo', 'Fecha registro'],
+  ],
+  intervalBudgets: [
+    '_Finanzas_PresupuestosIntervalos',
+    [
+      'ID',
+      'Título',
+      'Desde',
+      'Hasta',
+      'Subcategoría',
+      'Límite EUR',
+      'Activo',
+      'Fecha registro',
+    ],
   ],
 };
 const DATE_FIELDS_ = ['Fecha', 'Fecha base', 'Fecha saldo'];
