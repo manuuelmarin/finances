@@ -459,7 +459,7 @@ test('compra crea producto, vincula ISIN y registra caja en un único lote revis
   );
   await page.locator('#operation-product').selectOption('__new_product__');
   await expect(page.locator('.inline-new-product')).toContainText(
-    'posición base de cero',
+    'Se añadirá el producto',
   );
   await page.locator('#operation-newProduct_name').fill('Fondo nuevo');
   await page
@@ -468,7 +468,7 @@ test('compra crea producto, vincula ISIN y registra caja en un único lote revis
   await page
     .locator('#operation-newProduct_class')
     .selectOption('Renta variable');
-  await page.locator('#operation-newProduct_date').fill('2026-01-02');
+  await expect(page.locator('#operation-newProduct_date')).toHaveCount(0);
   await page.locator('#operation-newProduct_isin').fill('ES0112611001');
   await page
     .locator('#operation-newProduct_referenceName')
@@ -482,7 +482,7 @@ test('compra crea producto, vincula ISIN y registra caja en un único lote revis
   await expect(page.locator('#review-fields')).toContainText('ES0112611001');
   await expect(page.locator('#review-fields')).toContainText('$newProduct');
   await expect(page.locator('#review-note')).toContainText(
-    'Solo la compra genera caja',
+    'se descontará una sola vez',
   );
 });
 

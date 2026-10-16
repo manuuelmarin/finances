@@ -334,8 +334,13 @@ test('@responsive checklist filtra categorías; salario y cuentas mantienen sus 
   );
   await screenshot(page, 'salary');
   await navigate(page, 'accounts');
-  await expect(page.locator('#account-charts .chart-card')).toHaveCount(2);
-  await expect(page.locator('#account-charts')).toContainText('Efectivo');
+  await expect(page.locator('#account-charts .chart-card')).toHaveCount(1);
+  await expect(page.locator('#account-charts')).toContainText(
+    'Diferencias por cuenta',
+  );
+  await expect(page.locator('#account-charts')).not.toContainText(
+    'Saldos diarios por cuenta',
+  );
   await screenshot(page, 'accounts');
   await navigate(page, 'goals');
   await expect(page.locator('#goal-charts')).toContainText('Meta ficticia');
@@ -902,4 +907,235 @@ test('new planned payments and budget limits reuse archive-aware reference choic
   await expect(
     page.locator('#budget-category option[value="Compra"]'),
   ).toHaveCount(1);
+});
+
+test('@responsive exact spending dates filter histogram, recurrence and transaction detail across months', async ({
+  page,
+}) => {
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await setup(page);
+  await navigate(page, 'book');
+  await page.locator('#spending-from').fill('2026-02-05');
+  await page.locator('#spending-to').fill('2026-03-10');
+  await page.locator('#spending-to').dispatchEvent('change');
+  await page.locator('#spending-categories summary').click();
+  await page.locator('#spending-categories input[value="Vivienda"]').uncheck();
+  await expect(
+    page.locator('#spending-summary .kpi-value').first(),
+  ).toContainText(/1\.?000,00/);
+  const recurring = page.locator('#spending-charts .chart-card').filter({
+    has: page.getByRole('heading', {
+      name: 'Recurrencia del gasto',
+      exact: true,
+    }),
+  });
+  await expect(recurring.locator('.chart-data')).toHaveCount(0);
+  await recurring
+    .locator('button.distribution-item')
+    .filter({ hasText: 'No recurrente' })
+    .click();
+  await expect(page.locator('.transaction-selection tbody tr')).toHaveCount(4);
+  await expect(page.locator('.transaction-selection')).not.toContainText(
+    'Vivienda',
+  );
+  const histogram = page.locator('#spending-charts .chart-card').filter({
+    has: page.getByRole('heading', {
+      name: 'Gasto por importe y frecuencia',
+      exact: true,
+    }),
+  });
+  const tickBoxes = await histogram
+    .locator('.chart-x-tick')
+    .evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const rect = node.getBoundingClientRect();
+        return { left: rect.left, right: rect.right };
+      }),
+    );
+  for (let i = 1; i < tickBoxes.length; i++)
+    expect(tickBoxes[i].left).toBeGreaterThan(tickBoxes[i - 1].right + 4);
+  await expect(histogram.locator('svg')).toContainText('Importe (€)');
+  await histogram.locator('.chart-menu summary').click();
+  const download = page.waitForEvent('download');
+  await histogram
+    .getByRole('button', { name: 'Descargar CSV', exact: true })
+    .click();
+  const csv = require('node:fs').readFileSync(
+    await (await download).path(),
+    'utf8',
+  );
+  const frequencies = csv
+    .trim()
+    .split(/\r?\n/)
+    .slice(1)
+    .map((line) => Number(line.split(';').at(-1)));
+  expect(frequencies.reduce((sum, value) => sum + value, 0)).toBe(4);
+  await page.locator('#spending-to').fill('2026-01-01');
+  await page.locator('#spending-to').dispatchEvent('change');
+  await expect(page.locator('#spending-range-error')).toBeVisible();
+  await expect(
+    page.locator('#spending-summary .kpi-value').first(),
+  ).toContainText(/1\.?000,00/);
+  await page.locator('#spending-month').fill('2026-01');
+  await expect(page.locator('#spending-from')).toHaveValue('2026-01-01');
+  await expect(page.locator('#spending-to')).toHaveValue('2026-01-31');
+  await expect(page.locator('#spending-range-error')).toBeHidden();
+  await expect(
+    page.locator('#spending-summary .kpi-value').first(),
+  ).toContainText(/1\.?500,00/);
+  expect(errors).toEqual([]);
+  await screenshot(page, 'spending-range');
+});
+
+test('@responsive goals expose real assignments, completed state and a clean empty state', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  seed.tables.tObjetivos = [
+    {
+      ID: 'TRIP',
+      Objetivo: 'Viaje ficticio',
+      Meta: 1000,
+      Asignado: 300,
+      Fecha: '2026-04-15',
+    },
+    {
+      ID: 'DONE',
+      Objetivo: 'Meta completada',
+      Meta: 100,
+      Asignado: 100,
+      Fecha: '2026-02-01',
+    },
+  ];
+  seed.tables.tAsignaciones = [
+    { Objetivo: 'TRIP', Origen: 'Banco ficticio', Importe: 300 },
+    { Objetivo: 'DONE', Origen: 'EFECTIVO', Importe: 100 },
+  ];
+  await setup(page, seed);
+  await navigate(page, 'goals');
+  await expect(page.locator('#goal-summary')).toContainText('1 completado');
+  await expect(page.locator('#goal-summary')).toContainText('400,00');
+  await expect(page.locator('#goal-summary')).toContainText('700,00');
+  const goal = page.locator('[data-goal-id="TRIP"]');
+  await expect(goal).toContainText('15/4/2026');
+  await expect(goal).toContainText('al mes para llegar a tiempo');
+  await goal.locator('.chart-data > summary').click();
+  await expect(goal.locator('tbody tr')).toHaveCount(1);
+  await expect(goal.locator('tbody')).toContainText('Banco ficticio');
+  await expect(goal.locator('tbody')).toContainText('300,00');
+  await goal
+    .getByRole('searchbox', { name: 'Filtrar Activo', exact: true })
+    .fill('ninguno');
+  await expect(goal.locator('tbody')).toContainText(
+    'No hay datos para estos filtros',
+  );
+  await expect(page.locator('[data-goal-id="DONE"]')).toContainText(
+    'Completado',
+  );
+  await expect(page.locator('[data-goal-id="DONE"]')).not.toContainText(
+    'Plazo vencido',
+  );
+  await expect(page.locator('#goal-charts .chart-card')).toHaveCount(2);
+  const goalTicks = await page
+    .locator('#goal-charts .chart-x-tick')
+    .evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const rect = node.getBoundingClientRect();
+        return { left: rect.left, right: rect.right };
+      }),
+    );
+  for (let i = 1; i < goalTicks.length; i++)
+    expect(goalTicks[i].left).toBeGreaterThan(goalTicks[i - 1].right + 4);
+  await expect(page.locator('#goal-resources')).not.toHaveAttribute('open', '');
+  await screenshot(page, 'goals-detail');
+  seed.tables.tObjetivos = [];
+  seed.tables.tAsignaciones = [];
+  await page.evaluate((value) => FinanceDashboard.render(value), seed);
+  await expect(page.locator('#saving-goals')).toContainText('Sin objetivos');
+  await expect(page.locator('#goal-summary')).toBeEmpty();
+  await expect(page.locator('#goal-resources')).toBeHidden();
+});
+
+test('account reconciliation never hides opposite differences by netting them', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  seed.observations = [
+    {
+      account: 'Banco ficticio',
+      date: '2026-03-10',
+      scope: 'cierre_dia',
+      comparisonStatus: 'diferencia_al_corte',
+      difference: 10,
+      amount: 5990,
+    },
+    {
+      account: 'EFECTIVO',
+      date: '2026-03-11',
+      scope: 'cierre_dia',
+      comparisonStatus: 'diferencia_al_corte',
+      difference: -10,
+      amount: 510,
+    },
+    {
+      account: 'Banco ficticio',
+      date: '2026-03-30',
+      scope: 'cierre_dia',
+      comparisonStatus: 'diferencia_al_corte',
+      difference: 999,
+      amount: 1,
+    },
+  ];
+  await setup(page, seed);
+  await navigate(page, 'accounts');
+  await expect(page.locator('#account-summary')).toContainText('2 de 2');
+  await expect(page.locator('#account-summary .kpi-value').nth(1)).toHaveText(
+    '2',
+  );
+  await expect(
+    page.locator('#account-summary .kpi-value').nth(2),
+  ).toContainText('20,00');
+  await expect(page.locator('#account-charts rect.chart-red')).toHaveCount(2);
+  await expect(page.locator('#account-charts')).not.toContainText(
+    'Saldo por cuenta',
+  );
+});
+
+test('monthly flow hover and CSV preserve net refunds rather than clamping them to zero', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  seed.tables.tMovimientos.push({
+    ID: 'REFUND',
+    Fecha: '2026-02-15',
+    Tipo: 'Devolución gasto',
+    Importe: 2000,
+    Recuperable: 0,
+    Subcategoría: 'Compra',
+  });
+  await setup(page, seed);
+  const flow = page.locator('#dashboard-charts .chart-card').filter({
+    has: page.getByRole('heading', {
+      name: 'Ingresos y gastos por mes',
+      exact: true,
+    }),
+  });
+  await flow.locator('.finance-chart').focus();
+  await page.keyboard.press('Home');
+  await page.keyboard.press('ArrowRight');
+  await expect(flow.locator('.chart-readout')).toContainText(
+    'Gasto propio: -500,00',
+  );
+  await expect(flow.locator('.chart-readout')).toContainText('-25 %');
+  await flow.locator('.chart-menu summary').click();
+  const download = page.waitForEvent('download');
+  await flow
+    .getByRole('button', { name: 'Descargar CSV', exact: true })
+    .click();
+  const csv = require('node:fs').readFileSync(
+    await (await download).path(),
+    'utf8',
+  );
+  expect(csv).toContain('"2026-02-01";2000;-500;-25');
 });

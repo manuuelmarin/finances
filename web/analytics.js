@@ -402,7 +402,23 @@ const FinanceAnalytics = (() => {
       };
     });
   }
-  function spendingAnalysis(snapshot, month, { excludeCategory = null } = {}) {
+  function spendingAnalysis(
+    snapshot,
+    month,
+    {
+      excludeCategory = null,
+      includeCategories = null,
+      from = null,
+      to = null,
+    } = {},
+  ) {
+    const custom = from !== null || to !== null;
+    const coverage =
+      custom && (!validDate(from) || !validDate(to) || from > to)
+        ? { status: 'unknown', observed: false, first: null, last: null }
+        : custom
+          ? intervalCoverage(snapshot, { start: from, end: to })
+          : monthCoverage(snapshot, month);
     const categories = new Map(),
       grouped = new Map(),
       cities = new Map(),
@@ -416,9 +432,9 @@ const FinanceAnalytics = (() => {
       map.set(key, sumKnown([map.has(key) ? map.get(key) : 0, value]));
     for (const m of snapshot?.tables?.tMovimientos || []) {
       if (
-        !m.Fecha.startsWith(month) ||
-        m.Fecha < snapshot.settings.start ||
-        m.Fecha > snapshot.settings.asof ||
+        !coverage.observed ||
+        m.Fecha < coverage.first ||
+        m.Fecha > coverage.last ||
         !['Gasto', 'Devolución gasto'].includes(m.Tipo)
       )
         continue;
@@ -430,8 +446,9 @@ const FinanceAnalytics = (() => {
             (m.Tipo === 'Gasto' ? 1 : -1)
           : null;
       if (
-        excludeCategory &&
-        (label === excludeCategory || m.Subcategoría === excludeCategory)
+        (excludeCategory &&
+          (label === excludeCategory || m.Subcategoría === excludeCategory)) ||
+        (includeCategories !== null && !includeCategories.includes(label))
       ) {
         excluded = sumKnown([excluded, value]);
         continue;
@@ -441,11 +458,7 @@ const FinanceAnalytics = (() => {
       add(cities, m.Localización || 'Sin ciudad', value);
       add(
         recurring,
-        m.Recurrente === 'Sí'
-          ? 'Recurrente'
-          : m.Recurrente === 'No'
-            ? 'No recurrente'
-            : 'Sin clasificación',
+        m.Recurrente === 'Sí' ? 'Recurrente' : 'No recurrente',
         value,
       );
       add(daily, m.Fecha, value);
@@ -455,9 +468,7 @@ const FinanceAnalytics = (() => {
         .map(([label, value]) => ({ label, value }))
         .sort((a, b) => (b.value ?? -Infinity) - (a.value ?? -Infinity));
     let cumulative = 0;
-    const [first, last] = snapshot?.settings
-      ? monthBounds(snapshot, month)
-      : [];
+    const { first, last } = coverage;
     const daysRows = days(first, last).map((date) => {
       const value = daily.has(date) ? daily.get(date) : 0;
       cumulative = sumKnown([cumulative, value]);
@@ -469,10 +480,8 @@ const FinanceAnalytics = (() => {
       cities: pairs(cities),
       recurring: pairs(recurring),
       daily: daysRows,
-      coverage: monthCoverage(snapshot, month),
-      total: monthCoverage(snapshot, month).observed
-        ? sumKnown([...categories.values()])
-        : null,
+      coverage,
+      total: coverage.observed ? sumKnown([...categories.values()]) : null,
       excluded,
       excludeCategory,
     };

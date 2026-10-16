@@ -62,15 +62,22 @@ const FinanceCharts = (() => {
     parent.append(article);
     return article;
   }
-  function dataTable(parent, title, rows, fields, format) {
+  function dataTable(
+    parent,
+    title,
+    rows,
+    fields,
+    format,
+    { firstColumn = 'Fecha / categoría', toggleLabel = 'Ver datos' } = {},
+  ) {
     const details = html('details', undefined, 'chart-data');
-    details.append(html('summary', 'Ver datos'));
+    details.append(html('summary', toggleLabel));
     const wrap = html('div', undefined, 'table-responsive');
     const table = html('table', undefined, 'chart-table');
     table.append(html('caption', title));
     const columns = [
       {
-        label: 'Fecha / categoría',
+        label: firstColumn,
         value: (row) => row.date || row.label,
         numeric: false,
       },
@@ -442,6 +449,7 @@ const FinanceCharts = (() => {
       rows = [],
       fields = [],
       unit = 'EUR',
+      xAxisTitle = '',
       description = '',
       emptyMessage = 'Sin datos en este periodo',
       dateRange = null,
@@ -638,7 +646,7 @@ const FinanceCharts = (() => {
         dateLabel(row.date || row.label) +
         ' · ' +
         fields
-          .filter((f) => visible.has(f.key))
+          .filter((f) => f.inspection !== false && visible.has(f.key))
           .map(
             (f) =>
               f.label +
@@ -815,8 +823,13 @@ const FinanceCharts = (() => {
             ),
           );
       }
+      const tickLabel = (row) =>
+        row.axisLabel || dateLabel(row.label || row.date).slice(0, 15);
+      const labelWidth =
+        Math.max(...rows.map((row) => tickLabel(row).length)) * 6;
       const count = Math.min(
         width < 360 ? 2 : width < 480 ? 3 : 5,
+        Math.max(2, Math.floor((right - left) / (labelWidth + 16))),
         rows.length,
       );
       const ticks = new Set(
@@ -831,11 +844,29 @@ const FinanceCharts = (() => {
             {
               x: x(i),
               y: 240,
-              'text-anchor':
-                i === 0 ? 'start' : i === rows.length - 1 ? 'end' : 'middle',
-              class: 'chart-axis',
+              'text-anchor': bars
+                ? 'middle'
+                : i === 0
+                  ? 'start'
+                  : i === rows.length - 1
+                    ? 'end'
+                    : 'middle',
+              class: 'chart-axis chart-x-tick',
             },
-            dateLabel(rows[i].label || rows[i].date).slice(0, 15),
+            tickLabel(rows[i]),
+          ),
+        );
+      if (xAxisTitle)
+        graph.append(
+          svg(
+            'text',
+            {
+              x: right,
+              y: 257,
+              'text-anchor': 'end',
+              class: 'chart-axis axis-title',
+            },
+            xAxisTitle,
           ),
         );
       active.forEach((f, color) => {
@@ -979,7 +1010,10 @@ const FinanceCharts = (() => {
       title,
       () => graph,
       () => rows,
-      () => fields.filter((f) => f.tooltipOnly || visible.has(f.key)),
+      () =>
+        fields.filter(
+          (f) => f.export !== false && (f.tooltipOnly || visible.has(f.key)),
+        ),
       () =>
         fields
           .filter((f) => f.tooltipOnly || visible.has(f.key))
@@ -1164,5 +1198,18 @@ const FinanceCharts = (() => {
     );
     return article;
   }
-  return { plot, donut, clear };
+  function table(parent, { title, rows, fields, firstColumn, toggleLabel }) {
+    return dataTable(
+      parent,
+      title,
+      rows,
+      fields,
+      (value) => money.format(value),
+      {
+        firstColumn,
+        toggleLabel,
+      },
+    );
+  }
+  return { plot, donut, clear, table };
 })();

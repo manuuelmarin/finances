@@ -1004,7 +1004,7 @@ test('@responsive presupuesto se revisa, persiste al reabrir y se retira sin cre
   await page.getByRole('button', { name: 'Quitar límite' }).click();
   await page.locator('#review-confirm').click();
   await expect(page.locator('#budget-cards')).toContainText(
-    'No hay límites definidos para este mes',
+    'Aún no has creado límites de gasto.',
   );
   const s = await page.evaluate(() =>
     JSON.parse(localStorage.getItem('fixture.server')),

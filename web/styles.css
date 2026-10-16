@@ -1998,8 +1998,7 @@ dialog .inline-link {
 #investment-charts .chart-card:first-child {
   grid-column: 1/-1;
 }
-#salary-saving-charts,
-#goal-charts {
+#salary-saving-charts {
   grid-template-columns: 1fr;
   margin-top: 20px;
 }
@@ -2420,6 +2419,65 @@ dialog .inline-link {
 }
 .goal-heading {
   align-items: flex-start;
+}
+.goal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.goal-amounts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  margin: 14px 0;
+}
+.goal-amounts strong {
+  font-size: 1.5rem;
+}
+.goal-amounts span {
+  color: var(--muted);
+}
+.goal-pace {
+  color: var(--accent);
+  font-weight: 600;
+  margin-top: 10px;
+}
+.goal-card .chart-data {
+  margin-top: 18px;
+}
+#goal-summary .kpi {
+  padding: 16px;
+}
+.budget-detail-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0;
+}
+.budget-detail-stats > div {
+  padding: 16px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: var(--radius);
+}
+.budget-detail-stats dt {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.budget-detail-stats dd {
+  margin: 6px 0 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .budget-detail-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .budget-detail-stats > div:last-child {
+    grid-column: 1 / -1;
+  }
 }
 .activity-content {
   padding-top: 18px;

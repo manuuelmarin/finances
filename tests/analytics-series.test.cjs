@@ -1,6 +1,93 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const A = require('../web/analytics.js');
+
+test('arbitrary expense periods reconcile category totals, daily accumulation and unknown excluded amounts', () => {
+  const s = {
+    settings: { start: '2026-01-10', asof: '2026-03-15' },
+    tables: {
+      tCategorias: [
+        { Subcategoría: 'Café', Categoría: 'Comida' },
+        { Subcategoría: 'Metro', Categoría: 'Transporte' },
+      ],
+      tMovimientos: [
+        {
+          Fecha: '2026-01-01',
+          Tipo: 'Gasto',
+          Importe: 999,
+          Subcategoría: 'Café',
+        },
+        {
+          Fecha: '2026-01-31',
+          Tipo: 'Gasto',
+          Importe: 2,
+          Subcategoría: 'Café',
+        },
+        {
+          Fecha: '2026-02-01',
+          Tipo: 'Gasto',
+          Importe: 8,
+          Recuperable: 3,
+          Subcategoría: 'Café',
+        },
+        {
+          Fecha: '2026-02-10',
+          Tipo: 'Devolución gasto',
+          Importe: 1,
+          Subcategoría: 'Café',
+        },
+        {
+          Fecha: '2026-02-11',
+          Tipo: 'Gasto',
+          Importe: null,
+          Subcategoría: 'Metro',
+        },
+        { Fecha: '2026-02-09', Tipo: 'Transferencia', Importe: 500 },
+        {
+          Fecha: '2026-03-16',
+          Tipo: 'Gasto',
+          Importe: 100,
+          Subcategoría: 'Café',
+        },
+      ],
+    },
+  };
+  const period = { from: '2026-01-31', to: '2026-02-11' };
+  assert.equal(A.spendingAnalysis(s, null, period).total, null);
+  const selected = A.spendingAnalysis(s, null, {
+    ...period,
+    includeCategories: ['Comida'],
+  });
+  assert.equal(selected.total, 6);
+  assert.equal(selected.daily[0].date, period.from);
+  assert.equal(selected.daily.at(-1).date, period.to);
+  assert.equal(selected.daily.at(-1).cumulative, selected.total);
+  assert.deepEqual(selected.categories, [{ label: 'Comida', value: 6 }]);
+  assert.deepEqual(selected.recurring, [{ label: 'No recurrente', value: 6 }]);
+  const none = A.spendingAnalysis(s, null, {
+    ...period,
+    includeCategories: [],
+  });
+  assert.equal(none.total, 0);
+  assert.equal(none.daily.at(-1).cumulative, 0);
+  assert.equal(
+    A.spendingAnalysis(s, null, { from: '2026-03-20', to: '2026-03-30' }).total,
+    null,
+  );
+  assert.equal(
+    A.spendingAnalysis(s, null, { from: '2026-01-01', to: '2026-01-09' }).total,
+    null,
+  );
+  assert.equal(
+    A.spendingAnalysis(s, null, { from: '2026-02-31', to: '2026-03-05' }).total,
+    null,
+  );
+  assert.equal(
+    A.spendingAnalysis(s, null, { from: '2026-03-05', to: '2026-02-01' }).daily
+      .length,
+    0,
+  );
+});
 function fixture() {
   return {
     settings: {

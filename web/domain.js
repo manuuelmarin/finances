@@ -49,7 +49,7 @@ const FinanceDomain = (() => {
   const tax = field('tax', 'Retención EUR', 'money', false, null, '0');
   const historical = field(
     'historical',
-    'Operación anterior al inicio, sin caja nueva',
+    'Operación histórica ya incluida en los saldos iniciales',
     'boolean',
     true,
     null,

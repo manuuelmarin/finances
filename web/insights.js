@@ -2,14 +2,17 @@
 
 const FinanceInsights = (() => {
   const finite = (value) => typeof value === 'number' && Number.isFinite(value);
-  function spendingMovements(snapshot, month) {
+  function spendingMovements(snapshot, period) {
+    const range = typeof period === 'object' && period !== null;
     const categories = new Map(
       (snapshot?.tables?.tCategorias || []).map((r) => [r.Subcategoría, r]),
     );
     return (snapshot?.tables?.tMovimientos || [])
       .filter(
         (m) =>
-          m.Fecha.startsWith(month) &&
+          (range
+            ? m.Fecha >= period.from && m.Fecha <= period.to
+            : m.Fecha.startsWith(period)) &&
           m.Fecha >= snapshot.settings.start &&
           m.Fecha <= snapshot.settings.asof &&
           ['Gasto', 'Devolución gasto'].includes(m.Tipo),
@@ -26,7 +29,9 @@ const FinanceInsights = (() => {
         recurring: m.Recurrente || 'No',
         amount:
           finite(m.Importe) && (m.Recuperable == null || finite(m.Recuperable))
-            ? (Math.round((m.Importe - (m.Recuperable || 0)) * 100) / 100) *
+            ? ((Math.round(m.Importe * 100) -
+                Math.round((m.Recuperable || 0) * 100)) /
+                100) *
               (m.Tipo === 'Gasto' ? 1 : -1)
             : null,
         type: m.Tipo,
@@ -125,10 +130,14 @@ const FinanceInsights = (() => {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
+    const axisNumber = new Intl.NumberFormat('es-ES', {
+      maximumFractionDigits: 2,
+    });
     return [...bins].map(([low, count]) => ({
       low: low / 100,
       high: (low + width) / 100,
       value: count,
+      axisLabel: `${axisNumber.format(low / 100)}–<${axisNumber.format((low + width) / 100)}`,
       label: `${currency.format(low / 100)}–<${currency.format((low + width) / 100)}`,
     }));
   }
