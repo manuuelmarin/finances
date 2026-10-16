@@ -2,6 +2,64 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const I = require('../web/insights.js');
 
+test('ticket statistics use positive own expenses, handle ties and exclude refunds', () => {
+  const rows = [2, 2, 10, 30].map((amount, i) => ({
+    type: 'Gasto',
+    amount,
+    concept: 'Expense ' + i,
+    date: '2026-01-0' + (i + 1),
+  }));
+  rows.push(
+    { type: 'Devolución gasto', amount: -20 },
+    { type: 'Gasto', amount: null },
+  );
+  const s = I.expenseStatistics(rows);
+  assert.equal(s.mean, 11);
+  assert.equal(s.median, 6);
+  assert.deepEqual(s.modes, [2]);
+  assert.equal(s.largest.concept, 'Expense 3');
+  assert.deepEqual(
+    I.expenseStatistics([
+      { type: 'Gasto', amount: 1 },
+      { type: 'Gasto', amount: 2 },
+    ]).modes,
+    [],
+  );
+  assert.deepEqual(
+    I.expenseStatistics(
+      [1, 1, 2, 2].map((amount) => ({ type: 'Gasto', amount })),
+    ).modes,
+    [1, 2],
+  );
+  assert.equal(I.expenseStatistics([]).mean, null);
+});
+
+test('continuous exact-date monthly flows include boundary months and exclude adjacent transactions', () => {
+  const s = {
+    settings: { start: '2026-01-10', asof: '2026-03-15' },
+    tables: {
+      tMovimientos: [
+        { Fecha: '2026-01-10', Tipo: 'Ingreso', Importe: 100 },
+        { Fecha: '2026-01-20', Tipo: 'Gasto', Importe: 20, Recuperable: 5 },
+        { Fecha: '2026-02-01', Tipo: 'Gasto', Importe: 5 },
+        { Fecha: '2026-02-02', Tipo: 'Gasto', Importe: 999 },
+      ],
+    },
+  };
+  const rows = I.monthlyFlows(s, { from: '2026-01-15', to: '2026-02-01' });
+  assert.deepEqual(
+    rows.map((r) => [r.date, r.income, r.expense]),
+    [
+      ['2026-01-15', 0, 15],
+      ['2026-02-01', 0, 5],
+    ],
+  );
+  assert.deepEqual(
+    I.monthlyFlows(s, { from: '2026-04-01', to: '2026-04-10' }),
+    [],
+  );
+});
+
 const snapshot = {
   settings: { start: '2026-09-30', asof: '2026-11-03' },
   tables: {

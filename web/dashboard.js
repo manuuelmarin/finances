@@ -30,13 +30,18 @@ const FinanceDashboard = (() => {
     api = null,
     month = null,
     cashMonth = null,
+    cashEndMonth = null,
+    cashMode = 'month',
+    cashFrom = null,
+    cashTo = null,
     accountMonth = null,
     spendMonth = null,
     spendFrom = null,
     spendTo = null,
     selectedCategories = null,
     histogramWidth = 10,
-    investmentMeasure = 'result',
+    ticketMeasure = 0,
+    investmentMeasure = 'adjusted',
     product = '',
     range = 'all';
   const emergencySelection = new Map();
@@ -52,6 +57,44 @@ const FinanceDashboard = (() => {
     );
     if (note) node.append(el('small', note, 'kpi-note'));
     parent.append(node);
+    return node;
+  }
+  function ticketCard(parent, statistics, available) {
+    const node = stat(parent, '', '');
+    node.classList.add('ticket-card');
+    const heading = node.querySelector('.kpi-label');
+    const label = el('span');
+    const draw = () => {
+      label.textContent = ['Ticket medio', 'Ticket mediano', 'Ticket moda'][
+        ticketMeasure
+      ];
+      node.querySelector('.kpi-value').textContent = !available
+        ? 'Sin dato'
+        : ticketMeasure === 0
+          ? amount(statistics.mean)
+          : ticketMeasure === 1
+            ? amount(statistics.median)
+            : !statistics.modes.length
+              ? 'Sin moda'
+              : statistics.modes.map(amount).join(' · ');
+    };
+    const controls = el('span', undefined, 'ticket-controls');
+    for (const [direction, text, accessible] of [
+      [-1, '‹', 'Estadístico anterior'],
+      [1, '›', 'Estadístico siguiente'],
+    ]) {
+      const button = el('button', text, 'ticket-arrow');
+      button.type = 'button';
+      button.setAttribute('aria-label', accessible);
+      button.addEventListener('click', () => {
+        ticketMeasure = (ticketMeasure + direction + 3) % 3;
+        draw();
+      });
+      controls.append(button);
+    }
+    heading.replaceChildren(label, controls);
+    node.querySelector('.kpi-value').setAttribute('aria-live', 'polite');
+    draw();
   }
   function selectOptions(id, items, selected) {
     const node = $(id);
@@ -63,6 +106,10 @@ const FinanceDashboard = (() => {
     return node.value;
   }
   function cashChart(target, title, selectedMonth = cashMonth) {
+    const period =
+      typeof selectedMonth === 'string'
+        ? monthPeriod(selectedMonth)
+        : selectedMonth;
     const rows = FinanceAnalytics.months(current)
       .flatMap((m) => FinanceAnalytics.cashTimeline(current, m))
       .map((r) => ({
@@ -74,18 +121,7 @@ const FinanceDashboard = (() => {
     FinanceCharts.plot(target, {
       title,
       rows,
-      dateRange: {
-        from: selectedMonth + '-01',
-        to: new Date(
-          Date.UTC(
-            Number(selectedMonth.slice(0, 4)),
-            Number(selectedMonth.slice(5)),
-            0,
-          ),
-        )
-          .toISOString()
-          .slice(0, 10),
-      },
+      dateRange: period,
       fields: [
         { key: 'total', label: 'Saldo en cuentas', tone: 'chart-mint' },
         ...(current.tables.tCuentas || []).map((a, i) => ({
@@ -101,10 +137,10 @@ const FinanceDashboard = (() => {
         })),
       ],
       description:
-        selectedMonth +
-        ' · ' +
-        coverageNote(FinanceAnalytics.monthCoverage(current, selectedMonth)) +
-        ' Saldo al cierre de cada día. Selecciona cuentas en la leyenda.',
+        displayDate(period.from) +
+        ' – ' +
+        displayDate(period.to) +
+        '. Saldo al cierre de cada día observado. Selecciona cuentas en la leyenda.',
     });
   }
   function monthPeriod(value) {
@@ -116,6 +152,24 @@ const FinanceDashboard = (() => {
         .toISOString()
         .slice(0, 10),
     };
+  }
+  function summaryPeriod() {
+    if (cashMode === 'dates') return { from: cashFrom, to: cashTo };
+    return {
+      from: monthPeriod(cashMonth).from,
+      to: monthPeriod(cashMode === 'months' ? cashEndMonth : cashMonth).to,
+    };
+  }
+  function renderSummaryPeriod() {
+    $('cash-period-mode').value = cashMode;
+    $('cash-month').value = cashMonth;
+    $('cash-month-to').value = cashEndMonth;
+    $('cash-from').value = cashFrom;
+    $('cash-to').value = cashTo;
+    $('cash-month-start-wrap').hidden = cashMode === 'dates';
+    $('cash-month-end-wrap').hidden = cashMode !== 'months';
+    $('cash-from-wrap').hidden = cashMode !== 'dates';
+    $('cash-to-wrap').hidden = cashMode !== 'dates';
   }
   function spendingMovements() {
     return FinanceInsights.spendingMovements(current, {
@@ -179,13 +233,16 @@ const FinanceDashboard = (() => {
     summary = false,
   ) {
     const target = chart || $('spending-charts');
-    target.querySelector('.transaction-selection')?.remove();
+    const selectionKey = JSON.stringify([category, date, city, bin, recurring]);
+    const existing = target.querySelector('.transaction-selection');
+    if (existing?.dataset.selection === selectionKey) {
+      existing.open = !existing.open;
+      return;
+    }
+    existing?.remove();
     const rows = (
       summary
-        ? FinanceInsights.spendingMovements(
-            current,
-            current.settings.asof.slice(0, 7),
-          )
+        ? FinanceInsights.spendingMovements(current, summaryPeriod())
         : spendingMovements()
     ).filter(
       (r) =>
@@ -200,6 +257,7 @@ const FinanceDashboard = (() => {
           (r.type === 'Gasto' && r.amount >= bin.low && r.amount < bin.high)),
     );
     const section = el('details', undefined, 'transaction-selection');
+    section.dataset.selection = selectionKey;
     section.open = true;
     section.append(
       el(
@@ -296,6 +354,8 @@ const FinanceDashboard = (() => {
     $('dashboard-grid').hidden = !current;
     if (!current) return;
     const reportMonth = current.settings.asof.slice(0, 7);
+    const selectedPeriod = summaryPeriod();
+    renderSummaryPeriod();
     const net = metric('Patrimonio neto'),
       cash = metric('Efectivo'),
       invested = metric('Inversiones'),
@@ -379,10 +439,14 @@ const FinanceDashboard = (() => {
           'calculator-note',
         ),
       );
-    const a = FinanceAnalytics.spendingAnalysis(current, reportMonth);
+    const a = FinanceAnalytics.spendingAnalysis(
+      current,
+      reportMonth,
+      selectedPeriod,
+    );
     let summaryDistribution;
     summaryDistribution = FinanceCharts.donut(parent, {
-      title: 'Gastos del mes',
+      title: cashMode === 'month' ? 'Gastos del mes' : 'Gastos del periodo',
       showDataTable: false,
       onSelect: (row) =>
         showSpendingTransactions(
@@ -396,21 +460,25 @@ const FinanceDashboard = (() => {
         ),
       rows: a.categories,
       description:
-        reportMonth +
+        displayDate(selectedPeriod.from) +
+        ' – ' +
+        displayDate(selectedPeriod.to) +
         ' · gasto propio por categoría. El total incluye todas las categorías.',
     });
-    cashChart(parent, 'Saldo diario en cuentas');
-    const flowRows = FinanceInsights.monthlyFlows(current).map((r) => {
-      const ownExpense = r.expense;
-      return {
-        ...r,
-        expensePlot: ownExpense === null ? null : -ownExpense,
-        ratio:
-          known(r.income) && r.income > 0 && ownExpense !== null
-            ? (ownExpense / r.income) * 100
-            : null,
-      };
-    });
+    cashChart(parent, 'Saldo diario en cuentas', selectedPeriod);
+    const flowRows = FinanceInsights.monthlyFlows(current, selectedPeriod).map(
+      (r) => {
+        const ownExpense = r.expense;
+        return {
+          ...r,
+          expensePlot: ownExpense === null ? null : -ownExpense,
+          ratio:
+            known(r.income) && r.income > 0 && ownExpense !== null
+              ? (ownExpense / r.income) * 100
+              : null,
+        };
+      },
+    );
     FinanceCharts.plot(parent, {
       title: 'Ingresos y gastos por mes',
       barMode: 'diverging',
@@ -441,7 +509,7 @@ const FinanceDashboard = (() => {
         'Excluye inversiones, transferencias y pagos de deuda. Si las devoluciones superan los gastos, el saldo neto de gasto aparece sobre cero.',
       showDataTable: false,
     });
-    if (known(free)) {
+    if (known(free) && cashMode === 'month' && cashMonth === reportMonth) {
       const preview = el('article', undefined, 'budget-card');
       preview.append(
         el('h3', 'Presupuesto del mes'),
@@ -471,7 +539,12 @@ const FinanceDashboard = (() => {
     $('spending-categories').replaceChildren();
     $('spending-note').textContent = '';
     $('spending-range-error').hidden = true;
-    for (const id of ['spending-from', 'spending-to', 'spending-month']) {
+    for (const id of [
+      'spending-from',
+      'spending-to',
+      'spending-month',
+      'spending-month-to',
+    ]) {
       $(id).disabled = !current;
       $(id).setAttribute('aria-invalid', 'false');
     }
@@ -488,6 +561,7 @@ const FinanceDashboard = (() => {
     spendTo ??= fallback.to;
     $('spending-from').value = spendFrom;
     $('spending-to').value = spendTo;
+    $('spending-month-to').value = spendTo.slice(0, 7);
     const period = { from: spendFrom, to: spendTo };
     const all = FinanceAnalytics.spendingAnalysis(current, spendMonth, period);
     const categoryNames = [
@@ -546,9 +620,7 @@ const FinanceDashboard = (() => {
     );
     const knownMovements = selectedMovements.every((m) => known(m.amount));
     const shownTotal = a.total;
-    const expenseMovements = selectedMovements.filter(
-      (m) => m.type === 'Gasto' && m.amount > 0,
-    );
+    const statistics = FinanceInsights.expenseStatistics(selectedMovements);
     stat(
       $('spending-summary'),
       a.coverage.first && a.coverage.first > spendFrom
@@ -562,26 +634,24 @@ const FinanceDashboard = (() => {
           ? ` · ${included.length} categorías incluidas`
           : ''),
     );
-    stat(
+    ticketCard(
       $('spending-summary'),
-      'Ticket medio',
-      expenseMovements.length && knownMovements && a.coverage.observed
-        ? amount(
-            expenseMovements.reduce((sum, m) => sum + m.amount, 0) /
-              expenseMovements.length,
-          )
-        : 'Sin dato',
-      'Por movimiento de gasto propio',
+      statistics,
+      knownMovements && a.coverage.observed,
     );
     stat(
       $('spending-summary'),
       'Mayor gasto',
       amount(
         a.coverage.observed && knownMovements
-          ? Math.max(0, ...expenseMovements.map((m) => m.amount))
+          ? (statistics.largest?.amount ?? null)
           : null,
       ),
-      'Movimiento individual de mayor importe propio',
+      statistics.largest && knownMovements
+        ? statistics.largest.concept +
+            ' · ' +
+            displayDate(statistics.largest.date)
+        : '',
     );
     $('spending-note').textContent =
       a.coverage.observed &&
@@ -784,17 +854,7 @@ const FinanceDashboard = (() => {
       ? (current.tables.tProductos || []).find((p) => p.ID === product)
           ?.Producto
       : 'Cartera';
-    $('investment-coverage').textContent = timeline.firstDate
-      ? 'Histórico: ' +
-        new Date(timeline.firstDate + 'T00:00:00Z').toLocaleDateString(
-          'es-ES',
-          { timeZone: 'UTC' },
-        ) +
-        ' – ' +
-        new Date(timeline.lastDate + 'T00:00:00Z').toLocaleDateString('es-ES', {
-          timeZone: 'UTC',
-        })
-      : 'Sin histórico disponible';
+    $('investment-coverage').textContent = '';
     renderPriceCoverage(timeline.coverage);
     FinanceCharts.plot(target, {
       title: 'Valor de mercado y aportación neta',
@@ -817,75 +877,87 @@ const FinanceDashboard = (() => {
     investmentMeasure = selectOptions(
       'investment-measure',
       [
+        ['adjusted', 'Rentabilidad ajustada (estimada)'],
         ['result', 'Resultado / aportación neta'],
-        ['twr', 'Rentabilidad TWR'],
+        ['twr', 'TWR exacto'],
         ...(product ? [['nav', 'Variación del valor liquidativo']] : []),
       ],
       investmentMeasure,
     );
     const resultMeasure = investmentMeasure === 'result';
     const navMeasure = investmentMeasure === 'nav';
+    const adjustedMeasure = investmentMeasure === 'adjusted';
     FinanceCharts.plot(target, {
       title: resultMeasure
         ? 'Resultado sobre aportación neta'
         : navMeasure
           ? 'Variación del valor liquidativo'
           : 'Rentabilidad ajustada de la cartera',
-      rows: chartRows,
+      rows: adjustedMeasure
+        ? chartRows.filter((r) => known(r.adjustedReturnPct))
+        : chartRows,
       dateRange: chartRange,
       unit: '%',
       emptyMessage: resultMeasure
         ? 'Resultado no disponible con los importes registrados'
-        : navMeasure
-          ? 'Sin cotizaciones reales en este periodo'
-          : 'TWR no disponible con los cortes y flujos registrados',
+        : adjustedMeasure
+          ? 'Rentabilidad estimada no disponible con las valoraciones y flujos registrados'
+          : navMeasure
+            ? 'Sin cotizaciones reales en este periodo'
+            : 'TWR no disponible con los cortes y flujos registrados',
       fields: [
         {
-          key: resultMeasure
-            ? 'resultOnCapitalPct'
-            : navMeasure
-              ? 'returnPct'
-              : 'totalReturnPct',
+          key: adjustedMeasure
+            ? 'adjustedReturnPct'
+            : resultMeasure
+              ? 'resultOnCapitalPct'
+              : navMeasure
+                ? 'returnPct'
+                : 'totalReturnPct',
           connectGaps: true,
-          label: resultMeasure
-            ? 'Resultado / aportación neta'
-            : navMeasure
-              ? 'Variación de VL'
-              : timeline.coverage.returnStartDate
-                ? 'TWR ajustado desde ' + timeline.coverage.returnStartDate
-                : 'TWR ajustado',
+          label: adjustedMeasure
+            ? 'Rentabilidad ajustada (estimada)'
+            : resultMeasure
+              ? 'Resultado / aportación neta'
+              : navMeasure
+                ? 'Variación de VL'
+                : timeline.coverage.returnStartDate
+                  ? 'TWR ajustado desde ' + timeline.coverage.returnStartDate
+                  : 'TWR ajustado',
           tone: 'chart-mint',
         },
       ],
-      description: resultMeasure
-        ? '100 × (valor de mercado − aportación neta + cobros netos) / aportación neta. Usa el último VL guardado de cada fondo; no es TWR ni rentabilidad anualizada. Sin capital neto positivo, no se calcula. Cambia la medida para consultar el TWR o la variación del VL.'
-        : navMeasure
-          ? 'Desde la primera cotización real observada; no incluye distribuciones.'
-          : (timeline.coverage.returnStartDate
-              ? 'Tramo medido desde ' +
-                timeline.coverage.returnStartDate +
-                (timeline.coverage.sinceInception
-                  ? '. '
-                  : '; el rendimiento anterior es desconocido. ')
-              : '') +
-            'TWR ajustado entre valoraciones reales con flujos al cierre: excluye diferencias de precisión vinculadas al traspaso; el detalle muestra cada ajuste sin efectivo. Si hay aportaciones o retiradas entre cortes sin valoración, no puede calcularse: registra los VL de esos cortes. El resultado sobre aportación neta aparece arriba como una métrica distinta.',
+      description: adjustedMeasure
+        ? 'Estimación con Dietz modificado entre valoraciones reales: pondera aportaciones y retiradas por los días invertidos, con flujos al cierre. Incluye cobros netos una sola vez. No inventa VL ni cambia fechas. El TWR exacto se consulta por separado; la estimación depende de las fechas registradas y puede diferir del broker.'
+        : resultMeasure
+          ? '100 × (valor de mercado − aportación neta + cobros netos) / aportación neta. Usa el último VL guardado de cada fondo; no es TWR ni rentabilidad anualizada. Sin capital neto positivo, no se calcula. Cambia la medida para consultar el TWR o la variación del VL.'
+          : navMeasure
+            ? 'Desde la primera cotización real observada; no incluye distribuciones.'
+            : (timeline.coverage.returnStartDate
+                ? 'Tramo medido desde ' +
+                  timeline.coverage.returnStartDate +
+                  (timeline.coverage.sinceInception
+                    ? '. '
+                    : '; el rendimiento anterior es desconocido. ')
+                : '') +
+              'TWR ajustado entre valoraciones reales con flujos al cierre: excluye diferencias de precisión vinculadas al traspaso; el detalle muestra cada ajuste sin efectivo. Si hay aportaciones o retiradas entre cortes sin valoración, no puede calcularse: registra los VL de esos cortes. El resultado sobre aportación neta aparece arriba como una métrica distinta.',
     });
     if (product)
       FinanceCharts.plot(target, {
         title: 'Rentabilidad total con distribuciones',
-        rows: chartRows,
+        rows: chartRows.filter((r) => known(r.adjustedReturnPct)),
         dateRange: chartRange,
         unit: '%',
         fields: [
           {
-            key: 'totalReturnPct',
-            label: 'TWR total',
+            key: 'adjustedReturnPct',
+            label: 'Rentabilidad total (estimada)',
             tone: 'chart-gold',
             connectGaps: true,
           },
         ],
         description:
-          'Incluye una sola vez los cobros netos de comisión y retención, además del cambio de valor de la misma clase. Flujos al cierre; un flujo sin valoración rompe la serie. La variación de VL se muestra por separado.',
+          'Estimación con Dietz modificado entre valoraciones reales, con flujos al cierre. Incluye una sola vez los cobros netos de comisión y retención. La variación de VL y el TWR exacto se consultan por separado.',
       });
     const positions = (current.tables.tProductos || [])
       .filter((p) => !product || p.ID === product)
@@ -901,8 +973,7 @@ const FinanceDashboard = (() => {
         description:
           'Peso sobre el valor de mercado conocido, al corte de valoración.',
       });
-    $('prices-history-note').textContent =
-      'Cotizaciones verificadas e histórico por producto. Actualización diaria en Configuración.';
+    $('prices-history-note').textContent = '';
   }
   function renderPriceCoverage(coverage) {
     const target = $('investment-health');
@@ -947,75 +1018,32 @@ const FinanceDashboard = (() => {
     }
     for (const p of coverage.perProduct) {
       const evidence = current.prices?.find((q) => q.product === p.product);
+      const quote = evidence?.lastValid;
       const card = el('article', undefined, 'budget-card');
       card.append(
         el('h3', p.name),
         el(
           'p',
-          'Ventana seleccionada: ' +
-            p.quoteCount +
-            ' cotizaciones reales · ' +
-            p.missingDays +
-            ' días sin valoración · ' +
-            p.carriedDays +
-            ' días con VL anterior',
-        ),
-        el(
-          'p',
-          p.firstQuote
-            ? 'Cotizaciones reales ' + p.firstQuote + ' → ' + p.lastQuote
-            : 'Sin cotizaciones reales en la ventana',
+          p.lastQuote
+            ? displayDate(p.lastQuote) + ' · ' + p.quoteCount + ' cotizaciones'
+            : 'Sin cotizaciones en el periodo',
         ),
       );
-      const quote = evidence?.lastValid;
-      const detail = quote?.evidence;
-      card.append(
-        el(
-          'p',
-          'ISIN ' +
-            (evidence?.isin || 'sin confirmar') +
-            ' · precio registrado en EUR. ' +
-            (quote?.classCurrency
-              ? 'Divisa de clase ' +
-                quote.classCurrency +
-                (quote.conversion === 'provider_eur'
-                  ? ' · conversión EUR del proveedor'
-                  : quote.conversion === 'owner_export_eur'
-                    ? ' · EUR verificado en la exportación'
-                    : quote.conversion === 'none'
-                      ? ' · sin conversión'
-                      : ' · conversión sin dato')
-              : 'Divisa de clase y conversión sin evidencia vinculada al último precio.'),
-        ),
+      const details = el('details');
+      details.append(el('summary', 'Ver procedencia'));
+      details.append(
+        el('p', 'ISIN ' + (evidence?.isin || p.product) + ' · EUR'),
       );
-      if (quote?.source)
-        card.append(
-          el(
-            'p',
-            'Último precio guardado ' +
-              quote.date +
-              ' · fuente ' +
-              quote.source,
-          ),
-        );
-      if (detail?.verification)
-        card.append(
-          el(
-            'p',
-            'Verificación ' +
-              ({
-                provider_quote: 'cotización del proveedor',
-                owner_reviewed_export: 'exportación revisada por el titular',
-              }[detail.verification] || 'sin clasificación') +
-              (detail.checkedAt ? ' · comprobado ' + detail.checkedAt : '') +
-              (detail.effectiveDate
-                ? ' · fecha efectiva ' + detail.effectiveDate
-                : ''),
-          ),
-        );
+      if (quote?.source) details.append(el('p', quote.source));
+      if (quote?.evidence?.checkedAt)
+        details.append(el('p', 'Comprobado: ' + quote.evidence.checkedAt));
+      if (!quote)
+        details.append(el('p', 'Sin evidencia vinculada al último precio.'));
+      card.append(details);
       target.append(card);
     }
   }
+
   function renderAccounts() {
     const target = $('account-charts');
     FinanceCharts.clear(target);
@@ -1161,6 +1189,11 @@ const FinanceDashboard = (() => {
     if (current?.bookKey !== snapshot?.bookKey) {
       month = null;
       cashMonth = null;
+      cashEndMonth = null;
+      cashFrom = null;
+      cashTo = null;
+      cashMode = 'month';
+      ticketMeasure = 0;
       accountMonth = null;
       selectedPlans = null;
       spendMonth = null;
@@ -1169,7 +1202,7 @@ const FinanceDashboard = (() => {
       product = '';
       selectedCategories = null;
       range = 'all';
-      investmentMeasure = 'result';
+      investmentMeasure = 'adjusted';
       planEditing = null;
       for (const id of ['goal-assign-dialog', 'plan-dialog', 'budget-dialog'])
         if ($(id).open) $(id).close();
@@ -1179,6 +1212,9 @@ const FinanceDashboard = (() => {
     if (current) {
       month ||= current.settings.asof.slice(0, 7);
       cashMonth ||= month;
+      cashEndMonth ||= cashMonth;
+      cashFrom ||= monthPeriod(cashMonth).from;
+      cashTo ||= monthPeriod(cashMonth).to;
       accountMonth ||= current.settings.asof.slice(0, 7);
       spendMonth ||= month;
       $('budget-month').value = month;
@@ -1230,6 +1266,8 @@ const FinanceDashboard = (() => {
       'cash-month',
       (v) => {
         cashMonth = v;
+        if (cashEndMonth < v) cashEndMonth = v;
+        $('cash-range-error').hidden = true;
         renderSummary();
       },
     ],
@@ -1296,7 +1334,58 @@ const FinanceDashboard = (() => {
       if (invalid) return;
       spendFrom = from;
       spendTo = to;
+      spendMonth = from.slice(0, 7);
       renderSpending();
+    });
+  $('spending-month-to').addEventListener('change', (event) => {
+    if (!current || !/^\d{4}-(0[1-9]|1[0-2])$/.test(event.target.value)) return;
+    const from = monthPeriod(spendMonth).from;
+    const to = monthPeriod(event.target.value).to;
+    if (from > to) {
+      $('spending-range-error').textContent =
+        'El mes final debe ser igual o posterior al inicial.';
+      $('spending-range-error').hidden = false;
+      return;
+    }
+    spendFrom = from;
+    spendTo = to;
+    renderSpending();
+  });
+  $('cash-period-mode').addEventListener('change', (event) => {
+    if (!current) return;
+    const previousPeriod = summaryPeriod();
+    cashMode = event.target.value;
+    cashFrom = previousPeriod.from;
+    cashTo = previousPeriod.to;
+    $('cash-range-error').hidden = true;
+    renderSummary();
+  });
+  $('cash-month-to').addEventListener('change', (event) => {
+    if (!current || !/^\d{4}-(0[1-9]|1[0-2])$/.test(event.target.value)) return;
+    if (event.target.value < cashMonth) {
+      $('cash-range-error').textContent =
+        'El mes final debe ser igual o posterior al inicial.';
+      $('cash-range-error').hidden = false;
+      return;
+    }
+    cashEndMonth = event.target.value;
+    $('cash-range-error').hidden = true;
+    renderSummary();
+  });
+  for (const id of ['cash-from', 'cash-to'])
+    $(id).addEventListener('change', () => {
+      if (!current) return;
+      const from = $('cash-from').value;
+      const to = $('cash-to').value;
+      const invalid = !from || !to || from > to;
+      $('cash-range-error').hidden = !invalid;
+      $('cash-range-error').textContent = invalid
+        ? 'Indica un inicio anterior o igual al final.'
+        : '';
+      if (invalid) return;
+      cashFrom = from;
+      cashTo = to;
+      renderSummary();
     });
   function renderBudgets() {
     const parent = $('budget-cards');

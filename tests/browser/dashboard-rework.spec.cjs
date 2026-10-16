@@ -206,6 +206,106 @@ async function setup(page, seedSnapshot = snapshot) {
   }, seedSnapshot);
 }
 
+test('@responsive continuous month/day ranges control summary expenses and details', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  for (const movement of seed.tables.tMovimientos)
+    movement.Concepto = 'Synthetic ' + movement.ID;
+  await setup(page, seed);
+  await page.locator('#cash-period-mode').selectOption('months');
+  await page.locator('#cash-month-month').selectOption('01');
+  await page.locator('#cash-month-to-month').selectOption('02');
+  const expenses = page.locator('#dashboard-charts .chart-card').filter({
+    has: page.getByRole('heading', {
+      name: 'Gastos del periodo',
+      exact: true,
+    }),
+  });
+  await expenses
+    .locator('.distribution-item')
+    .filter({ hasText: 'Vivienda' })
+    .click();
+  const detail = expenses.locator('.transaction-selection');
+  await expect(detail.locator('tbody tr')).toHaveCount(2);
+  await expect(detail).not.toContainText('Synthetic RENT-03');
+  await detail.locator('summary').click();
+  await expect(detail.locator('table')).toBeHidden();
+  await expenses
+    .locator('.distribution-item')
+    .filter({ hasText: 'Vivienda' })
+    .click();
+  await expect(detail.locator('table')).toBeVisible();
+  await expenses
+    .locator('.distribution-item')
+    .filter({ hasText: 'Vivienda' })
+    .click();
+  await expect(detail.locator('table')).toBeHidden();
+  await page.locator('#cash-period-mode').selectOption('dates');
+  await page.locator('#cash-to').fill('2026-03-01');
+  await page.locator('#cash-from').fill('2026-02-02');
+  await expenses
+    .locator('.distribution-item')
+    .filter({ hasText: 'Vivienda' })
+    .click();
+  await expect(detail.locator('tbody tr')).toHaveCount(1);
+  await expect(detail).toContainText('Synthetic RENT-03');
+  await expect(detail).not.toContainText('Synthetic RENT-02');
+  await page.locator('#cash-from').fill('2026-04-01');
+  await expect(page.locator('#cash-range-error')).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth + 1,
+    ),
+  ).toBe(true);
+  await screenshot(page, 'continuous-period');
+});
+
+test('@responsive ticket arrows, largest expense and multi-month expense filtering remain usable', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  seed.tables.tMovimientos = [2, 2, 10, 30].map((amount, i) => ({
+    ID: 'EXP-' + i,
+    Fecha: '2026-03-0' + (i + 1),
+    Tipo: 'Gasto',
+    Concepto: i === 3 ? 'Gasto destacado' : 'Compra ' + i,
+    Subcategoría: 'Compra',
+    Origen: 'Banco ficticio',
+    Importe: amount,
+  }));
+  await setup(page, seed);
+  await navigate(page, 'book');
+  const ticket = page.locator('#spending-summary .ticket-card');
+  await expect(ticket.locator('.kpi-value')).toHaveText('11,00 €');
+  await ticket.getByRole('button', { name: 'Estadístico siguiente' }).click();
+  await expect(ticket).toContainText('Ticket mediano');
+  await expect(ticket.locator('.kpi-value')).toHaveText('6,00 €');
+  await ticket.getByRole('button', { name: 'Estadístico siguiente' }).click();
+  await expect(ticket).toContainText('Ticket moda');
+  await expect(ticket.locator('.kpi-value')).toHaveText('2,00 €');
+  await ticket.getByRole('button', { name: 'Estadístico siguiente' }).click();
+  await expect(ticket).toContainText('Ticket medio');
+  const largest = page
+    .locator('#spending-summary .kpi')
+    .filter({ hasText: 'Mayor gasto' });
+  await expect(largest).toContainText('Gasto destacado · 4/3/2026');
+  await page.locator('#spending-month-month').selectOption('02');
+  await page.locator('#spending-month-to-month').selectOption('03');
+  await expect(ticket.locator('.kpi-value')).toHaveText('11,00 €');
+  await page.locator('#spending-from').fill('2026-03-04');
+  await page.locator('#spending-to').fill('2026-03-04');
+  await expect(ticket.locator('.kpi-value')).toHaveText('30,00 €');
+  await ticket.getByRole('button', { name: 'Estadístico anterior' }).click();
+  await expect(ticket.locator('.kpi-value')).toHaveText('Sin moda');
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth + 1,
+    ),
+  ).toBe(true);
+  await screenshot(page, 'ticket-statistics');
+});
+
 test('@responsive resumen concentra patrimonio, caja seleccionable y gráficos accesibles', async ({
   page,
 }) => {
@@ -250,12 +350,64 @@ test('@responsive resumen concentra patrimonio, caja seleccionable y gráficos a
   await page.locator('#cash-month').dispatchEvent('change');
   await expect(page.locator('#cash-month')).toHaveValue('2026-02');
   await cash.locator('.chart-explanation summary').click();
-  await expect(cash.locator('.chart-explanation p')).toContainText('2026-02');
+  await expect(cash.locator('.chart-explanation p')).toContainText('1/2/2026');
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth + 1,
     ),
   ).toBe(true);
+});
+
+test('@responsive investment provenance stays collapsed and discovers a newly added product', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  seed.tables.tProductos.push({
+    ID: 'NEW-SYNTHETIC',
+    Producto: 'Nuevo fondo ficticio',
+    Cuenta: 'Banco ficticio',
+    Clase: 'Renta variable',
+    'Fecha base': '2026-03-15',
+    'Unidades base': 1,
+    'Coste base': 100,
+    Valor: 100,
+    'Aportado neto': 100,
+    Resultado: 0,
+  });
+  seed.tables.tPrecios.push({
+    Producto: 'NEW-SYNTHETIC',
+    Fecha: '2026-03-15',
+    'VL EUR': 100,
+  });
+  await setup(page, seed);
+  await navigate(page, 'investments');
+  await expect(page.locator('#view-investments')).not.toContainText(
+    'Histórico:',
+  );
+  await expect(page.locator('#view-investments')).not.toContainText(
+    'Registros confirmados en Sheets',
+  );
+  await expect(page.locator('#view-investments')).not.toContainText(
+    'Ventana seleccionada:',
+  );
+  await expect(page.locator('#investment-health')).toBeHidden();
+  await page.locator('.price-health-details > summary').click();
+  await expect(page.locator('#investment-health')).toContainText(
+    'Nuevo fondo ficticio',
+  );
+  await page.locator('#investment-product').selectOption('NEW-SYNTHETIC');
+  await expect(page.locator('#investment-health .budget-card')).toHaveCount(1);
+  await expect(page.locator('#investment-health')).toContainText(
+    'Nuevo fondo ficticio',
+  );
+  await page.locator('#history-import > summary').click();
+  await expect(page.locator('#history-file')).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth + 1,
+    ),
+  ).toBe(true);
+  await screenshot(page, 'investment-provenance');
 });
 
 test('@responsive checklist filtra categorías; salario y cuentas mantienen sus gráficos', async ({
@@ -1140,6 +1292,7 @@ test('monthly flow hover and CSV preserve net refunds rather than clamping them 
     Subcategoría: 'Compra',
   });
   await setup(page, seed);
+  await page.locator('#cash-month-month').selectOption('02');
   const flow = page.locator('#dashboard-charts .chart-card').filter({
     has: page.getByRole('heading', {
       name: 'Ingresos y gastos por mes',
@@ -1463,6 +1616,9 @@ test('performance result crosses the year boundary while unavailable exact TWR s
   await setup(page, seed);
   await navigate(page, 'investments');
   const performance = page.locator('#investment-charts .chart-card').nth(1);
+  await expect(page.locator('#investment-measure')).toHaveValue('adjusted');
+  await expect(performance.locator('.chart-readout')).toContainText('20,83 %');
+  await page.locator('#investment-measure').selectOption('result');
   await expect(performance).toContainText('Resultado sobre aportación neta');
   await expect(
     performance.getByLabel('Hasta Resultado sobre aportación neta'),

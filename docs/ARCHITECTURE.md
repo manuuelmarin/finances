@@ -1,5 +1,7 @@
 # Architecture
 
+See [period filters and estimated returns](PERIODS-AND-RETURNS-2026-10-16.md) for the frontend follow-up. Exact TWR retains the limitations described below; the explicitly labeled Modified Dietz estimate is a separate projection over real valuation endpoints.
+
 Finanzas 3.10.0 uses workbook model 3 and API 3.3.0. The environment remains `ENVIRONMENT=test`; this document does not authorize production cutover.
 
 ## Components

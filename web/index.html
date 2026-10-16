@@ -244,10 +244,34 @@
             <h2 id="dashboard-title" class="section-title">
               Patrimonio y gasto
             </h2>
-            <label class="field compact-field"
-              >Mes de caja<input id="cash-month" type="month"
-            /></label>
+            <div class="analysis-controls summary-period">
+              <label class="field compact-field"
+                >Periodo<select id="cash-period-mode">
+                  <option value="month">Un mes</option>
+                  <option value="months">Varios meses</option>
+                  <option value="dates">Días exactos</option>
+                </select></label
+              >
+              <label class="field compact-field" id="cash-month-start-wrap"
+                >Desde mes<input id="cash-month" type="month"
+              /></label>
+              <label class="field compact-field" id="cash-month-end-wrap" hidden
+                >Hasta mes<input id="cash-month-to" type="month"
+              /></label>
+              <label class="field compact-field" id="cash-from-wrap" hidden
+                >Desde<input id="cash-from" type="date"
+              /></label>
+              <label class="field compact-field" id="cash-to-wrap" hidden
+                >Hasta<input id="cash-to" type="date"
+              /></label>
+            </div>
           </div>
+          <p
+            id="cash-range-error"
+            class="field-message"
+            role="alert"
+            hidden
+          ></p>
           <div id="dashboard-charts" class="charts-grid"></div>
         </section>
       </section>
@@ -320,7 +344,10 @@
           </div>
           <div class="analysis-controls">
             <label class="field compact-field"
-              >Ir a mes<input id="spending-month" type="month"
+              >Desde mes<input id="spending-month" type="month"
+            /></label>
+            <label class="field compact-field"
+              >Hasta mes<input id="spending-month-to" type="month"
             /></label>
             <label class="field compact-field"
               >Desde<input id="spending-from" type="date" required
@@ -379,7 +406,8 @@
           ><label class="field"
             >Medida<select id="investment-measure">
               <option value="result">Resultado / aportación neta</option>
-              <option value="twr">Rentabilidad TWR</option>
+              <option value="adjusted">Rentabilidad ajustada (estimada)</option>
+              <option value="twr">TWR exacto</option>
             </select></label
           >
           <label class="field"
@@ -393,16 +421,19 @@
             </select></label
           >
         </div>
-        <p id="investment-coverage" class="calculator-note"></p>
+        <p id="investment-coverage" class="calculator-note" hidden></p>
         <div data-register-slot="investments"></div>
-        <p id="prices-history-note" class="calculator-note"></p>
-        <details class="section-details" id="history-import">
-          <summary>Importar valores liquidativos históricos</summary>
+        <p id="prices-history-note" class="calculator-note" hidden></p>
+        <details class="section-details history-import" id="history-import">
+          <summary>
+            <span>Importar valores liquidativos históricos</span
+            ><span class="import-action" aria-hidden="true"
+              >Abrir importación</span
+            >
+          </summary>
           <p>
-            Descarga el histórico diario de la gestora, verifica el ISIN, la
-            clase y la moneda y conviértelo al CSV de nueve columnas. Se revisan
-            veinte fechas por lote; cada lote necesita confirmación. No se
-            rellenan días sin publicación.
+            Importa cotizaciones verificadas en EUR. Revisa cada lote antes de
+            enviarlo.
           </p>
           <p>
             <a href="./history-template.csv" download
@@ -437,31 +468,13 @@
             </button>
           </div>
           <pre id="history-output" aria-live="polite"></pre>
-          <p>
-            Fuentes:
-            <a
-              href="https://www.fondosfidelity.es/fondos/ficha/IE00BYX5NX33"
-              target="_blank"
-              rel="noopener noreferrer"
-              >Fidelity · histórico XLS</a
-            >,
-            <a
-              href="https://www.singularam.es/sigma-internacional-fi-clase-a/"
-              target="_blank"
-              rel="noopener noreferrer"
-              >Sigma A · Histórico VL</a
-            >,
-            <a
-              href="https://www.vanguard.co.uk/professional/product/fund/equity/9229/emerging-markets-stock-index-fund-eur-acc"
-              target="_blank"
-              rel="noopener noreferrer"
-              >Vanguard EUR Acc · Historical Prices</a
-            >. La disponibilidad y el rango dependen de cada clase.
-          </p>
         </details>
         <section class="chart-section">
           <h2 class="section-title">Cartera y evolución</h2>
-          <div id="investment-health" class="budget-grid"></div>
+          <details class="section-details price-health-details">
+            <summary>Datos y fuentes de valoración</summary>
+            <div id="investment-health" class="budget-grid"></div>
+          </details>
           <div id="investment-charts" class="charts-grid"></div>
         </section>
       </section>

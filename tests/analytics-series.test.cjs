@@ -2,6 +2,123 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const A = require('../web/analytics.js');
 
+test('linked Modified Dietz reproduces the GIPS cash-flow example without inserting quotes', () => {
+  const s = {
+    settings: {
+      start: '2026-05-31',
+      asof: '2026-06-30',
+      valuation: '2026-06-30',
+    },
+    tables: {
+      tProductos: [
+        {
+          ID: 'P',
+          'Fecha base': '2026-05-31',
+          'Unidades base': 1000,
+          'Coste base': 100000,
+        },
+      ],
+      tOperaciones: [
+        {
+          Producto: 'P',
+          Fecha: '2026-06-06',
+          Tipo: 'Venta',
+          Participaciones: 20,
+          Precio: 100,
+          Importe: 2000,
+        },
+        {
+          Producto: 'P',
+          Fecha: '2026-06-11',
+          Tipo: 'Compra',
+          Participaciones: 200,
+          Precio: 100,
+          Importe: 20000,
+        },
+      ],
+      tPrecios: [
+        { Producto: 'P', Fecha: '2026-05-31', 'VL EUR': 100 },
+        { Producto: 'P', Fecha: '2026-06-30', 'VL EUR': 135000 / 1180 },
+      ],
+    },
+  };
+  const original = JSON.stringify(s);
+  const timeline = A.investmentTimeline(s);
+  const last = timeline.rows.at(-1);
+  const expected =
+    (100 * 17000) / (100000 - (2000 * 24) / 30 + (20000 * 19) / 30);
+  assert.ok(Math.abs(last.adjustedReturnPct - expected) < 1e-10);
+  assert.equal(last.totalReturnPct, null);
+  assert.equal(timeline.coverage.adjustedEstimatedIntervals, 1);
+  assert.equal(
+    timeline.rows.filter((r) => r.adjustedReturnPct !== null).length,
+    2,
+  );
+  assert.equal(JSON.stringify(s), original);
+  s.tables.tOperaciones[0].Importe = null;
+  s.tables.tOperaciones[0].Precio = null;
+  assert.equal(A.investmentTimeline(s).rows.at(-1).adjustedReturnPct, null);
+});
+
+test('estimated returns cross year-end flows and count net distributions exactly once', () => {
+  const s = {
+    settings: {
+      start: '2025-12-31',
+      asof: '2026-01-05',
+      valuation: '2026-01-05',
+    },
+    tables: {
+      tProductos: [
+        {
+          ID: 'P',
+          'Fecha base': '2025-12-31',
+          'Unidades base': 10,
+          'Coste base': 100,
+        },
+      ],
+      tOperaciones: [
+        {
+          Producto: 'P',
+          Fecha: '2026-01-03',
+          Tipo: 'Compra',
+          Participaciones: 10,
+          Precio: 11,
+          Importe: 110,
+        },
+        {
+          Producto: 'P',
+          Fecha: '2026-01-04',
+          Tipo: 'Cobro',
+          Precio: 6,
+          Comisión: 0.5,
+          Retención: 0.5,
+        },
+      ],
+      tPrecios: [
+        { Producto: 'P', Fecha: '2025-12-31', 'VL EUR': 10 },
+        { Producto: 'P', Fecha: '2026-01-05', 'VL EUR': 12 },
+      ],
+    },
+  };
+  const last = A.investmentTimeline(s).rows.at(-1);
+  assert.ok(
+    Math.abs(
+      last.adjustedReturnPct - (100 * 35) / (100 + (110 * 2) / 5 - 5 / 5),
+    ) < 1e-10,
+  );
+  assert.equal(last.totalReturnPct, null);
+  // Exact observed end-of-day flows produce the same return in both methods.
+  s.tables.tOperaciones[0].Fecha = '2026-01-05';
+  s.tables.tOperaciones[1].Fecha = '2026-01-05';
+  const exact = A.investmentTimeline(s).rows.at(-1);
+  assert.ok(Math.abs(exact.adjustedReturnPct - exact.totalReturnPct) < 1e-10);
+  s.tables.tOperaciones[0].Tipo = 'Venta';
+  s.tables.tOperaciones[0].Fecha = '2026-01-01';
+  s.tables.tOperaciones[0].Participaciones = 10;
+  s.tables.tOperaciones[0].Importe = 200;
+  assert.equal(A.investmentTimeline(s).rows.at(-1).adjustedReturnPct, null);
+});
+
 test('arbitrary expense periods reconcile category totals, daily accumulation and unknown excluded amounts', () => {
   const s = {
     settings: { start: '2026-01-10', asof: '2026-03-15' },
