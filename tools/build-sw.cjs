@@ -18,6 +18,7 @@ const assets = [
   'analytics.js',
   'insights.js',
   'wealth.js',
+  'months.js',
   'dashboard.js',
   'charts.js',
   'pwa.js',

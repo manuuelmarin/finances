@@ -281,12 +281,20 @@ test('local copy controls distinguish hiding, closing, disconnecting and erasing
   ]);
   await page.getByRole('button', { name: 'Ocultar / mostrar datos' }).click();
   await expect
-    .poll(() => page.locator('#finance-kpis').evaluate((node) => node.hidden))
-    .toBe(true);
+    .poll(() =>
+      page
+        .locator('#finance-kpis')
+        .evaluate((node) => getComputedStyle(node).display),
+    )
+    .toBe('none');
   await page.getByRole('button', { name: 'Ocultar / mostrar datos' }).click();
   await expect
-    .poll(() => page.locator('#finance-kpis').evaluate((node) => node.hidden))
-    .toBe(false);
+    .poll(() =>
+      page
+        .locator('#finance-kpis')
+        .evaluate((node) => getComputedStyle(node).display),
+    )
+    .not.toBe('none');
   await navigate(page, 'home');
   await expect(page.locator('#finance-kpis')).toBeVisible();
   expect((await queueData(page)).snapshot.bookKey).toBe(

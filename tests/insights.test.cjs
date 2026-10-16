@@ -155,3 +155,32 @@ test('unknown amounts stay unknown and partial tracking month is omitted from mo
   assert.equal(flows[0].expense, null);
   assert.equal(flows[0].income, 2000);
 });
+
+test('fixed euro bins preserve exact boundaries, empty intervals and count totals for every supported width', () => {
+  for (const width of [5, 10, 20, 50, 100]) {
+    const bins = I.expenseHistogram(
+      [0.01, width - 0.01, width, width * 3].map((amount) => ({
+        type: 'Gasto',
+        amount,
+      })),
+      width,
+    );
+    assert.equal(bins.length, 4);
+    assert.deepEqual(
+      bins.map((row) => row.value),
+      [2, 1, 0, 1],
+    );
+    assert.ok(bins.every((row) => Math.abs(row.high - row.low - width) < 1e-9));
+  }
+  assert.throws(() => I.expenseHistogram([], 7), RangeError);
+  const large = I.expenseHistogram(
+    [1, 1e8].map((amount) => ({ type: 'Gasto', amount })),
+    5,
+  );
+  assert.equal(large.length, 2);
+  assert.equal(large[1].x, 1e8);
+  assert.equal(
+    large.reduce((sum, row) => sum + row.value, 0),
+    2,
+  );
+});

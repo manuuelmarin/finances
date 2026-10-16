@@ -1,5 +1,7 @@
 # Release acceptance and cutover
 
+The [2026-10-16 frontend follow-up](FEEDBACK-CLOSURE-2026-10-16.md) adds a focused visual acceptance and confirms the remaining principal aggregation-range and GitHub required-check tasks. That follow-up changes no Google files.
+
 The owner completed the previous ten-step test acceptance. Release 3.10.0 changes the workspace and adds interval budgets; it needs a focused acceptance after updating the private deployment. Keep the app bound to the test workbook.
 
 ## Update the existing test deployment

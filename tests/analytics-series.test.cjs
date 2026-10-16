@@ -762,3 +762,100 @@ test('selected-window NAV health counts actual dates and gaps independently of l
   );
   assert.equal(timeline.coverage.perProduct[0].carriedDays, 31);
 });
+
+test('net-capital result continues across 2026 flows without pretending unavailable TWR is known', () => {
+  const s = {
+    settings: {
+      start: '2025-12-31',
+      asof: '2026-01-05',
+      valuation: '2026-01-05',
+    },
+    tables: {
+      tProductos: [
+        {
+          ID: 'P',
+          'Fecha base': '2025-12-31',
+          'Unidades base': 0,
+          'Coste base': 0,
+        },
+      ],
+      tOperaciones: [
+        {
+          ID: 'B1',
+          Producto: 'P',
+          Fecha: '2025-12-31',
+          Tipo: 'Compra',
+          Participaciones: 10,
+          Precio: 10,
+          Importe: 100,
+        },
+        {
+          ID: 'B2',
+          Producto: 'P',
+          Fecha: '2026-01-03',
+          Tipo: 'Compra',
+          Participaciones: 10,
+          Precio: 11,
+          Importe: 110,
+        },
+        {
+          ID: 'D',
+          Producto: 'P',
+          Fecha: '2026-01-05',
+          Tipo: 'Cobro',
+          Participaciones: 0,
+          Precio: 5,
+          Importe: 5,
+        },
+      ],
+      tPrecios: [
+        { Producto: 'P', Fecha: '2025-12-31', 'VL EUR': 10 },
+        { Producto: 'P', Fecha: '2026-01-05', 'VL EUR': 12 },
+      ],
+    },
+  };
+  const timeline = A.investmentTimeline(s);
+  const last = timeline.rows.at(-1);
+  assert.equal(last.date, '2026-01-05');
+  assert.equal(last.value, 240);
+  assert.equal(last.capital, 210);
+  assert.equal(last.netResult, 35);
+  assert.equal(last.resultOnCapitalPct, (100 * 35) / 210);
+  assert.equal(last.returnPct, null);
+  assert.equal(last.totalReturnPct, null);
+  s.tables.tOperaciones.push({
+    ID: 'SELL',
+    Producto: 'P',
+    Fecha: '2026-01-05',
+    Tipo: 'Venta',
+    Participaciones: 20,
+    Precio: 12,
+    Importe: 240,
+  });
+  const sold = A.investmentTimeline(s).rows.at(-1);
+  assert.equal(sold.resultOnCapitalPct, null);
+  assert.equal(sold.netResult, 35);
+  s.tables.tOperaciones[0].Importe = null;
+  s.tables.tOperaciones[0].Precio = null;
+  assert.equal(A.investmentTimeline(s).rows.at(-1).resultOnCapitalPct, null);
+});
+
+test('a sold-out product does not mix a final TWR point into its NAV-only variation', () => {
+  const s = fixture();
+  s.tables.tProductos[0]['Unidades base'] = 10;
+  s.tables.tProductos[0]['Coste base'] = 100;
+  s.tables.tOperaciones = [
+    {
+      Producto: 'P',
+      Fecha: '2026-01-03',
+      Tipo: 'Venta',
+      Participaciones: 10,
+      Precio: 11,
+      Importe: 110,
+    },
+  ];
+  const row = A.investmentTimeline(s, { productId: 'P' }).rows.at(-1);
+  assert.equal(row.value, 0);
+  assert.equal(row.returnPct, null);
+  assert.ok(Math.abs(row.totalReturnPct - 10) < 1e-8);
+});

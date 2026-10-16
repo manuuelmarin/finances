@@ -294,7 +294,89 @@ const FinanceWealth = (() => {
     };
   }
 
-  return { compare, valueAt, subtractMonths };
+  // Share expensive read-only timelines across the four wealth horizons.
+  function comparisons(snapshot, analytics = FinanceAnalytics) {
+    let investments;
+    const cash = new Map();
+    const memo = {
+      investmentTimeline: () =>
+        (investments ||= analytics.investmentTimeline(snapshot, {
+          range: 'all',
+        })),
+      cashTimeline: (_, month) => {
+        if (!cash.has(month))
+          cash.set(month, analytics.cashTimeline(snapshot, month));
+        return cash.get(month);
+      },
+    };
+    return [1, 3, 6, 12].map((months) => ({
+      months,
+      ...compare(snapshot, months, memo),
+    }));
+  }
+
+  // Current close minus the average of PRECEDING daily closes. The current
+  // date is excluded: a one-day average then means yesterday's closing balance.
+  function accountAverages(snapshot, analytics = FinanceAnalytics) {
+    const asof = snapshot?.settings?.asof;
+    const start = snapshot?.settings?.start;
+    if (!validDate(asof) || !validDate(start) || start > asof) return [];
+    const previousDay = dayBefore(asof);
+    const windows = [
+      { label: '1D', from: previousDay },
+      {
+        label: '1S',
+        from: new Date(Date.parse(asof + 'T00:00:00Z') - 7 * 86400000)
+          .toISOString()
+          .slice(0, 10),
+      },
+      { label: '1M', from: subtractMonths(asof, 1) },
+      { label: '3M', from: subtractMonths(asof, 3) },
+    ];
+    const first = windows.at(-1).from;
+    const series = [];
+    let month = (first < start ? start : first).slice(0, 7);
+    while (month <= asof.slice(0, 7)) {
+      series.push(...analytics.cashTimeline(snapshot, month));
+      const d = new Date(month + '-01T00:00:00Z');
+      d.setUTCMonth(d.getUTCMonth() + 1);
+      month = d.toISOString().slice(0, 7);
+    }
+    return (snapshot.tables?.tCuentas || []).map((account) => ({
+      account: account.Cuenta,
+      current: finite(account['Saldo calculado'])
+        ? account['Saldo calculado']
+        : null,
+      windows: windows.map(({ label, from }) => {
+        const rows = series.filter(
+          (row) => row.date >= from && row.date <= previousDay,
+        );
+        const expected = (Date.parse(asof) - Date.parse(from)) / 86400000;
+        const complete =
+          from >= start &&
+          rows.length === expected &&
+          rows.every((row) => finite(row.accounts[account.Cuenta]));
+        const average = complete
+          ? rows.reduce((sum, row) => sum + row.accounts[account.Cuenta], 0) /
+            expected
+          : null;
+        const current = account['Saldo calculado'];
+        return {
+          label,
+          from,
+          to: previousDay,
+          average,
+          change: complete && finite(current) ? current - average : null,
+          reason: !finite(current)
+            ? 'Saldo actual sin dato'
+            : !complete
+              ? 'Histórico insuficiente para esta media'
+              : null,
+        };
+      }),
+    }));
+  }
+  return { compare, comparisons, accountAverages, valueAt, subtractMonths };
 })();
 
 if (typeof module !== 'undefined' && module.exports)

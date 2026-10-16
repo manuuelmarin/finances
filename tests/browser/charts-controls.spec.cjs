@@ -226,4 +226,18 @@ test('frequency charts expose integer counts without currency in axes, data, or 
   expect(csv).toContain('"1,00–<2,00 €";5');
   expect(csv).toContain('"2,00–<3,00 €";0');
   expect(csv).not.toContain('5,00 €');
+  await page.evaluate(() => {
+    FinanceCharts.clear(document.querySelector('#host'));
+    FinanceCharts.plot(document.querySelector('#host'), {
+      title: 'Nueve movimientos',
+      unit: 'count',
+      rows: [{ label: '0–<10', value: 9 }],
+      fields: [{ key: 'value', label: 'Movimientos', shape: 'bar' }],
+    });
+  });
+  expect(
+    await page
+      .locator('.chart-axis:not(.axis-title):not(.chart-x-tick)')
+      .allTextContents(),
+  ).toEqual(['0', '3', '6', '9']);
 });
