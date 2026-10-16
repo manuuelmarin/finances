@@ -1004,7 +1004,7 @@ test('@responsive presupuesto se revisa, persiste al reabrir y se retira sin cre
   await page.getByRole('button', { name: 'Quitar límite' }).click();
   await page.locator('#review-confirm').click();
   await expect(page.locator('#budget-cards')).toContainText(
-    'No hay límites definidos para este mes',
+    'Aún no has creado límites de gasto.',
   );
   const s = await page.evaluate(() =>
     JSON.parse(localStorage.getItem('fixture.server')),
@@ -1030,7 +1030,9 @@ test('fallo del puente no permite descartar ni recrear y consulta el recibo al r
   await expense(page);
   await page.locator('#review-confirm').click();
   const queue = page.locator('#finance-queue');
-  await expect(queue).toContainText('sin confirmar');
+  await expect(
+    queue.locator('.queue-item[data-state="uncertain"]'),
+  ).toContainText('sin confirmar');
   await expect(queue.getByRole('button', { name: 'Descartar' })).toHaveCount(0);
   await expect(
     queue.getByRole('button', { name: 'Revisar', exact: true }),
@@ -1038,6 +1040,7 @@ test('fallo del puente no permite descartar ni recrear y consulta el recibo al r
   const before = await page.evaluate(
     () => JSON.parse(localStorage.getItem('fixture.server')).calls,
   );
+  expect(before).toHaveLength(1);
   await page.reload();
   await page.locator('#finance-connect').click();
   await navigate(page, 'activity');

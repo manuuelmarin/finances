@@ -245,6 +245,52 @@ test('cada columna permite ordenar con teclado y filtrar texto, fecha y número'
   await expect(register).toContainText('No hay registros para esta selección');
 });
 
+test('@responsive recurrence groups legacy blanks with No and an empty checklist selects no records', async ({
+  page,
+}) => {
+  await setupRecords(page, (seed) => {
+    seed.tables.tMovimientos[1].Recurrente = 'Sí';
+    seed.tables.tMovimientos.push({
+      ...seed.tables.tMovimientos[0],
+      ID: 'EXPLICIT-NO',
+      Concepto: 'No explícito',
+      Recurrente: 'No',
+    });
+  });
+  const register = page.locator('#finance-register');
+  const filter = register.locator('[data-filter-key="Recurrente-values"]');
+  await filter.locator('summary').click();
+  await expect(filter.getByRole('checkbox')).toHaveCount(2);
+  await expect(
+    filter.getByRole('checkbox', { name: 'Recurrente: No', exact: true }),
+  ).toHaveCount(1);
+  await filter
+    .getByRole('checkbox', { name: 'Recurrente: Sí', exact: true })
+    .uncheck();
+  await expect(
+    register.locator('.finance-table > tbody > tr:visible'),
+  ).toHaveCount(2);
+  await expect(register.locator('tbody')).toContainText('Café de prueba');
+  await expect(register.locator('tbody')).toContainText('No explícito');
+  await filter
+    .getByRole('checkbox', { name: 'Recurrente: No', exact: true })
+    .uncheck();
+  await expect(register).toContainText('No hay registros para esta selección');
+  await expect(filter.getByRole('checkbox', { checked: true })).toHaveCount(0);
+  await filter
+    .getByRole('checkbox', { name: 'Recurrente: No', exact: true })
+    .check();
+  await expect(
+    register.locator('.finance-table > tbody > tr:visible'),
+  ).toHaveCount(2);
+  await register
+    .getByRole('button', { name: 'Limpiar filtros', exact: true })
+    .click();
+  await expect(
+    register.locator('.finance-table > tbody > tr:visible'),
+  ).toHaveCount(3);
+});
+
 test('caja conserva esenciales y presenta el concepto generado en revisión', async ({
   page,
 }) => {
@@ -459,7 +505,7 @@ test('compra crea producto, vincula ISIN y registra caja en un único lote revis
   );
   await page.locator('#operation-product').selectOption('__new_product__');
   await expect(page.locator('.inline-new-product')).toContainText(
-    'posición base de cero',
+    'Se añadirá el producto',
   );
   await page.locator('#operation-newProduct_name').fill('Fondo nuevo');
   await page
@@ -468,7 +514,7 @@ test('compra crea producto, vincula ISIN y registra caja en un único lote revis
   await page
     .locator('#operation-newProduct_class')
     .selectOption('Renta variable');
-  await page.locator('#operation-newProduct_date').fill('2026-01-02');
+  await expect(page.locator('#operation-newProduct_date')).toHaveCount(0);
   await page.locator('#operation-newProduct_isin').fill('ES0112611001');
   await page
     .locator('#operation-newProduct_referenceName')
@@ -482,7 +528,7 @@ test('compra crea producto, vincula ISIN y registra caja en un único lote revis
   await expect(page.locator('#review-fields')).toContainText('ES0112611001');
   await expect(page.locator('#review-fields')).toContainText('$newProduct');
   await expect(page.locator('#review-note')).toContainText(
-    'Solo la compra genera caja',
+    'se descontará una sola vez',
   );
 });
 

@@ -195,7 +195,7 @@ repaymentForm.addEventListener('submit', (event) => {
       `Amortización: ${euros.format(r.repayment)}. Comisión: ${euros.format(r.fee)}.` +
       (r.remainingCash === null
         ? ''
-        : ` Efectivo restante: ${euros.format(r.remainingCash)}${r.remainingCash < 0 ? ' (el efectivo indicado no cubre amortización y comisión)' : ''}.`);
+        : ` Liquidez restante: ${euros.format(r.remainingCash)}${r.remainingCash < 0 ? ' (la liquidez indicada no cubre amortización y comisión)' : ''}.`);
     document.getElementById('repayment-result').hidden = false;
   } catch (error) {
     calculatorMessage('repayment-message', error.message);

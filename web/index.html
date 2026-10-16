@@ -319,13 +319,25 @@
           </div>
           <div class="analysis-controls">
             <label class="field compact-field"
-              >Mes<input id="spending-month" type="month"
+              >Ir a mes<input id="spending-month" type="month"
+            /></label>
+            <label class="field compact-field"
+              >Desde<input id="spending-from" type="date" required
+            /></label>
+            <label class="field compact-field"
+              >Hasta<input id="spending-to" type="date" required
             /></label>
             <div class="field">
               <span>Categorías</span>
               <div id="spending-categories"></div>
             </div>
           </div>
+          <p
+            id="spending-range-error"
+            class="field-message"
+            role="alert"
+            hidden
+          ></p>
           <div id="spending-summary" class="kpi-grid analysis-kpis"></div>
           <p id="spending-note" class="calculator-note"></p>
           <div id="spending-charts" class="charts-grid"></div>
@@ -489,9 +501,9 @@
           coincide; no crea un ajuste de dinero.
         </p>
         <section class="chart-section">
-          <h2 class="section-title">Liquidez por cuenta</h2>
+          <h2 class="section-title">Conciliación de cuentas</h2>
           <div id="account-charts" class="charts-grid"></div>
-          <h2 class="section-title">Planes y previsión de efectivo</h2>
+          <h2 class="section-title">Previsión de caja</h2>
           <p class="calculator-note">
             Los pagos e ingresos previstos son supuestos, no movimientos reales.
             Solo se convierten en registros al confirmar su realización.
@@ -564,6 +576,7 @@
         <section id="budget-details" aria-live="polite" hidden>
           <h2 id="budget-detail-title">Evolución del límite</h2>
           <p id="budget-detail-summary" class="calculator-note"></p>
+          <dl id="budget-detail-stats" class="budget-detail-stats"></dl>
           <div id="budget-detail-chart" class="charts-grid"></div>
         </section>
         <div id="budget-cards" class="budget-grid"></div>
@@ -573,11 +586,16 @@
           aria-labelledby="goals-title"
         >
           <div class="section-heading goal-heading">
-            <div>
+            <div class="goal-title-row">
               <h2 id="goals-title">Objetivos de ahorro</h2>
-              <p class="page-description">
-                Metas y asignaciones de activos existentes.
-              </p>
+              <details class="chart-explanation">
+                <summary aria-label="Cómo funcionan los objetivos">i</summary>
+                <p>
+                  Reservar 300 € para un viaje etiqueta dinero que ya tienes; no
+                  hace una transferencia. El ritmo mensual indica cuánto falta
+                  reservar antes de la fecha, sin suponer rentabilidad.
+                </p>
+              </details>
             </div>
             <div class="quick-actions goal-actions">
               <button
@@ -595,9 +613,15 @@
               </button>
             </div>
           </div>
-          <div id="goal-availability" class="budget-grid"></div>
+          <div id="goal-summary" class="kpi-grid analysis-kpis"></div>
           <div id="saving-goals" class="budget-grid"></div>
           <div id="goal-charts" class="charts-grid"></div>
+          <details id="goal-resources" class="section-details">
+            <summary id="goal-resources-summary">
+              Activos reservados y disponibles
+            </summary>
+            <div id="goal-availability" class="budget-grid"></div>
+          </details>
           <div data-register-slot="goals"></div>
         </section>
       </section>
@@ -903,7 +927,7 @@
                       required
                   /></label>
                   <label class="field" for="repayment-availableCash"
-                    >Efectivo disponible (€), opcional<input
+                    >Liquidez disponible (€), opcional<input
                       id="repayment-availableCash"
                       type="number"
                       min="0"
@@ -950,8 +974,8 @@
                 TIN fijo, sin TAE, seguros ni otros gastos. Intereses y cuotas
                 redondeados al céntimo cada mes; última cuota ajustada. Ahorro
                 neto = intereses evitados menos comisión. No incluye
-                rentabilidad alternativa del efectivo. La entidad puede aplicar
-                otro redondeo.
+                rentabilidad alternativa de la liquidez. La entidad puede
+                aplicar otro redondeo.
               </p>
             </details>
           </section>
@@ -1680,8 +1704,7 @@
     >
       <h2 id="budget-title">Límite de gasto</h2>
       <p class="calculator-note">
-        Define un intervalo y un límite de gasto propio. Sin fecha final, sigue
-        vigente hasta el corte del informe.
+        Define las fechas y el límite. Sin fecha final, el límite sigue activo.
       </p>
       <form id="budget-form">
         <div class="form-grid">

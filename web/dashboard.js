@@ -32,6 +32,8 @@ const FinanceDashboard = (() => {
     cashMonth = null,
     accountMonth = null,
     spendMonth = null,
+    spendFrom = null,
+    spendTo = null,
     selectedCategories = null,
     wealthRange = '1',
     product = '',
@@ -103,8 +105,21 @@ const FinanceDashboard = (() => {
         ' Saldo al cierre de cada día. Selecciona cuentas en la leyenda.',
     });
   }
-  function spendingMovements(selectedMonth = spendMonth) {
-    return FinanceInsights.spendingMovements(current, selectedMonth);
+  function monthPeriod(value) {
+    return {
+      from: value + '-01',
+      to: new Date(
+        Date.UTC(Number(value.slice(0, 4)), Number(value.slice(5)), 0),
+      )
+        .toISOString()
+        .slice(0, 10),
+    };
+  }
+  function spendingMovements() {
+    return FinanceInsights.spendingMovements(current, {
+      from: spendFrom,
+      to: spendTo,
+    });
   }
   function renderWealthCard(parent) {
     const result = FinanceWealth.compare(current, Number(wealthRange));
@@ -150,6 +165,7 @@ const FinanceDashboard = (() => {
     date = null,
     city = null,
     bin = null,
+    recurring = null,
   ) {
     const target = $('spending-charts');
     target.querySelector('.transaction-selection')?.remove();
@@ -159,6 +175,7 @@ const FinanceDashboard = (() => {
         (!category || r.category === category) &&
         (!date || r.date === date) &&
         (!city || r.city === city) &&
+        (!recurring || r.recurring === recurring) &&
         (!bin ||
           (r.type === 'Gasto' && r.amount >= bin.low && r.amount < bin.high)),
     );
@@ -166,7 +183,15 @@ const FinanceDashboard = (() => {
     section.append(
       el(
         'h3',
-        category || date || city || bin?.label || 'Movimientos seleccionados',
+        category ||
+          (date && displayDate(date)) ||
+          city ||
+          bin?.label ||
+          (recurring &&
+            (recurring === 'Sí'
+              ? 'Gastos recurrentes'
+              : 'Gastos no recurrentes')) ||
+          'Movimientos seleccionados',
       ),
     );
     const search = document.createElement('input');
@@ -345,10 +370,10 @@ const FinanceDashboard = (() => {
     });
     cashChart(parent, 'Saldo diario en cuentas');
     const flowRows = FinanceInsights.monthlyFlows(current).map((r) => {
-      const ownExpense = known(r.expense) ? Math.max(0, r.expense) : null;
+      const ownExpense = r.expense;
       return {
         ...r,
-        expense: ownExpense === null ? null : -ownExpense,
+        expensePlot: ownExpense === null ? null : -ownExpense,
         ratio:
           known(r.income) && r.income > 0 && ownExpense !== null
             ? (ownExpense / r.income) * 100
@@ -362,10 +387,17 @@ const FinanceDashboard = (() => {
       fields: [
         { key: 'income', label: 'Ingresos', tone: 'chart-blue', shape: 'bar' },
         {
-          key: 'expense',
-          label: 'Gasto propio',
+          key: 'expensePlot',
+          label: 'Gastos',
           tone: 'chart-red',
           shape: 'bar',
+          inspection: false,
+          export: false,
+        },
+        {
+          key: 'expense',
+          label: 'Gasto propio',
+          tooltipOnly: true,
         },
         {
           key: 'ratio',
@@ -375,7 +407,7 @@ const FinanceDashboard = (() => {
         },
       ],
       description:
-        'Desde el primer mes completo. Excluye transferencias, inversiones y pagos de deuda; gasto neto con mínimo cero si las devoluciones superan los gastos.',
+        'Excluye inversiones, transferencias y pagos de deuda. Si las devoluciones superan los gastos, el saldo neto de gasto aparece sobre cero.',
       showDataTable: false,
     });
     if (known(free)) {
@@ -405,101 +437,100 @@ const FinanceDashboard = (() => {
     const target = $('spending-charts');
     FinanceCharts.clear(target);
     $('spending-summary').replaceChildren();
+    $('spending-categories').replaceChildren();
     $('spending-note').textContent = '';
+    $('spending-range-error').hidden = true;
+    for (const id of ['spending-from', 'spending-to', 'spending-month']) {
+      $(id).disabled = !current;
+      $(id).setAttribute('aria-invalid', 'false');
+    }
     if (!current) {
+      $('spending-from').value = '';
+      $('spending-to').value = '';
       target.append(
         el('p', 'Abre el libro para analizar tus gastos.', 'empty-state'),
       );
       return;
     }
-    const all = FinanceAnalytics.spendingAnalysis(current, spendMonth);
-    selectedCategories ||= all.categories.map((r) => r.label);
+    const fallback = monthPeriod(spendMonth);
+    spendFrom ??= fallback.from;
+    spendTo ??= fallback.to;
+    $('spending-from').value = spendFrom;
+    $('spending-to').value = spendTo;
+    const period = { from: spendFrom, to: spendTo };
+    const all = FinanceAnalytics.spendingAnalysis(current, spendMonth, period);
+    const categoryNames = [
+      ...new Set([
+        ...all.categories.map((r) => r.label),
+        ...(selectedCategories || []),
+      ]),
+    ].sort((a, b) => a.localeCompare(b, 'es-ES'));
+    const included = selectedCategories ?? categoryNames;
     const categoryControl = $('spending-categories');
     categoryControl.replaceChildren();
     const categoryDetails = el('details');
     categoryDetails.append(
       el(
         'summary',
-        selectedCategories.length === all.categories.length
+        selectedCategories === null
           ? 'Todas las categorías'
-          : `${selectedCategories.length} categorías incluidas`,
+          : `${included.length} categorías incluidas`,
       ),
     );
-    for (const category of all.categories) {
+    for (const category of categoryNames) {
       const label = el('label', undefined, 'check-field');
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
-      checkbox.value = category.label;
-      checkbox.checked = selectedCategories.includes(category.label);
+      checkbox.value = category;
+      checkbox.checked = included.includes(category);
       checkbox.addEventListener('change', () => {
         selectedCategories = [
           ...categoryDetails.querySelectorAll('input:checked'),
         ].map((input) => input.value);
+        if (selectedCategories.length === categoryNames.length)
+          selectedCategories = null;
         renderSpending();
         const next = $('spending-categories').querySelector('details');
         next.open = true;
         [...next.querySelectorAll('input')]
-          .find((input) => input.value === category.label)
+          .find((input) => input.value === category)
           ?.focus();
       });
-      label.append(checkbox, document.createTextNode(category.label));
+      label.append(checkbox, document.createTextNode(category));
       categoryDetails.append(label);
     }
     categoryControl.append(categoryDetails);
     $('spending-month').value = spendMonth;
-    const a = FinanceAnalytics.spendingAnalysis(current, spendMonth);
-    const shownCategories = a.categories.filter((r) =>
-      selectedCategories.includes(r.label),
-    );
-    const selectedMovements = spendingMovements(spendMonth).filter((m) =>
-      selectedCategories.includes(m.category),
+    const a =
+      selectedCategories === null
+        ? all
+        : FinanceAnalytics.spendingAnalysis(current, spendMonth, {
+            ...period,
+            includeCategories: selectedCategories,
+          });
+    const shownCategories = a.categories;
+    const selectedMovements = spendingMovements().filter(
+      (m) =>
+        selectedCategories === null || selectedCategories.includes(m.category),
     );
     const knownMovements = selectedMovements.every((m) => known(m.amount));
-    const shownTotal = knownMovements
-      ? selectedMovements.reduce((sum, m) => sum + m.amount, 0)
-      : null;
+    const shownTotal = a.total;
     const expenseMovements = selectedMovements.filter(
       (m) => m.type === 'Gasto' && m.amount > 0,
     );
     stat(
       $('spending-summary'),
-      'Gasto propio',
+      a.coverage.first && a.coverage.first > spendFrom
+        ? 'Gasto observado'
+        : 'Gasto propio',
       amount(a.coverage.observed ? shownTotal : null),
-      spendMonth +
-        (selectedCategories.length !== all.categories.length
-          ? ` · ${selectedCategories.length} categorías incluidas`
+      displayDate(spendFrom) +
+        ' – ' +
+        displayDate(spendTo) +
+        (selectedCategories !== null
+          ? ` · ${included.length} categorías incluidas`
           : ''),
     );
-    const dailyValues = new Map();
-    const cityValues = new Map();
-    const recurringValues = new Map();
-    const add = (values, key, value) => {
-      const previous = values.has(key) ? values.get(key) : 0;
-      values.set(
-        key,
-        known(previous) && known(value) ? previous + value : null,
-      );
-    };
-    for (const movement of selectedMovements) {
-      add(dailyValues, movement.date, movement.amount);
-      add(cityValues, movement.city, movement.amount);
-      const recurrenceLabel =
-        movement.recurring === 'Sí' ? 'Recurrente' : 'No recurrente';
-      add(recurringValues, recurrenceLabel, movement.amount);
-    }
-    let running = 0;
-    const shownDaily = a.daily.map((r) => {
-      const value = dailyValues.has(r.date) ? dailyValues.get(r.date) : 0;
-      running = known(running) && known(value) ? running + value : null;
-      return { ...r, value, cumulative: running };
-    });
-    const shownCities = [...cityValues]
-      .map(([label, value]) => ({ label, value }))
-      .sort((x, y) => (y.value ?? -Infinity) - (x.value ?? -Infinity));
-    const shownRecurring = [...recurringValues].map(([label, value]) => ({
-      label,
-      value,
-    }));
     stat(
       $('spending-summary'),
       'Ticket medio',
@@ -522,7 +553,13 @@ const FinanceDashboard = (() => {
       'Movimiento individual de mayor importe propio',
     );
     $('spending-note').textContent =
-      a.coverage.status === 'partial' ? 'Periodo parcial' : '';
+      a.coverage.observed &&
+      (a.coverage.first !== spendFrom || a.coverage.last !== spendTo)
+        ? 'Datos del ' +
+          displayDate(a.coverage.first) +
+          ' al ' +
+          displayDate(a.coverage.last)
+        : '';
     if (!a.coverage.observed) {
       target.append(el('p', coverageNote(a.coverage), 'empty-state'));
       return;
@@ -531,8 +568,7 @@ const FinanceDashboard = (() => {
       title: 'Distribución del gasto',
       rows: shownCategories,
       description:
-        spendMonth +
-        ' · gasto propio; selecciona una categoría para ver sus movimientos',
+        'Selecciona una categoría para consultar sus movimientos en el periodo elegido.',
       onSelect: (row) => showSpendingTransactions(row.label),
       showDataTable: false,
     });
@@ -548,14 +584,18 @@ const FinanceDashboard = (() => {
         },
       ],
       unit: 'count',
+      xAxisTitle: 'Importe (€)',
       description:
-        'Gastos positivos por importe propio; devoluciones excluidas. Filtrado por mes y categorías seleccionadas. Los importes sin dato se omiten.',
+        'Frecuencia de gastos positivos en el periodo y categorías elegidos. Las devoluciones y los importes desconocidos no cuentan como gastos positivos.',
       showDataTable: false,
       onSelect: (row) => showSpendingTransactions(null, null, null, row),
     });
     FinanceCharts.plot(target, {
-      title: 'Gasto del mes',
-      rows: shownDaily,
+      title:
+        spendFrom.slice(0, 7) === spendTo.slice(0, 7)
+          ? 'Gasto del mes'
+          : 'Gasto del periodo',
+      rows: a.daily,
       fields: [
         {
           key: 'cumulative',
@@ -571,7 +611,7 @@ const FinanceDashboard = (() => {
     });
     FinanceCharts.plot(target, {
       title: 'Gasto por ciudad',
-      rows: shownCities,
+      rows: a.cities,
       fields: [
         {
           key: 'value',
@@ -586,11 +626,22 @@ const FinanceDashboard = (() => {
     });
     FinanceCharts.donut(target, {
       title: 'Recurrencia del gasto',
-      rows: shownRecurring,
+      rows: a.recurring,
       description: 'Se utiliza la clasificación guardada en cada movimiento.',
+      showDataTable: false,
+      onSelect: (row) =>
+        showSpendingTransactions(
+          null,
+          null,
+          null,
+          null,
+          row.label === 'Recurrente' ? 'Sí' : 'No',
+        ),
     });
-    const monthChart = [...target.children].find(
-      (node) => node.querySelector('h3')?.textContent === 'Gasto del mes',
+    const monthChart = [...target.children].find((node) =>
+      /^Gasto del (mes|periodo)$/.test(
+        node.querySelector('h3')?.textContent || '',
+      ),
     );
     if (monthChart) target.prepend(monthChart);
   }
@@ -880,32 +931,13 @@ const FinanceDashboard = (() => {
     $('account-comparisons').replaceChildren();
     $('account-cut').textContent = '';
     if (!current) return;
-    stat(
-      $('account-summary'),
-      'Saldo en cuentas',
-      amount(metric('Efectivo')),
-      'Informe ' + displayDate(current.settings.asof),
-    );
-    stat(
-      $('account-summary'),
-      'Deuda',
-      amount(metric('Deuda')),
-      'Obligaciones pendientes al corte',
-    );
-    FinanceCharts.donut(target, {
-      title: 'Saldo por cuenta',
-      rows: (current.tables.tCuentas || []).map((r) => ({
-        label: labelAccount(r.Cuenta),
-        value: r['Saldo calculado'],
-      })),
-      description:
-        'Saldos calculados a partir de la apertura y los movimientos. Los saldos negativos se conservan en la tabla.',
-    });
     $('account-month').value = accountMonth;
     const latestObserved = new Map();
     for (const o of current.observations || [])
       if (
         o.date.startsWith(accountMonth) &&
+        o.date >= current.settings.start &&
+        o.date <= current.settings.asof &&
         o.scope === 'cierre_dia' &&
         ['coincide_al_corte', 'diferencia_al_corte'].includes(
           o.comparisonStatus,
@@ -917,19 +949,48 @@ const FinanceDashboard = (() => {
         latestObserved.set(o.account, o);
     const observed = [...latestObserved.values()];
     const reconciledDifference = observed.reduce(
-      (sum, o) => sum + o.difference,
+      (sum, o) => sum + Math.abs(o.difference),
       0,
     );
     stat(
       $('account-summary'),
-      'Diferencia observada',
+      'Cuentas contrastadas',
+      `${observed.length} de ${(current.tables.tCuentas || []).length}`,
+      'Último cierre comparable de cada cuenta',
+    );
+    stat(
+      $('account-summary'),
+      'Diferencias por revisar',
+      String(observed.filter((o) => o.difference !== 0).length),
+      'Cuentas con un descuadre registrado',
+    );
+    stat(
+      $('account-summary'),
+      'Descuadre total',
       observed.length ? amount(reconciledDifference) : 'Sin dato',
-      `calculado − observado · ${observed.length} cuentas con último cierre comparable`,
+      'Suma absoluta, sin compensar diferencias entre cuentas',
     );
     $('account-cut').textContent = coverageNote(
       FinanceAnalytics.monthCoverage(current, accountMonth),
     );
-    cashChart(target, 'Saldos diarios por cuenta', accountMonth);
+    FinanceCharts.plot(target, {
+      title: 'Diferencias por cuenta',
+      rows: observed.map((observation) => ({
+        label: labelAccount(observation.account),
+        value: observation.difference,
+      })),
+      fields: [
+        {
+          key: 'value',
+          label: 'Calculado menos observado',
+          shape: 'bar',
+          tone: 'chart-red',
+        },
+      ],
+      emptyMessage: 'Registra un cierre bancario para contrastar los saldos.',
+      description:
+        'Último cierre comparable de cada cuenta en el mes elegido. Una diferencia positiva indica que el libro registra más dinero que el banco.',
+    });
     const comparisons = $('account-comparisons');
     comparisons.replaceChildren();
     for (const o of (current.observations || []).filter((o) =>
@@ -946,7 +1007,7 @@ const FinanceDashboard = (() => {
       const card = el('article', undefined, 'budget-card');
       card.append(
         el('h3', labelAccount(o.account)),
-        el('p', o.date + ' · ' + amount(o.amount) + ' observado'),
+        el('p', displayDate(o.date) + ' · ' + amount(o.amount) + ' observado'),
         el(
           'p',
           comparable
@@ -1009,6 +1070,8 @@ const FinanceDashboard = (() => {
       accountMonth = null;
       selectedPlans = null;
       spendMonth = null;
+      spendFrom = null;
+      spendTo = null;
       product = '';
       selectedCategories = null;
       range = 'all';
@@ -1086,6 +1149,8 @@ const FinanceDashboard = (() => {
       'spending-month',
       (v) => {
         spendMonth = v;
+        spendFrom = null;
+        spendTo = null;
         selectedCategories = null;
         renderSpending();
       },
@@ -1106,17 +1171,43 @@ const FinanceDashboard = (() => {
     ],
   ])
     $(id).addEventListener('change', (event) => {
-      if (current) update(event.target.value);
+      if (!current) return;
+      if (
+        id.endsWith('-month') &&
+        !/^\d{4}-(0[1-9]|1[0-2])$/.test(event.target.value)
+      )
+        return;
+      update(event.target.value);
+    });
+  for (const id of ['spending-from', 'spending-to'])
+    $(id).addEventListener('change', () => {
+      const from = $('spending-from').value;
+      const to = $('spending-to').value;
+      const invalid = !from || !to || from > to;
+      const error = $('spending-range-error');
+      error.hidden = !invalid;
+      error.textContent = invalid
+        ? 'Indica dos fechas con el inicio anterior o igual al final.'
+        : '';
+      for (const key of ['spending-from', 'spending-to'])
+        $(key).setAttribute('aria-invalid', String(invalid));
+      if (invalid) return;
+      spendFrom = from;
+      spendTo = to;
+      renderSpending();
     });
   function renderBudgets() {
     const parent = $('budget-cards');
     parent.replaceChildren();
     $('saving-goals').replaceChildren();
+    $('goal-summary').replaceChildren();
+    $('goal-resources').hidden = true;
     $('goal-availability').replaceChildren();
     FinanceCharts.clear($('budget-analysis'));
     FinanceCharts.clear($('goal-charts'));
     FinanceCharts.clear($('budget-detail-chart'));
     $('budget-details').hidden = true;
+    $('budget-detail-stats').replaceChildren();
     $('budget-spent').textContent = 'Sin dato';
     $('budget-new').disabled = !current?.supportsBudgets;
     $('goal-assign-new').disabled = !current;
@@ -1135,7 +1226,7 @@ const FinanceDashboard = (() => {
         ...r,
         title: r.category || 'Total',
         start: r.month + '-01',
-        end: null,
+        end: monthPeriod(r.month).to,
         legacy: true,
       }));
     const intervals = current.intervalBudgets || [];
@@ -1147,11 +1238,7 @@ const FinanceDashboard = (() => {
         : money.format(FinanceAnalytics.spending(current, month));
     if (!records.length)
       parent.append(
-        el(
-          'p',
-          'No hay límites definidos para este mes. Añade uno mensual o con fechas propias.',
-          'empty-state',
-        ),
+        el('p', 'Aún no has creado límites de gasto.', 'empty-state'),
       );
     for (const record of records) {
       const b = record.legacy
@@ -1168,18 +1255,18 @@ const FinanceDashboard = (() => {
           record.legacy
             ? 'Mes natural · ' + record.month
             : record.end
-              ? record.start + ' → ' + record.end
-              : record.start + ' → en curso',
+              ? displayDate(record.start) + ' – ' + displayDate(record.end)
+              : 'Desde ' + displayDate(record.start) + ' · sin fecha final',
           'section-kicker',
         ),
-        el('h3', b.spent === null ? 'Sin dato' : money.format(b.spent)),
+        el('h3', record.title || record.category || 'Límite de gasto'),
       );
       card.append(
         el(
           'p',
-          (record.title || record.category || 'Límite') +
-            ' · de ' +
-            money.format(b.amount) +
+          amount(b.spent) +
+            ' de ' +
+            amount(b.amount) +
             ' · ' +
             (b.remaining === null
               ? 'Sin dato'
@@ -1198,7 +1285,7 @@ const FinanceDashboard = (() => {
         progress.value = Math.max(0, Math.min(b.spent, b.amount));
       progress.setAttribute(
         'aria-label',
-        'Gasto de ' + (record.category || 'total del mes'),
+        'Gasto de ' + (record.category || 'todo el periodo'),
       );
       card.append(progress);
       const open = el('button', 'Ver evolución del límite', 'text-button');
@@ -1228,103 +1315,174 @@ const FinanceDashboard = (() => {
                 : { id: record.id }),
             },
           ],
-          'Quitar límite · ' + (record.category || 'Total del mes'),
+          'Quitar límite · ' +
+            (record.title || record.category || 'Total del periodo'),
         ),
       );
       actions.append(edit, remove);
       card.append(actions);
       parent.append(card);
     }
-    const goals = $('saving-goals');
-    goals.replaceChildren();
-    goals.append(
-      el(
-        'p',
-        'Los objetivos son metas de ahorro respaldadas por asignaciones de activos existentes; no son límites de gasto ni movimientos de dinero.',
-        'calculator-note',
-      ),
-    );
-    for (const g of current.tables.tObjetivos || []) {
-      const card = el('article', undefined, 'budget-card');
-      card.append(
-        el('span', 'Objetivo de ahorro', 'section-kicker'),
-        el('h3', g.Objetivo),
+    renderGoals();
+  }
+  function renderGoals() {
+    const parent = $('saving-goals');
+    const goals = current.tables.tObjetivos || [];
+    $('goal-summary').replaceChildren();
+    $('goal-resources').hidden = goals.length === 0;
+    if (!goals.length) {
+      parent.append(
         el(
           'p',
-          'Meta ' + money.format(g.Meta) + (g.Fecha ? ' · ' + g.Fecha : ''),
-        ),
-      );
-      if (FinanceAnalytics.finite(g.Asignado)) {
-        card.append(el('p', money.format(g.Asignado) + ' asignados'));
-        if (FinanceAnalytics.finite(g.Meta) && g.Meta > 0) {
-          const progress = el('progress');
-          progress.max = g.Meta;
-          progress.value = Math.max(0, Math.min(g.Asignado, g.Meta));
-          progress.setAttribute(
-            'aria-label',
-            'Ahorro asignado a ' + g.Objetivo,
-          );
-          card.append(progress);
-        }
-      }
-      if (known(g.Meta) && known(g.Asignado)) {
-        const progress = FinanceAnalytics.goalProgress(current, g);
-        const remaining = progress.remaining;
-        card.append(
-          el(
-            'p',
-            progress.expired
-              ? 'Plazo vencido · revisa la fecha o la meta'
-              : known(progress.monthlyPace)
-                ? amount(progress.monthlyPace) +
-                  ' al mes para la fecha objetivo (ritmo orientativo, sin rendimiento)'
-                : 'Sin ritmo mensual calculable',
-          ),
-        );
-        card.append(
-          el('p', amount(remaining) + ' pendientes', 'goal-remaining'),
-        );
-        if (g.Meta > 0)
-          card.append(
-            el(
-              'strong',
-              percentage.format((100 * g.Asignado) / g.Meta) + ' % de la meta',
-              'goal-ratio',
-            ),
-          );
-      }
-      goals.append(card);
-    }
-    renderGoalAvailability();
-    FinanceCharts.clear($('goal-charts'));
-    if ((current.tables.tObjetivos || []).length)
-      FinanceCharts.plot($('goal-charts'), {
-        title: 'Asignación y meta por objetivo',
-        rows: current.tables.tObjetivos.map((g) => ({
-          label: g.Objetivo,
-          assigned: g.Asignado,
-          target: g.Meta,
-        })),
-        fields: [
-          {
-            key: 'assigned',
-            label: 'Asignado',
-            shape: 'bar',
-            tone: 'chart-mint',
-          },
-          { key: 'target', label: 'Meta', shape: 'bar', tone: 'chart-blue' },
-        ],
-        description:
-          'Asignación actual de activos; no es un histórico de aportaciones.',
-      });
-    if (!goals.children.length)
-      goals.append(
-        el(
-          'p',
-          'Sin objetivos. Crea una meta y asígnale activos existentes.',
+          'Sin objetivos. Crea una meta y reserva parte de tus activos para ella.',
           'empty-state',
         ),
       );
+      return;
+    }
+    const sum = (values) =>
+      values.every(known)
+        ? values.reduce((total, value) => total + value, 0)
+        : null;
+    const states = goals.map((goal) =>
+      FinanceAnalytics.goalProgress(current, goal),
+    );
+    const completed = states.filter((state) => state.remaining === 0).length;
+    stat(
+      $('goal-summary'),
+      'Objetivos',
+      String(goals.length),
+      completed + (completed === 1 ? ' completado' : ' completados'),
+    );
+    stat(
+      $('goal-summary'),
+      'Reservado',
+      amount(sum(goals.map((goal) => goal.Asignado))),
+    );
+    stat(
+      $('goal-summary'),
+      'Pendiente de reservar',
+      amount(sum(states.map((state) => state.remaining))),
+    );
+    const origins = new Map(
+      FinanceAnalytics.goalAvailability(current).map((origin) => [
+        origin.origin,
+        origin.label || labelAccount(origin.origin),
+      ]),
+    );
+    for (const [index, goal] of goals.entries()) {
+      const state = states[index];
+      const card = el('article', undefined, 'budget-card goal-card');
+      card.dataset.goalId = goal.ID;
+      const completed = state.remaining === 0;
+      card.append(
+        el(
+          'span',
+          completed
+            ? 'Completado'
+            : state.expired
+              ? 'Plazo vencido'
+              : 'En curso',
+          'section-kicker',
+        ),
+        el('h3', goal.Objetivo),
+      );
+      const amounts = el('div', undefined, 'goal-amounts');
+      amounts.append(
+        el('strong', amount(goal.Asignado)),
+        el('span', 'de ' + amount(goal.Meta)),
+      );
+      card.append(amounts);
+      if (known(goal.Meta) && goal.Meta > 0 && known(goal.Asignado)) {
+        const progress = el('progress');
+        progress.max = goal.Meta;
+        progress.value = Math.max(0, Math.min(goal.Asignado, goal.Meta));
+        progress.setAttribute(
+          'aria-label',
+          'Ahorro asignado a ' + goal.Objetivo,
+        );
+        card.append(
+          progress,
+          el(
+            'strong',
+            percentage.format((100 * goal.Asignado) / goal.Meta) +
+              ' % de la meta',
+            'goal-ratio',
+          ),
+        );
+      }
+      card.append(
+        el(
+          'p',
+          known(state.remaining)
+            ? amount(state.remaining) + ' pendientes'
+            : 'Importe pendiente sin dato',
+          'goal-remaining',
+        ),
+        el(
+          'p',
+          goal.Fecha
+            ? 'Fecha objetivo: ' + displayDate(goal.Fecha)
+            : 'Sin fecha objetivo',
+          'calculator-note',
+        ),
+      );
+      if (!completed && known(state.monthlyPace))
+        card.append(
+          el(
+            'p',
+            amount(state.monthlyPace) + ' al mes para llegar a tiempo',
+            'goal-pace',
+          ),
+        );
+      else if (state.expired)
+        card.append(el('p', 'Revisa la fecha o la meta.', 'calculator-note'));
+      const assignments = (current.tables.tAsignaciones || []).filter(
+        (assignment) => assignment.Objetivo === goal.ID,
+      );
+      FinanceCharts.table(card, {
+        title: 'Asignaciones de ' + goal.Objetivo,
+        rows: assignments.map((assignment) => ({
+          label: origins.get(assignment.Origen) || assignment.Origen,
+          value: assignment.Importe,
+        })),
+        fields: [{ key: 'value', label: 'Reservado EUR' }],
+        firstColumn: 'Activo',
+        toggleLabel: 'Ver asignaciones',
+      });
+      parent.append(card);
+    }
+    renderGoalAvailability();
+    FinanceCharts.plot($('goal-charts'), {
+      title: 'Asignación y meta por objetivo',
+      rows: goals.map((goal) => ({
+        label: goal.Objetivo,
+        assigned: goal.Asignado,
+        target: goal.Meta,
+      })),
+      fields: [
+        {
+          key: 'assigned',
+          label: 'Asignado',
+          shape: 'bar',
+          tone: 'chart-mint',
+        },
+        { key: 'target', label: 'Meta', shape: 'bar', tone: 'chart-blue' },
+      ],
+      description:
+        'Reservas actuales frente a cada meta; no es un histórico de aportaciones.',
+    });
+    FinanceCharts.donut($('goal-charts'), {
+      title: 'Reservas por activo',
+      rows: FinanceAnalytics.goalAvailability(current)
+        .filter((origin) => !known(origin.assigned) || origin.assigned !== 0)
+        .map((origin) => ({
+          label: origins.get(origin.origin),
+          value: origin.assigned,
+        })),
+      description:
+        'Reparto de las cantidades reservadas. Una reserva etiqueta activos y no mueve dinero.',
+    });
   }
   function coverageNote(coverage) {
     return (
@@ -1353,14 +1511,18 @@ const FinanceDashboard = (() => {
   function renderGoalAvailability() {
     const target = $('goal-availability');
     target.replaceChildren();
-    target.append(
-      el(
-        'p',
-        'Las asignaciones son etiquetas de activos existentes: no mueven dinero. Un exceso se avisa y no se redistribuye automáticamente.',
-        'calculator-note',
-      ),
-    );
-    for (const o of FinanceAnalytics.goalAvailability(current)) {
+    const origins = FinanceAnalytics.goalAvailability(current);
+    const excess = origins.filter((origin) => origin.overallocated).length;
+    const unknown = origins.filter(
+      (origin) => !known(origin.available) && origin.assigned !== 0,
+    ).length;
+    $('goal-resources-summary').textContent = excess
+      ? `Activos reservados · ${excess} con exceso de asignación`
+      : unknown
+        ? 'Activos reservados · hay disponibilidad sin dato'
+        : 'Activos reservados y disponibles';
+    $('goal-resources').open = excess > 0 || unknown > 0;
+    for (const o of origins) {
       const card = el(
         'article',
         undefined,
@@ -1401,23 +1563,26 @@ const FinanceDashboard = (() => {
       $('budget-detail-title').textContent =
         record.title || record.category || 'Límite mensual';
       $('budget-detail-summary').textContent =
-        (record.start || record.month + '-01') +
+        displayDate(record.start || record.month + '-01') +
         (record.end
-          ? ' → ' + record.end
-          : ' → ' + current.settings.asof + ' (en curso)') +
+          ? ' – ' + displayDate(record.end)
+          : ' – ' + displayDate(current.settings.asof) + ' (en curso)') +
         ' · ' +
-        (record.category || 'todas las categorías') +
-        ' · límite ' +
-        amount(record.amount) +
-        ' · gasto propio ' +
-        amount(b.spent) +
-        ' · ' +
-        (b.remaining === null
-          ? 'margen sin dato'
-          : b.exceeded
-            ? 'superado por ' + amount(-b.remaining)
-            : 'restan ' + amount(b.remaining)) +
-        (legacy ? '' : ' · ' + intervalCoverageText(b.coverage));
+        (record.category || 'todas las subcategorías');
+      const stats = $('budget-detail-stats');
+      stats.replaceChildren();
+      for (const [label, value] of [
+        ['Límite', record.amount],
+        ['Gasto propio', b.spent],
+        [
+          b.exceeded ? 'Exceso' : 'Margen',
+          b.remaining === null ? null : Math.abs(b.remaining),
+        ],
+      ]) {
+        const item = el('div');
+        item.append(el('dt', label), el('dd', amount(value)));
+        stats.append(item);
+      }
     }
     const chartTarget = $('budget-detail-chart');
     FinanceCharts.clear(chartTarget);
@@ -1461,7 +1626,7 @@ const FinanceDashboard = (() => {
   function editBudget(record = null) {
     if (!current?.supportsBudgets) return;
     const select = $('budget-category');
-    select.replaceChildren(new Option('Total del mes', ''));
+    select.replaceChildren(new Option('Todas las subcategorías', ''));
     for (const [value, label] of FinanceDomain.options(
       'categories',
       current,

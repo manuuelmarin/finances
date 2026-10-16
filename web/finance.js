@@ -516,19 +516,21 @@
     const categoryFilterValue = (key, value) => {
       if (
         key === 'Recurrente' &&
-        (value === null || value === undefined || value === '')
+        (value === null ||
+          value === undefined ||
+          value === '' ||
+          value === false ||
+          value === 'No')
       )
-        return 'false';
+        return 'No';
+      if (key === 'Recurrente' && (value === true || value === 'Sí'))
+        return 'Sí';
       return value === null || value === undefined || value === ''
         ? '__empty__'
         : String(value);
     };
     const categoryFilterLabel = (key, value) =>
-      value === '__empty__'
-        ? 'Sin dato'
-        : key === 'Recurrente' && value === 'false'
-          ? 'No'
-          : cell(key, value);
+      value === '__empty__' ? 'Sin dato' : cell(key, value);
     const filtered = rows.filter((row) =>
       visibleColumns.every(([key]) => {
         const filter = state.filters[key] || {};
@@ -552,7 +554,7 @@
         }
         if (categoricalColumn(key))
           return (
-            !filter.values?.length ||
+            !Array.isArray(filter.values) ||
             filter.values.includes(categoryFilterValue(key, row[key]))
           );
         return (
@@ -641,7 +643,7 @@
         dropdown.open = state.openFilterKey === key;
         dropdown.style.position = 'relative';
         dropdown.style.minWidth = '120px';
-        const selected = state.filters[key]?.values || [];
+        const selected = state.filters[key]?.values;
         const values = [
           ...new Set(rows.map((row) => categoryFilterValue(key, row[key]))),
         ].sort((a, b) =>
@@ -652,10 +654,12 @@
           ),
         );
         const allSelected =
-          selected.length === 0 || selected.length === values.length;
+          selected === undefined || selected.length === values.length;
         const summary = el(
           'summary',
-          allSelected ? 'Todos' : `${selected.length} seleccionados`,
+          allSelected
+            ? 'Todos'
+            : `${selected.length} ${selected.length === 1 ? 'seleccionado' : 'seleccionados'}`,
         );
         summary.setAttribute('aria-label', 'Filtrar ' + title);
         summary.style.display = 'flex';
@@ -688,7 +692,7 @@
           const checkbox = el('input');
           checkbox.type = 'checkbox';
           checkbox.value = value;
-          checkbox.checked = selected.includes(value) || allSelected;
+          checkbox.checked = selected?.includes(value) || allSelected;
           checkbox.dataset.filterValue = value;
           checkbox.setAttribute(
             'aria-label',
@@ -1480,7 +1484,7 @@
       additional.append(
         el(
           'p',
-          'Comisiones y retenciones son opcionales. Activa «Operación histórica» solo para operaciones anteriores al inicio del seguimiento que no deben crear caja.',
+          'Comisiones y retenciones son opcionales. Una operación histórica reconstruye una inversión ya incluida en tus saldos iniciales.',
         ),
       );
     for (const f of spec.fields) {
@@ -1509,7 +1513,7 @@
           additional.append(
             el(
               'small',
-              'Úsalo solo para posiciones anteriores al inicio del seguimiento que no deben crear una entrada de caja.',
+              'Por ejemplo, una compra anterior al seguimiento que ya está incluida en el saldo de apertura. Evita descontarla otra vez de la cuenta.',
               'field-hint',
             ),
           );
@@ -1533,12 +1537,16 @@
         el('h3', 'Nuevo producto'),
         el(
           'p',
-          'Se creará una posición base de cero y la compra se registrará una sola vez. El producto, su ISIN y la compra se revisan juntos.',
+          'Se añadirá el producto y se registrará esta compra. Para consultar automáticamente cotizaciones de fondos, indica su ISIN.',
         ),
       );
       const productSpec = D.processes.producto.fields;
       for (const original of productSpec) {
-        if (['units', 'cost', 'isin', 'referenceName'].includes(original.key))
+        if (
+          ['units', 'cost', 'isin', 'referenceName', 'date'].includes(
+            original.key,
+          )
+        )
           continue;
         const key = 'newProduct_' + original.key;
         let initial =
@@ -1559,7 +1567,7 @@
         el('summary', 'ⓘ ISIN y precios manuales'),
         el(
           'p',
-          'Vincula un ISIN para consultar precios de fondos o registra un valor liquidativo manual con su fecha efectiva y fuente.',
+          'El producto es la inversión registrada en tu libro. El ISIN identifica la clase de fondo para consultar cotizaciones. Un precio manual añade una valoración fechada y no cambia tus participaciones.',
         ),
         button('Configurar ISIN', () => {
           $('operation-dialog').close();
@@ -1954,7 +1962,7 @@
     fields.replaceChildren();
     for (const f of editing.fields) fields.append(fieldInput(f, row[f.key]));
     $('operation-note').textContent = linked
-      ? 'Este movimiento pertenece a una inversión. Para cambiar fecha, participaciones o efectivo, corrige la operación de inversión.'
+      ? 'Este movimiento pertenece a una inversión. Para cambiar fecha, participaciones o importe, corrige la operación de inversión.'
       : 'Solo se modificarán las entradas que cambies. Google verifica las relaciones; las columnas calculadas se conservan.';
     $('operation-error').hidden = true;
     $('operation-dialog').showModal();
@@ -2247,18 +2255,20 @@
             name: productName,
             account: values.newProduct_account,
             class: values.newProduct_class,
-            date: values.newProduct_date,
+            date: values.date,
             units: '0',
             cost: '0',
           });
           product.alias = 'newProduct';
-          const bind = D.operation('vincular_isin', {
-            product: '$newProduct',
-            isin: values.newProduct_isin,
-            referenceName: values.newProduct_referenceName || productName,
-          });
+          const bind = String(values.newProduct_isin || '').trim()
+            ? D.operation('vincular_isin', {
+                product: '$newProduct',
+                isin: values.newProduct_isin,
+                referenceName: values.newProduct_referenceName || productName,
+              })
+            : null;
           op = D.operation('compra', { ...values, product: '$newProduct' });
-          operations = [product, bind, op];
+          operations = [product, ...(bind ? [bind] : []), op];
           label = 'Compra · ' + (op.concept || productName);
         } else {
           op = D.operation(process, values);
@@ -2276,7 +2286,7 @@
         label,
         null,
         operations
-          ? 'Se crea una posición base de cero, se vincula el ISIN y se registra esta compra dentro del mismo lote. Solo la compra genera caja; Google valida el lote entero antes de guardar.'
+          ? 'Se guardarán juntos el producto y esta compra. El importe de la compra se descontará una sola vez de la cuenta.'
           : transferNote,
       );
     } catch (error) {

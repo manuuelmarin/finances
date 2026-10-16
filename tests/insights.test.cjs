@@ -49,6 +49,28 @@ test('expense detail uses own expense, preserves refund sign and excludes transf
   assert.equal(flows[1].income, 0);
 });
 
+test('expense detail accepts exact dates crossing months and reconciles selected positive frequencies', () => {
+  const movements = I.spendingMovements(snapshot, {
+    from: '2026-10-18',
+    to: '2026-11-02',
+  });
+  assert.deepEqual(
+    movements.map((row) => [row.date, row.amount]),
+    [
+      ['2026-10-18', -10],
+      ['2026-11-02', 25],
+    ],
+  );
+  assert.equal(
+    I.expenseHistogram(movements).reduce((sum, row) => sum + row.value, 0),
+    1,
+  );
+  assert.deepEqual(
+    I.spendingMovements(snapshot, { from: '2026-11-03', to: '2026-10-01' }),
+    [],
+  );
+});
+
 test('histogram separates café prices and reconciles positive own-expense counts', () => {
   const rows = [1.5, 2, 2.5, 3, 3.5].map((amount) => ({
     type: 'Gasto',
