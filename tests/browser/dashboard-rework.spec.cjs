@@ -1758,6 +1758,55 @@ test('@responsive calendar average returns appear below profit with inspectable 
   ).toBe(true);
 });
 
+test('@responsive complete TWR replaces the redundant estimate and product return chart while retaining the simultaneous panels', async ({
+  page,
+}) => {
+  await setup(page);
+  await navigate(page, 'investments');
+  await expect(page.locator('#investment-measure')).toHaveValue('twr');
+  await expect(
+    page.locator('#investment-measure option[value="adjusted"]'),
+  ).toHaveCount(0);
+  await expect(page.locator('#investment-average-returns')).toContainText(
+    'Media mensual',
+  );
+  await expect(page.locator('#investment-average-returns')).not.toContainText(
+    '(estimada)',
+  );
+  await page.locator('#investment-average-returns summary').click();
+  await expect(page.locator('#investment-average-returns')).toContainText(
+    'son medidas distintas',
+  );
+  await page
+    .locator('#investment-product')
+    .selectOption(snapshot.tables.tProductos[0].ID);
+  await expect(
+    page.getByRole('heading', {
+      name: 'Rentabilidad total con distribuciones',
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await expect(page.locator('#investment-charts .chart-card')).toHaveCount(2);
+  await expect(
+    page.locator('#portfolio-analysis-charts .chart-card'),
+  ).toHaveCount(7);
+  const bars = page.locator('#portfolio-analysis-charts .chart-card').first();
+  await expect(
+    bars.getByRole('heading', { name: 'Rentabilidad por mes', exact: true }),
+  ).toBeVisible();
+  await expect(bars.locator('svg rect')).not.toHaveCount(0);
+  await page.locator('#investment-measure').selectOption('result');
+  await expect(
+    page.locator('#portfolio-analysis-charts .chart-card'),
+  ).toHaveCount(7);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth + 1,
+    ),
+  ).toBe(true);
+  await screenshot(page, 'complete-twr');
+});
+
 test('@responsive monthly return bars exclude deposits and use green for gains and red for losses', async ({
   page,
 }) => {

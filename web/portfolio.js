@@ -126,6 +126,21 @@ const FinancePortfolio = (() => {
     };
   }
 
+  function returnSeries(timeline) {
+    const valued = timeline.rows.filter((r) => finite(r.value) && !r.carried);
+    const exact =
+      !!valued.length &&
+      timeline.coverage.sinceInception &&
+      valued.every((r) => finite(r.totalReturnPct));
+    return {
+      estimated: !exact,
+      rows: timeline.rows.map((r) => ({
+        ...r,
+        adjustedReturnPct: exact ? r.totalReturnPct : r.adjustedReturnPct,
+      })),
+    };
+  }
+
   function drawdowns(points) {
     let peak = null,
       max = null;
@@ -427,6 +442,7 @@ const FinancePortfolio = (() => {
     xirr,
     cashFlows,
     exactDiagnostics,
+    returnSeries,
     drawdowns,
     averageReturns,
     stdev,
