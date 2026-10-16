@@ -2902,3 +2902,16 @@ dialog .inline-link {
 .correlation-neutral {
   background: color-mix(in srgb, var(--series-blue) 10%, transparent);
 }
+
+.investment-average-returns .kpi-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 12px;
+}
+.investment-average-returns {
+  margin-bottom: 24px;
+}
+@media (max-width: 600px) {
+  .investment-average-returns .kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}

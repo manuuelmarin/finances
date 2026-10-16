@@ -1705,3 +1705,54 @@ test('@responsive portfolio analytics stay visible together below existing chart
   ).toBe(true);
   await screenshot(page, 'portfolio-analysis');
 });
+
+test('@responsive calendar average returns appear below profit with inspectable partial-period returns', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  seed.tables.tProductos = [
+    {
+      ID: 'PARTIAL',
+      Producto: 'Fondo parcial ficticio',
+      'Fecha base': '2025-04-22',
+      'Unidades base': 10,
+      'Coste base': 100,
+    },
+  ];
+  seed.tables.tOperaciones = [];
+  seed.tables.tPrecios = [
+    ['2025-04-22', 10],
+    ['2025-04-30', 11],
+    ['2025-05-31', 12.1],
+    ['2025-12-31', 13.2],
+    ['2026-01-31', 14.52],
+    ['2026-02-14', 13.068],
+  ].map(([Fecha, price]) => ({ Producto: 'PARTIAL', Fecha, 'VL EUR': price }));
+  seed.settings.asof = seed.settings.valuation = '2026-02-14';
+  await setup(page, seed);
+  await navigate(page, 'investments');
+  const averages = page.locator('#investment-average-returns');
+  await expect(averages.locator('.kpi')).toHaveCount(2);
+  await expect(
+    averages.locator('.kpi').first().locator('.kpi-value'),
+  ).toHaveText('5 %');
+  await expect(
+    averages.locator('.kpi').last().locator('.kpi-value'),
+  ).toHaveText('15,5 %');
+  await expect(averages).toContainText('incluye periodos parciales');
+  await averages.locator('summary').click();
+  await expect(
+    averages.locator('table').last().locator('tbody tr'),
+  ).toHaveCount(2);
+  await expect(averages.locator('table').last()).toContainText('22/4/2025');
+  await expect(averages.locator('table').last()).toContainText('-1 %');
+  await page.locator('#investment-measure').selectOption('twr');
+  await expect(
+    averages.locator('.kpi').last().locator('.kpi-value'),
+  ).toHaveText('15,5 %');
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth + 1,
+    ),
+  ).toBe(true);
+});

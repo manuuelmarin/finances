@@ -157,6 +157,54 @@ const FinancePortfolio = (() => {
     return { rows, max, recovery };
   }
 
+  function averageReturns(rows, frequency = 'month') {
+    const size = frequency === 'year' ? 4 : 7;
+    const points = rows
+      .filter((r) => validDate(r.date) && finite(r.adjustedReturnPct))
+      .sort((a, b) => a.date.localeCompare(b.date));
+    const groups = new Map();
+    for (const p of points) {
+      const key = p.date.slice(0, size);
+      if (!groups.has(key)) groups.set(key, { first: p, last: p });
+      else groups.get(key).last = p;
+    }
+    const ordinal = (key) =>
+      frequency === 'year'
+        ? Number(key)
+        : Number(key.slice(0, 4)) * 12 + Number(key.slice(5));
+    let previous = null;
+    const periods = [];
+    for (const [period, group] of groups) {
+      const consecutive =
+        !previous || ordinal(period) - ordinal(previous.period) === 1;
+      const opening = previous ? previous.last : group.first;
+      const base = 1 + opening.adjustedReturnPct / 100;
+      const end = 1 + group.last.adjustedReturnPct / 100;
+      // A period with only its initial anchor is not an observed return.
+      // Do not attribute several months/years across a data gap to one period.
+      if (
+        consecutive &&
+        opening.date < group.last.date &&
+        base > 0 &&
+        end >= 0
+      ) {
+        periods.push({
+          period,
+          from: opening.date,
+          to: group.last.date,
+          value: 100 * (end / base - 1),
+        });
+      }
+      previous = { period, last: group.last };
+    }
+    return {
+      periods,
+      value: periods.length
+        ? periods.reduce((sum, p) => sum + p.value, 0) / periods.length
+        : null,
+    };
+  }
+
   function stdev(values) {
     if (values.length < 2 || values.some((v) => !finite(v))) return null;
     const mean = values.reduce((a, b) => a + b, 0) / values.length;
@@ -380,6 +428,7 @@ const FinancePortfolio = (() => {
     cashFlows,
     exactDiagnostics,
     drawdowns,
+    averageReturns,
     stdev,
     correlation,
     risk,

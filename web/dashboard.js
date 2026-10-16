@@ -791,6 +791,7 @@ const FinanceDashboard = (() => {
     FinanceCharts.clear($('portfolio-analysis-charts'));
     $('portfolio-analysis-note').textContent = '';
     $('investment-kpis').replaceChildren();
+    $('investment-average-returns').replaceChildren();
     $('investment-health').replaceChildren();
     $('prices-history-note').textContent = '';
     if (!current) {
@@ -849,6 +850,7 @@ const FinanceDashboard = (() => {
             range: 'all',
           });
     const chartRows = fullTimeline.rows;
+    renderAverageReturns(chartRows);
     const chartRange = {
       from: timeline.coverage.selectedStartDate,
       to: timeline.coverage.selectedEndDate,
@@ -1249,6 +1251,64 @@ const FinanceDashboard = (() => {
       matrix.append(wrap);
     }
     target.append(matrix);
+  }
+  function renderAverageReturns(rows) {
+    const target = $('investment-average-returns');
+    const cards = el('div', undefined, 'kpi-grid');
+    const data = [
+      ['month', 'Media mensual (estimada)', 'meses'],
+      ['year', 'Media anual (estimada)', 'años'],
+    ].map(([frequency, title, unit]) => {
+      const result = FinancePortfolio.averageReturns(rows, frequency);
+      stat(
+        cards,
+        title,
+        known(result.value)
+          ? percentage.format(result.value) + ' %'
+          : 'Sin dato',
+        result.periods.length +
+          ' ' +
+          unit +
+          ' con registros · incluye periodos parciales',
+      );
+      return { title, ...result };
+    });
+    target.append(cards);
+    const details = el('details', undefined, 'section-details');
+    details.append(el('summary', 'Cómo se calcula y desglose'));
+    details.append(
+      el(
+        'p',
+        'Media aritmética de las rentabilidades de cada mes o año con registros, incluidos el primero y el último aunque estén incompletos. Conserva las pérdidas con signo negativo. Usa todo el histórico del producto o cartera seleccionados, hasta su última valoración real. Se basa en la rentabilidad ajustada estimada: cada periodo es (índice final / índice inicial − 1) × 100. La media anual no anualiza años parciales ni multiplica por doce la mensual. Los periodos sin observaciones se omiten; no se rellenan con ceros.',
+      ),
+    );
+    for (const result of data) {
+      const wrap = el('div', undefined, 'table-responsive');
+      const table = el('table', undefined, 'chart-table');
+      table.append(el('caption', result.title));
+      const head = el('thead');
+      const heading = el('tr');
+      for (const label of ['Periodo', 'Desde', 'Hasta', 'Rentabilidad'])
+        heading.append(el('th', label));
+      head.append(heading);
+      table.append(head);
+      const body = el('tbody');
+      for (const p of result.periods) {
+        const tr = el('tr');
+        for (const value of [
+          p.period,
+          displayDate(p.from),
+          displayDate(p.to),
+          percentage.format(p.value) + ' %',
+        ])
+          tr.append(el('td', value));
+        body.append(tr);
+      }
+      table.append(body);
+      wrap.append(table);
+      details.append(wrap);
+    }
+    target.append(details);
   }
   function renderPriceCoverage(coverage) {
     const target = $('investment-health');

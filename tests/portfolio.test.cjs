@@ -254,3 +254,49 @@ test('unverified transfer metadata cannot silently certify a personal return', (
     a.xirrRows.every((r) => r.value === null && r.status === 'invalid'),
   );
 });
+
+test('calendar return means include partial inception and current years without annualizing', () => {
+  const rows = [
+    ['2025-04-22', 0],
+    ['2025-04-30', 10],
+    ['2025-05-31', 21],
+    ['2025-12-31', 32],
+    ['2026-01-31', 45.2],
+    ['2026-02-14', 30.68],
+  ].map(([date, adjustedReturnPct]) => ({ date, adjustedReturnPct }));
+  const annual = P.averageReturns(rows, 'year');
+  assert.equal(annual.periods.length, 2);
+  assert.deepEqual(
+    annual.periods.map((p) => p.period),
+    ['2025', '2026'],
+  );
+  close(annual.periods[0].value, 32);
+  close(annual.periods[1].value, -1);
+  close(annual.value, 15.5);
+  const monthly = P.averageReturns(rows);
+  assert.deepEqual(
+    monthly.periods.map((p) => p.period),
+    ['2025-04', '2025-05', '2026-01', '2026-02'],
+  );
+  monthly.periods.forEach((p, i) => close(p.value, [10, 10, 10, -10][i]));
+  close(monthly.value, 5);
+});
+test('period means preserve losses and distinguish arithmetic average from compounded growth', () => {
+  const rows = [
+    ['2026-01-01', 0],
+    ['2026-01-31', -50],
+    ['2026-02-28', 0],
+  ].map(([date, adjustedReturnPct]) => ({ date, adjustedReturnPct }));
+  close(P.averageReturns(rows).value, 25);
+  close(P.averageReturns(rows, 'year').value, 0);
+  assert.equal(P.averageReturns([]).value, null);
+  assert.equal(
+    P.averageReturns([{ date: '2026-01-01', adjustedReturnPct: 0 }]).value,
+    null,
+  );
+  assert.equal(
+    P.averageReturns([{ date: '2026-01-01', adjustedReturnPct: null }]).periods
+      .length,
+    0,
+  );
+});
