@@ -660,6 +660,12 @@ const FinanceAnalytics = (() => {
       returnStartDate = null,
       priceAnchor = null,
       navStartDate = null,
+      dietzPrevious = null,
+      dietzLinked = null,
+      dietzStartDate = null,
+      dietzBroken = false,
+      dietzEstimatedIntervals = 0,
+      dietzFlows = [],
       missingDays = 0,
       carriedDays = 0;
     const rows = days(firstDate, lastDate).map((date) => {
@@ -770,6 +776,53 @@ const FinanceAnalytics = (() => {
       }
       const value = sumKnown(values),
         capital = sumKnown(capitals);
+      // Independent of exact TWR: link Modified Dietz over real, complete
+      // valuation endpoints. An unquoted cash-flow day is weighted by elapsed
+      // calendar days, never converted into an invented NAV or execution date.
+      let adjustedReturnPct = null;
+      if (!flowKnown) dietzBroken = true;
+      if (dietzPrevious && (flow !== 0 || precisionAdjustment !== 0))
+        dietzFlows.push({ date, flow, precisionAdjustment });
+      if (value !== null && !carried && !dietzBroken) {
+        if (!dietzPrevious && value > 0) {
+          dietzStartDate = date;
+          dietzLinked = 1;
+          adjustedReturnPct = 0;
+        } else if (dietzPrevious && dietzLinked !== null) {
+          const duration =
+            (Date.parse(date) - Date.parse(dietzPrevious.date)) / 86400000;
+          const weighted = dietzFlows.reduce(
+            (sum, f) =>
+              sum +
+              (f.flow * (Date.parse(date) - Date.parse(f.date))) /
+                86400000 /
+                duration,
+            0,
+          );
+          const denominator = dietzPrevious.value + weighted;
+          const netFlow = dietzFlows.reduce((sum, f) => sum + f.flow, 0);
+          const adjustment = dietzFlows.reduce(
+            (sum, f) => sum + f.precisionAdjustment,
+            0,
+          );
+          const factor =
+            1 +
+            (value - dietzPrevious.value - netFlow - adjustment) / denominator;
+          if (
+            duration > 0 &&
+            denominator > 0 &&
+            finite(factor) &&
+            factor >= 0
+          ) {
+            dietzLinked *= factor;
+            adjustedReturnPct = 100 * (dietzLinked - 1);
+            if (dietzFlows.some((f) => f.date !== date))
+              dietzEstimatedIntervals++;
+          } else dietzBroken = true;
+        }
+        dietzPrevious = { date, value };
+        dietzFlows = [];
+      }
       let returnPct = null;
       if (value !== null && !carried && flowKnown) {
         if (previousValuation?.value > 0 && linked !== null) {
@@ -825,6 +878,7 @@ const FinanceAnalytics = (() => {
         value,
         returnPct,
         totalReturnPct,
+        adjustedReturnPct,
         netResult:
           finite(value) && finite(capital) && finite(sumKnown(distributions))
             ? value - capital + sumKnown(distributions)
@@ -915,6 +969,9 @@ const FinanceAnalytics = (() => {
         supportedIntervals,
         returnStartDate,
         navStartDate,
+        adjustedMethod: 'linkedModifiedDietz',
+        adjustedStartDate: dietzStartDate,
+        adjustedEstimatedIntervals: dietzEstimatedIntervals,
         sinceInception:
           returnStartDate !== null && returnStartDate === firstDate,
         flowConvention: 'endOfDay',

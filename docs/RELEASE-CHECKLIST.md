@@ -1,5 +1,7 @@
 # Release acceptance and cutover
 
+The [period and return-chart follow-up](PERIODS-AND-RETURNS-2026-10-16.md) requires only a Pages/PWA update. Accept it with consecutive-month and exact-day filters, ticket arrows, category close/reopen, collapsed fund provenance and both adjusted-return charts. Confirm the estimate is labeled and exact TWR remains separately selectable. No Google files or financial rows change.
+
 The [2026-10-16 frontend follow-up](FEEDBACK-CLOSURE-2026-10-16.md) adds a focused visual acceptance and confirms the remaining principal aggregation-range and GitHub required-check tasks. That follow-up changes no Google files.
 
 The owner completed the previous ten-step test acceptance. Release 3.10.0 changes the workspace and adds interval budgets; it needs a focused acceptance after updating the private deployment. Keep the app bound to the test workbook.

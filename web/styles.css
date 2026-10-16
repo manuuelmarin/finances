@@ -2741,6 +2741,73 @@ dialog .inline-link {
   grid-template-columns: minmax(125px, 1fr) 94px;
   gap: 8px;
 }
+#dashboard-grid > .section-heading {
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+.summary-period {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin: 0;
+}
+.summary-period .field {
+  min-width: 0;
+  width: 210px;
+  max-width: 100%;
+}
+.ticket-card .kpi-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.ticket-controls {
+  display: inline-flex;
+}
+.ticket-arrow {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+.ticket-arrow:hover,
+.ticket-arrow:focus-visible {
+  background: var(--surface-raised);
+  outline: 2px solid var(--accent);
+}
+.history-import {
+  border-color: var(--accent);
+}
+.history-import > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--accent);
+}
+.import-action {
+  font-size: 0.78rem;
+  color: var(--text);
+}
+.price-health-details {
+  margin: 0 0 16px;
+}
+.price-health-details .budget-card p {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .summary-period,
+  .summary-period .field {
+    width: 100%;
+  }
+}
 .month-picker select,
 .month-picker input {
   width: 100%;

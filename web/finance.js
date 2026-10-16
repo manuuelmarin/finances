@@ -1170,7 +1170,7 @@
     $('finance-register-note').textContent =
       name === 'tCuentas' || name === 'observations'
         ? 'Solo se comparan saldos con el mismo corte. Las observaciones no crean ajustes automáticos.'
-        : 'Registros confirmados en Sheets. Los filtros solo afectan a este listado.';
+        : '';
   }
   async function render() {
     const epoch = configurationEpoch,
