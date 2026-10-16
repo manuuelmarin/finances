@@ -810,7 +810,7 @@ const FinanceCharts = (() => {
             },
             new Intl.NumberFormat('es-ES', {
               maximumFractionDigits: unit === 'count' ? 0 : 2,
-            }).format(v),
+            }).format(Math.abs(v) < step * 1e-10 ? 0 : v),
           ),
         );
       }

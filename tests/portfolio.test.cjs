@@ -300,3 +300,49 @@ test('period means preserve losses and distinguish arithmetic average from compo
     0,
   );
 });
+
+test('monthly bars use flow-adjusted returns: deposits at a flat NAV yield zero, not a capital gain', () => {
+  function returns(deposit) {
+    const s = fixture();
+    s.settings.asof = s.settings.valuation = '2025-03-31';
+    s.tables.tProductos[0]['Unidades base'] = 10;
+    s.tables.tProductos[0]['Coste base'] = 100;
+    s.tables.tOperaciones = [
+      {
+        ID: 'cash-jan',
+        Producto: 'A',
+        Tipo: 'Compra',
+        Fecha: '2025-01-15',
+        Participaciones: deposit / 10,
+        Precio: 10,
+        Importe: deposit,
+      },
+      {
+        ID: 'cash-mar',
+        Producto: 'A',
+        Tipo: 'Compra',
+        Fecha: '2025-03-15',
+        Participaciones: deposit / 11,
+        Precio: 11,
+        Importe: deposit,
+      },
+    ];
+    s.tables.tPrecios = [
+      ['2025-01-01', 10],
+      ['2025-01-31', 10],
+      ['2025-02-28', 11],
+      ['2025-03-15', 11],
+      ['2025-03-31', 9.9],
+    ].map(([Fecha, price]) => ({ Producto: 'A', Fecha, 'VL EUR': price }));
+    const timeline = A.investmentTimeline(s);
+    return P.averageReturns(timeline.rows).periods;
+  }
+  for (const deposit of [100, 1000]) {
+    const months = returns(deposit);
+    assert.deepEqual(
+      months.map((r) => r.period),
+      ['2025-01', '2025-02', '2025-03'],
+    );
+    months.forEach((r, i) => close(r.value, [0, 10, -10][i]));
+  }
+});

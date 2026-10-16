@@ -1659,8 +1659,9 @@ test('@responsive portfolio analytics stay visible together below existing chart
   await setup(page, seed);
   await navigate(page, 'investments');
   const panel = page.locator('#portfolio-analysis-charts');
-  await expect(panel.locator('.chart-card')).toHaveCount(6);
+  await expect(panel.locator('.chart-card')).toHaveCount(7);
   for (const title of [
+    'Rentabilidad por mes',
     'TIR anualizada',
     'Caídas desde máximos',
     'Tiempo bajo máximos',
@@ -1688,7 +1689,7 @@ test('@responsive portfolio analytics stay visible together below existing chart
   await expect(page.locator('#investment-charts .chart-warning')).toContainText(
     '1/2/2026',
   );
-  await expect(panel.locator('.chart-card')).toHaveCount(6);
+  await expect(panel.locator('.chart-card')).toHaveCount(7);
   await page
     .locator('#investment-product')
     .selectOption(seed.tables.tProductos[1].ID);
@@ -1755,4 +1756,72 @@ test('@responsive calendar average returns appear below profit with inspectable 
       () => document.documentElement.scrollWidth <= innerWidth + 1,
     ),
   ).toBe(true);
+});
+
+test('@responsive monthly return bars exclude deposits and use green for gains and red for losses', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  seed.settings.start = '2025-01-01';
+  seed.settings.asof = seed.settings.valuation = '2025-03-31';
+  seed.tables.tProductos = [
+    {
+      ID: 'FLOW',
+      Producto: 'Fondo de prueba',
+      'Fecha base': '2025-01-01',
+      'Unidades base': 10,
+      'Coste base': 100,
+    },
+  ];
+  seed.tables.tOperaciones = [
+    {
+      ID: 'DEPOSIT',
+      Producto: 'FLOW',
+      Fecha: '2025-01-15',
+      Tipo: 'Compra',
+      Participaciones: 10,
+      Precio: 10,
+      Importe: 100,
+    },
+  ];
+  seed.tables.tPrecios = [
+    ['2025-01-01', 10],
+    ['2025-01-31', 10],
+    ['2025-02-28', 11],
+    ['2025-03-31', 10.89],
+  ].map(([Fecha, price]) => ({ Producto: 'FLOW', Fecha, 'VL EUR': price }));
+  await setup(page, seed);
+  await navigate(page, 'investments');
+  const chart = page.locator('#portfolio-analysis-charts .chart-card').filter({
+    has: page.getByRole('heading', {
+      name: 'Rentabilidad por mes',
+      exact: true,
+    }),
+  });
+  await expect(chart.locator('svg rect.chart-mint')).toHaveCount(2);
+  await expect(chart.locator('svg rect.chart-red')).toHaveCount(1);
+  await chart.getByText('Ver datos', { exact: true }).click();
+  const rows = chart.locator('.chart-table tbody tr');
+  await expect(rows).toHaveCount(3);
+  await expect(rows.nth(0)).toContainText('2025-01');
+  await expect(rows.nth(0)).toContainText('0 %');
+  await expect(rows.nth(1)).toContainText('10 %');
+  await expect(rows.nth(2)).toContainText('-1 %');
+  await page.locator('#investment-measure').selectOption('twr');
+  await expect(chart.locator('.chart-table tbody tr').first()).toContainText(
+    '0 %',
+  );
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth + 1,
+    ),
+  ).toBe(true);
+  expect(
+    await chart
+      .locator('.chart-axis')
+      .evaluateAll((nodes) =>
+        nodes.some((n) => /^-0(?:[,.]0+)?$/.test(n.textContent.trim())),
+      ),
+  ).toBe(false);
+  await screenshot(page, 'monthly-return-bars');
 });
