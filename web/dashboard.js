@@ -1023,6 +1023,32 @@ const FinanceDashboard = (() => {
         ' – ' +
         displayDate(analysis.ending)
       : 'Sin valoraciones completas en el periodo.';
+    const monthly = FinancePortfolio.averageReturns(
+      timeline.rows.filter((r) => r.date >= bounds.from && r.date <= bounds.to),
+    );
+    FinanceCharts.plot(target, {
+      title: 'Rentabilidad por mes',
+      rows: monthly.periods.map((p) => ({
+        label: p.period,
+        value: p.value,
+        tone: p.value < 0 ? 'chart-red' : 'chart-mint',
+      })),
+      unit: '%',
+      xAxisTitle: 'Mes',
+      xTickRotation: -45,
+      fields: [
+        {
+          key: 'value',
+          label: 'Rentabilidad mensual (estimada)',
+          shape: 'bar',
+          tone: 'chart-mint',
+        },
+      ],
+      description:
+        'Cada barra muestra la rentabilidad del mes, no el cambio del saldo: (índice ajustado final / índice ajustado inicial − 1) × 100. La estimación Dietz descuenta aportaciones y retiradas; ingresar dinero sin variación de precios no genera rentabilidad. Verde para rendimientos no negativos y rojo para pérdidas. Usa los meses naturales del periodo seleccionado; el primero y el último pueden ser parciales. Se omiten periodos sin datos, sin inventar cotizaciones ni convertir ausencias en ceros.',
+      emptyMessage:
+        'Sin dos valoraciones que permitan medir una rentabilidad mensual en este periodo.',
+    });
     const tir = FinanceCharts.plot(target, {
       title: 'TIR anualizada',
       rows: analysis.xirrRows,
