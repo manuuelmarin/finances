@@ -245,6 +245,52 @@ test('cada columna permite ordenar con teclado y filtrar texto, fecha y número'
   await expect(register).toContainText('No hay registros para esta selección');
 });
 
+test('@responsive recurrence groups legacy blanks with No and an empty checklist selects no records', async ({
+  page,
+}) => {
+  await setupRecords(page, (seed) => {
+    seed.tables.tMovimientos[1].Recurrente = 'Sí';
+    seed.tables.tMovimientos.push({
+      ...seed.tables.tMovimientos[0],
+      ID: 'EXPLICIT-NO',
+      Concepto: 'No explícito',
+      Recurrente: 'No',
+    });
+  });
+  const register = page.locator('#finance-register');
+  const filter = register.locator('[data-filter-key="Recurrente-values"]');
+  await filter.locator('summary').click();
+  await expect(filter.getByRole('checkbox')).toHaveCount(2);
+  await expect(
+    filter.getByRole('checkbox', { name: 'Recurrente: No', exact: true }),
+  ).toHaveCount(1);
+  await filter
+    .getByRole('checkbox', { name: 'Recurrente: Sí', exact: true })
+    .uncheck();
+  await expect(
+    register.locator('.finance-table > tbody > tr:visible'),
+  ).toHaveCount(2);
+  await expect(register.locator('tbody')).toContainText('Café de prueba');
+  await expect(register.locator('tbody')).toContainText('No explícito');
+  await filter
+    .getByRole('checkbox', { name: 'Recurrente: No', exact: true })
+    .uncheck();
+  await expect(register).toContainText('No hay registros para esta selección');
+  await expect(filter.getByRole('checkbox', { checked: true })).toHaveCount(0);
+  await filter
+    .getByRole('checkbox', { name: 'Recurrente: No', exact: true })
+    .check();
+  await expect(
+    register.locator('.finance-table > tbody > tr:visible'),
+  ).toHaveCount(2);
+  await register
+    .getByRole('button', { name: 'Limpiar filtros', exact: true })
+    .click();
+  await expect(
+    register.locator('.finance-table > tbody > tr:visible'),
+  ).toHaveCount(3);
+});
+
 test('caja conserva esenciales y presenta el concepto generado en revisión', async ({
   page,
 }) => {

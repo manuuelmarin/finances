@@ -516,19 +516,21 @@
     const categoryFilterValue = (key, value) => {
       if (
         key === 'Recurrente' &&
-        (value === null || value === undefined || value === '')
+        (value === null ||
+          value === undefined ||
+          value === '' ||
+          value === false ||
+          value === 'No')
       )
-        return 'false';
+        return 'No';
+      if (key === 'Recurrente' && (value === true || value === 'Sí'))
+        return 'Sí';
       return value === null || value === undefined || value === ''
         ? '__empty__'
         : String(value);
     };
     const categoryFilterLabel = (key, value) =>
-      value === '__empty__'
-        ? 'Sin dato'
-        : key === 'Recurrente' && value === 'false'
-          ? 'No'
-          : cell(key, value);
+      value === '__empty__' ? 'Sin dato' : cell(key, value);
     const filtered = rows.filter((row) =>
       visibleColumns.every(([key]) => {
         const filter = state.filters[key] || {};
@@ -552,7 +554,7 @@
         }
         if (categoricalColumn(key))
           return (
-            !filter.values?.length ||
+            !Array.isArray(filter.values) ||
             filter.values.includes(categoryFilterValue(key, row[key]))
           );
         return (
@@ -641,7 +643,7 @@
         dropdown.open = state.openFilterKey === key;
         dropdown.style.position = 'relative';
         dropdown.style.minWidth = '120px';
-        const selected = state.filters[key]?.values || [];
+        const selected = state.filters[key]?.values;
         const values = [
           ...new Set(rows.map((row) => categoryFilterValue(key, row[key]))),
         ].sort((a, b) =>
@@ -652,10 +654,12 @@
           ),
         );
         const allSelected =
-          selected.length === 0 || selected.length === values.length;
+          selected === undefined || selected.length === values.length;
         const summary = el(
           'summary',
-          allSelected ? 'Todos' : `${selected.length} seleccionados`,
+          allSelected
+            ? 'Todos'
+            : `${selected.length} ${selected.length === 1 ? 'seleccionado' : 'seleccionados'}`,
         );
         summary.setAttribute('aria-label', 'Filtrar ' + title);
         summary.style.display = 'flex';
@@ -688,7 +692,7 @@
           const checkbox = el('input');
           checkbox.type = 'checkbox';
           checkbox.value = value;
-          checkbox.checked = selected.includes(value) || allSelected;
+          checkbox.checked = selected?.includes(value) || allSelected;
           checkbox.dataset.filterValue = value;
           checkbox.setAttribute(
             'aria-label',
