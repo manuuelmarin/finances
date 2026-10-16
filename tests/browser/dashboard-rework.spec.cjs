@@ -309,7 +309,8 @@ test('@responsive checklist filtra categorías; salario y cuentas mantienen sus 
   await page.keyboard.press('Home');
   const selection = page.locator('.transaction-selection');
   await expect(selection.locator('tbody tr')).toHaveCount(1);
-  await expect(selection.locator('tbody')).toContainText('Alimentación');
+  await expect(selection.locator('tbody')).toContainText('300,00');
+  await expect(selection.locator('thead th')).toHaveCount(3);
   await expect(selection.locator('tbody')).not.toContainText('Vivienda');
   await distribution
     .locator('button.distribution-item')
@@ -392,7 +393,10 @@ test('spending projections preserve unknown amounts until their category is excl
   await page.keyboard.press('End');
   await expect(city.locator('.chart-readout')).toContainText('Sin dato');
   const selection = page.locator('.transaction-selection');
-  const amountSort = selection.getByRole('button', { name: 'Importe propio' });
+  const amountSort = selection.getByRole('button', {
+    name: 'Importe',
+    exact: true,
+  });
   await amountSort.click();
   await expect(selection.locator('tbody tr').last()).toContainText('Sin dato');
   await amountSort.click();
@@ -625,6 +629,7 @@ test('TWR insuficiente explica los cortes que faltan y no muestra resultado sobr
   );
   await setup(page, sparse);
   await navigate(page, 'investments');
+  await page.locator('#investment-measure').selectOption('twr');
   const performance = page.locator('#investment-charts .chart-card').nth(1);
   await performance.locator('.chart-explanation summary').click();
   await expect(performance.locator('.chart-explanation p')).toContainText(
@@ -697,6 +702,7 @@ test('TWR identifica la primera valoración real cuando falta el rendimiento ant
   );
   await setup(page, delayed);
   await navigate(page, 'investments');
+  await page.locator('#investment-measure').selectOption('twr');
   const performance = page.locator('#investment-charts .chart-card').nth(1);
   await expect(
     performance.getByRole('button', {
@@ -717,6 +723,9 @@ test('future budget is planned, account month is independent and unknown goal as
 }) => {
   const seed = structuredClone(snapshot);
   seed.tables.tCuentas[0]['Saldo calculado'] = null;
+  seed.observations = [
+    { account: 'Banco ficticio', date: '2026-02-01', amount: 1 },
+  ];
   seed.tables.tObjetivos = [
     {
       ID: 'G',
@@ -737,6 +746,7 @@ test('future budget is planned, account month is independent and unknown goal as
     'Este backend admite límites mensuales',
   );
   await navigate(page, 'accounts');
+  await page.locator('#account-reconciliation > summary').click();
   await page.locator('#account-month').fill('2026-02');
   await navigate(page, 'home');
   await page.locator('#cash-month').fill('2026-01');
@@ -782,7 +792,7 @@ test('planned realization reviews actual plus plan closing and projection select
   );
   await navigate(page, 'accounts');
   await expect(page.locator('#forecast-note')).toContainText(
-    'no es saldo disponible actual',
+    'No es saldo disponible actual',
   );
   await page.locator('#planned-list input[type=checkbox]').uncheck();
   expect(await page.evaluate(() => window.reviewedOperations)).toBeUndefined();
@@ -1066,7 +1076,10 @@ test('@responsive goals expose real assignments, completed state and a clean emp
   await page.evaluate((value) => FinanceDashboard.render(value), seed);
   await expect(page.locator('#saving-goals')).toContainText('Sin objetivos');
   await expect(page.locator('#goal-summary')).toBeEmpty();
-  await expect(page.locator('#goal-resources')).toBeHidden();
+  await expect(page.locator('#goal-resources')).toBeVisible();
+  await expect(page.locator('#emergency-fund')).toContainText(
+    'Fondo de emergencia',
+  );
 });
 
 test('account reconciliation never hides opposite differences by netting them', async ({
@@ -1150,4 +1163,322 @@ test('monthly flow hover and CSV preserve net refunds rather than clamping them 
     'utf8',
   );
   expect(csv).toContain('"2026-02-01";2000;-500;-25');
+});
+
+test('@responsive summary shows all four variation horizons and its category detail contains only current-month dates, concept and amount', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  seed.tables.tMovimientos.forEach((row) => {
+    row.Concepto = 'Synthetic ' + row.ID;
+  });
+  await setup(page, seed);
+  const cells = page.locator('.wealth-card .comparison-cell');
+  await expect(cells).toHaveCount(4);
+  expect(await cells.locator('span').allTextContents()).toEqual([
+    '1M',
+    '3M',
+    '6M',
+    '1A',
+  ]);
+  const boxes = await cells.evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const r = node.getBoundingClientRect();
+      return { x: r.x, y: r.y };
+    }),
+  );
+  expect(boxes[0].y).toBe(boxes[1].y);
+  expect(boxes[2].y).toBe(boxes[3].y);
+  expect(boxes[2].y).toBeGreaterThan(boxes[0].y);
+  await expect(cells.last()).toHaveClass(/comparison-neutral/);
+  const chart = page.locator('#dashboard-charts .chart-card').filter({
+    has: page.getByRole('heading', { name: 'Gastos del mes', exact: true }),
+  });
+  await chart
+    .locator('.distribution-item')
+    .filter({ hasText: 'Vivienda' })
+    .click();
+  const detail = chart.locator('details.transaction-selection');
+  await expect(detail).toHaveAttribute('open', '');
+  await expect(detail.locator('thead th')).toHaveText([
+    'Fecha',
+    'Concepto',
+    'Importe',
+  ]);
+  await expect(detail.locator('tbody tr')).toHaveCount(1);
+  await expect(detail).toContainText('Synthetic RENT-03');
+  await expect(detail).not.toContainText('Synthetic RENT-02');
+  await expect(chart.locator('.chart-data')).toHaveCount(0);
+  await detail.locator('summary').click();
+  await expect(detail.locator('table')).toBeHidden();
+  await page.locator('#cash-month-year').fill('2025');
+  await page.locator('#cash-month-year').dispatchEvent('change');
+  await page.locator('#cash-month-month').selectOption('11');
+  await expect(page.locator('#cash-month')).toHaveValue('2025-11');
+  await expect(page.locator('#cash-month-month')).toHaveValue('11');
+  await expect(page.locator('#cash-month-month option:checked')).toHaveText(
+    'Noviembre',
+  );
+  await screenshot(page, 'comparison-and-detail');
+});
+
+test('@responsive fixed-width spending histogram and city tones remain readable and export exact frequencies', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  seed.tables.tMovimientos.push({
+    ID: 'NO-CITY',
+    Fecha: '2026-03-05',
+    Tipo: 'Gasto',
+    Concepto: 'Synthetic coffee',
+    Origen: 'Banco ficticio',
+    Importe: 10,
+    Subcategoría: 'Compra',
+  });
+  await setup(page, seed);
+  await navigate(page, 'book');
+  const histogram = page.locator('#spending-charts .chart-card').filter({
+    has: page.getByRole('heading', {
+      name: 'Gasto por importe y frecuencia',
+      exact: true,
+    }),
+  });
+  await expect(
+    histogram.getByLabel('Intervalo de gasto en euros').locator('option'),
+  ).toHaveText(['5 €', '10 €', '20 €', '50 €', '100 €']);
+  await histogram.getByLabel('Intervalo de gasto en euros').selectOption('20');
+  expect(
+    await histogram.locator('.chart-x-tick').first().getAttribute('transform'),
+  ).toContain('rotate(-60');
+  await histogram.locator('.chart-menu summary').click();
+  const download = page.waitForEvent('download');
+  await histogram
+    .getByRole('button', { name: 'Descargar CSV', exact: true })
+    .click();
+  const fs = require('node:fs');
+  const text = fs.readFileSync(await (await download).path(), 'utf8');
+  const rows = text.trim().split('\r\n').slice(1);
+  expect(
+    rows.reduce((sum, row) => sum + Number(row.split(';').at(-1)), 0),
+  ).toBe(4);
+  expect(
+    rows.every((row) => {
+      const endpoints = [...row.matchAll(/\d+,\d{2}/g)].map((m) =>
+        Number(m[0].replace(',', '.')),
+      );
+      return (
+        endpoints.length === 2 &&
+        Math.abs(endpoints[1] - endpoints[0] - 20) < 1e-8
+      );
+    }),
+  ).toBe(true);
+  const city = page.locator('#spending-charts .chart-card').filter({
+    has: page.getByRole('heading', { name: 'Gasto por ciudad', exact: true }),
+  });
+  await expect(city.locator('rect.chart-unclassified')).toHaveCount(1);
+  await expect(city.locator('rect.chart-city')).toHaveCount(2);
+  const colors = await city
+    .locator('rect.chart-city, rect.chart-unclassified')
+    .evaluateAll((nodes) =>
+      nodes.map((node) => ({
+        unknown: node.classList.contains('chart-unclassified'),
+        fill: getComputedStyle(node).fill,
+      })),
+    );
+  expect(colors.find((c) => c.unknown).fill).not.toBe(
+    colors.find((c) => !c.unknown).fill,
+  );
+  await screenshot(page, 'histogram-and-city');
+});
+
+test('@responsive account moving-average cards, separated resources and emergency fund preserve the same underlying assignments', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  seed.tables.tAsignaciones = [
+    { Objetivo: 'FICTITIOUS-GOAL', Origen: 'Banco ficticio', Importe: 300 },
+    { Objetivo: 'FICTITIOUS-GOAL', Origen: 'FICTITIOUS-ALPHA', Importe: 250 },
+  ];
+  seed.tables.tObjetivos[0].Asignado = 550;
+  await setup(page, seed);
+  await navigate(page, 'accounts');
+  await expect(page.locator('.account-balance-card')).toHaveCount(2);
+  await expect(
+    page.locator('.account-balance-card .comparison-cell'),
+  ).toHaveCount(8);
+  expect(
+    await page
+      .locator('.account-balance-card')
+      .first()
+      .locator('.comparison-cell span')
+      .allTextContents(),
+  ).toEqual(['1D', '1S', '1M', '3M']);
+  await expect(page.locator('.account-balance-card').first()).not.toContainText(
+    '%',
+  );
+  await expect(page.locator('#account-reconciliation')).toBeHidden();
+  await expect(page.locator('#forecast-chart .chart-card')).toHaveCount(0);
+  await screenshot(page, 'account-averages');
+  await navigate(page, 'budgets');
+  await page.locator('#goal-resources > summary').click();
+  await expect(page.locator('[data-resource-kind=account]')).toContainText(
+    'Banco ficticio',
+  );
+  await expect(page.locator('[data-resource-kind=account]')).not.toContainText(
+    'Fondo Alfa ficticio',
+  );
+  await expect(page.locator('[data-resource-kind=product]')).toContainText(
+    'Fondo Alfa ficticio',
+  );
+  await page.locator('#emergency-goal').selectOption('FICTITIOUS-GOAL');
+  await expect(
+    page.locator('#emergency-fund .kpi-value').first(),
+  ).toContainText('300,00');
+  await expect(page.locator('#emergency-fund .kpi-value').nth(2)).toContainText(
+    /1\.?700,00/,
+  );
+  await expect(page.locator('#emergency-fund')).toContainText('250,00');
+  await page
+    .locator('#emergency-fund')
+    .getByRole('button', { name: 'Gestionar reservas', exact: true })
+    .click();
+  await expect(page.locator('#goal-assign-goal')).toHaveValue(
+    'FICTITIOUS-GOAL',
+  );
+  await page.locator('#goal-assign-cancel').click();
+  await screenshot(page, 'emergency-resources');
+  await setup(page, seed);
+  await navigate(page, 'budgets');
+  await expect(page.locator('#emergency-goal')).toHaveValue('FICTITIOUS-GOAL');
+  const other = structuredClone(seed);
+  other.bookKey = 'e'.repeat(64);
+  await page.evaluate(
+    (value) => FinanceDashboard.render(value, { review() {} }),
+    other,
+  );
+  await expect(page.locator('#emergency-goal')).toHaveValue('');
+  expect(await page.evaluate(() => window.reviewedOperations)).toBeUndefined();
+});
+
+test('@responsive five additional themes retain readable foregrounds and persist across reopening', async ({
+  page,
+}) => {
+  await setup(page);
+  await navigate(page, 'connection');
+  const themes = [
+    'light',
+    'dark',
+    'warm',
+    'ocean',
+    'forest',
+    'slate',
+    'lavender',
+    'solar',
+  ];
+  for (const theme of themes) {
+    await page.locator('#theme-preference').selectOption(theme);
+    const ratios = await page.evaluate(() => {
+      const css = getComputedStyle(document.documentElement);
+      const luminance = (color) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 1;
+        const c = canvas.getContext('2d');
+        c.fillStyle = color;
+        c.fillRect(0, 0, 1, 1);
+        const rgb = [...c.getImageData(0, 0, 1, 1).data]
+          .slice(0, 3)
+          .map((x) => {
+            x /= 255;
+            return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+          });
+        return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+      };
+      const contrast = (fg, bg) => {
+        const a = luminance(css.getPropertyValue(fg)),
+          b = luminance(css.getPropertyValue(bg));
+        return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+      };
+      return ['--bg', '--surface', '--surface-raised'].flatMap((bg) =>
+        ['--text', '--muted', '--subtle', '--series-mint', '--danger'].map(
+          (fg) => ({ fg, bg, value: contrast(fg, bg) }),
+        ),
+      );
+    });
+    for (const ratio of ratios)
+      expect(
+        ratio.value,
+        `${theme}: ${ratio.fg} on ${ratio.bg}`,
+      ).toBeGreaterThanOrEqual(4.5);
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+  }
+  await page.reload();
+  await expect(page.locator('#theme-preference')).toHaveValue('solar');
+  await screenshot(page, 'themes');
+});
+
+test('performance result crosses the year boundary while unavailable exact TWR stays explicitly unavailable', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  seed.settings = {
+    start: '2025-12-31',
+    asof: '2026-01-05',
+    valuation: '2026-01-05',
+  };
+  seed.tables.tProductos = [
+    {
+      ID: 'SYNTHETIC',
+      Producto: 'Synthetic fund',
+      'Fecha base': '2025-12-31',
+      'Unidades base': 0,
+      'Coste base': 0,
+      Participaciones: 20,
+      Valor: 240,
+      'Aportado neto': 210,
+      Resultado: 30,
+    },
+  ];
+  seed.tables.tOperaciones = [
+    {
+      Producto: 'SYNTHETIC',
+      Fecha: '2025-12-31',
+      Tipo: 'Compra',
+      Participaciones: 10,
+      Precio: 10,
+      Importe: 100,
+    },
+    {
+      Producto: 'SYNTHETIC',
+      Fecha: '2026-01-03',
+      Tipo: 'Compra',
+      Participaciones: 10,
+      Precio: 11,
+      Importe: 110,
+    },
+  ];
+  seed.tables.tPrecios = [
+    { Producto: 'SYNTHETIC', Fecha: '2025-12-31', 'VL EUR': 10 },
+    { Producto: 'SYNTHETIC', Fecha: '2026-01-05', 'VL EUR': 12 },
+  ];
+  await setup(page, seed);
+  await navigate(page, 'investments');
+  const performance = page.locator('#investment-charts .chart-card').nth(1);
+  await expect(performance).toContainText('Resultado sobre aportación neta');
+  await expect(
+    performance.getByLabel('Hasta Resultado sobre aportación neta'),
+  ).toHaveValue('2026-01-05');
+  await expect(performance.locator('.chart-readout')).toContainText('14,29 %');
+  await performance.locator('.finance-chart').focus();
+  await page.keyboard.press('Home');
+  await expect(performance.locator('.chart-readout')).toContainText(
+    '31 dic 2025',
+  );
+  await page.keyboard.press('End');
+  await expect(performance.locator('.chart-readout')).toContainText(
+    '05 ene 2026',
+  );
+  await page.locator('#investment-measure').selectOption('twr');
+  await expect(performance.locator('.chart-readout')).toContainText('Sin dato');
+  await page.locator('#investment-measure').selectOption('result');
+  await expect(performance.locator('.chart-readout')).toContainText('14,29 %');
 });

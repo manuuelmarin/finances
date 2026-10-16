@@ -16,7 +16,14 @@ const FinanceCharts = (() => {
           year: 'numeric',
           timeZone: 'UTC',
         }).format(new Date(value + 'T00:00:00Z'))
-      : value || '';
+      : /^\d{4}-\d{2}(?:$| ·)/.test(value || '')
+        ? new Intl.DateTimeFormat('es-ES', {
+            month: 'short',
+            year: 'numeric',
+            timeZone: 'UTC',
+          }).format(new Date(value.slice(0, 7) + '-01T00:00:00Z')) +
+          value.slice(7)
+        : value || '';
   const tones = [
     'chart-mint',
     'chart-blue',
@@ -450,6 +457,8 @@ const FinanceCharts = (() => {
       fields = [],
       unit = 'EUR',
       xAxisTitle = '',
+      xTickRotation = 0,
+      xKey = null,
       description = '',
       emptyMessage = 'Sin datos en este periodo',
       dateRange = null,
@@ -654,7 +663,19 @@ const FinanceCharts = (() => {
               (finite(row[f.key]) ? format(row[f.key], f) : 'Sin dato'),
           )
           .join(' · ') +
-        (row.carried ? ' · Última cotización registrada' : '');
+        (row.carried
+          ? ' · VL: ' +
+            [
+              ...new Set(
+                Object.entries(row.priceDates || {})
+                  .filter(([id, date]) => date && row.productValues?.[id] > 0)
+                  .map(([, date]) => date),
+              ),
+            ]
+              .sort()
+              .map(dateLabel)
+              .join(' / ')
+          : '');
       if (guide && geometry) {
         const x = geometry.x(cursor);
         guide.setAttribute('x1', x);
@@ -683,7 +704,7 @@ const FinanceCharts = (() => {
             Math.min(700, window.innerWidth - 56),
         ),
       );
-      const height = 260,
+      const height = xTickRotation ? 320 : 260,
         left = 64,
         right = width - 18,
         top = 18,
@@ -737,6 +758,7 @@ const FinanceCharts = (() => {
           : hi + span * 0.08;
       const y = (v) => bottom - ((v - min) / (max - min || 1)) * (bottom - top);
       const time = (r, i) => {
+        if (xKey && finite(r[xKey])) return r[xKey];
         const n = Date.parse((r.date || '') + 'T00:00:00Z');
         return Number.isFinite(n) ? n : i;
       };
@@ -764,7 +786,8 @@ const FinanceCharts = (() => {
                 : fraction <= 5
                   ? 5
                   : 10) * power;
-      const step = unit === 'count' ? Math.max(1, niceStep) : niceStep;
+      const step =
+        unit === 'count' ? Math.max(1, Math.ceil(niceStep)) : niceStep;
       const tickStart = Math.ceil(min / step) * step;
       for (let v = tickStart; v <= max + step * 0.001; v += step) {
         graph.append(
@@ -828,8 +851,17 @@ const FinanceCharts = (() => {
       const labelWidth =
         Math.max(...rows.map((row) => tickLabel(row).length)) * 6;
       const count = Math.min(
-        width < 360 ? 2 : width < 480 ? 3 : 5,
-        Math.max(2, Math.floor((right - left) / (labelWidth + 16))),
+        xTickRotation
+          ? Math.max(2, Math.floor((right - left) / 60))
+          : width < 360
+            ? 2
+            : width < 480
+              ? 3
+              : 5,
+        Math.max(
+          2,
+          Math.floor((right - left) / (xTickRotation ? 60 : labelWidth + 16)),
+        ),
         rows.length,
       );
       const ticks = new Set(
@@ -844,13 +876,18 @@ const FinanceCharts = (() => {
             {
               x: x(i),
               y: 240,
-              'text-anchor': bars
-                ? 'middle'
-                : i === 0
-                  ? 'start'
-                  : i === rows.length - 1
-                    ? 'end'
-                    : 'middle',
+              ...(xTickRotation
+                ? { transform: `rotate(${xTickRotation} ${x(i)} 240)` }
+                : {}),
+              'text-anchor': xTickRotation
+                ? 'end'
+                : bars
+                  ? 'middle'
+                  : i === 0
+                    ? 'start'
+                    : i === rows.length - 1
+                      ? 'end'
+                      : 'middle',
               class: 'chart-axis chart-x-tick',
             },
             tickLabel(rows[i]),
@@ -862,7 +899,7 @@ const FinanceCharts = (() => {
             'text',
             {
               x: right,
-              y: 257,
+              y: xTickRotation ? 311 : 257,
               'text-anchor': 'end',
               class: 'chart-axis axis-title',
             },
@@ -894,7 +931,11 @@ const FinanceCharts = (() => {
                 width: Math.max(2, w - 1),
                 height: Math.max(1, Math.abs(y(r[f.key]) - y(0))),
                 rx: 2,
-                class: tone,
+                class: tones
+                  .concat(['chart-city', 'chart-unclassified'])
+                  .includes(r.tone)
+                  ? r.tone
+                  : tone,
               });
               b.append(
                 svg(

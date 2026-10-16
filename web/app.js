@@ -217,7 +217,27 @@ function savedTheme() {
   }
 }
 function applyTheme(theme) {
+  if (
+    ![
+      'system',
+      'light',
+      'dark',
+      'warm',
+      'ocean',
+      'forest',
+      'slate',
+      'lavender',
+      'solar',
+    ].includes(theme)
+  )
+    theme = 'system';
   document.documentElement.dataset.theme = theme;
+  const background = getComputedStyle(document.documentElement)
+    .getPropertyValue('--bg')
+    .trim();
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute('content', background);
   if (themeSelect) themeSelect.value = theme;
 }
 applyTheme(savedTheme());

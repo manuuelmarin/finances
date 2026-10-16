@@ -86,7 +86,9 @@ const FinanceInsights = (() => {
       .sort((a, b) => a.month.localeCompare(b.month))
       .map((r) => ({ ...r, date: `${r.month}-01`, label: r.month }));
   }
-  function expenseHistogram(rows) {
+  function expenseHistogram(rows, binWidth = null) {
+    if (binWidth !== null && ![5, 10, 20, 50, 100].includes(binWidth))
+      throw new RangeError('Unsupported histogram interval');
     const cents = rows
       .filter(
         (r) =>
@@ -112,17 +114,20 @@ const FinanceInsights = (() => {
         if (Number.isInteger(width)) niceWidths.push(width);
       }
     const width =
-      niceWidths
-        .sort((a, b) => a - b)
-        .find((candidate) => candidate >= targetWidth) ||
-      Math.ceil(targetWidth);
+      binWidth === null
+        ? niceWidths
+            .sort((a, b) => a - b)
+            .find((candidate) => candidate >= targetWidth) ||
+          Math.ceil(targetWidth)
+        : Math.round(binWidth * 100);
     const firstLow = Math.floor(min / width) * width;
     const lastLow = Math.floor(max / width) * width;
     const bins = new Map();
-    for (let low = firstLow; low <= lastLow; low += width) bins.set(low, 0);
+    if ((lastLow - firstLow) / width <= 400)
+      for (let low = firstLow; low <= lastLow; low += width) bins.set(low, 0);
     for (const value of cents) {
       const low = Math.floor(value / width) * width;
-      bins.set(low, bins.get(low) + 1);
+      bins.set(low, (bins.get(low) || 0) + 1);
     }
     const currency = new Intl.NumberFormat('es-ES', {
       style: 'currency',
@@ -133,13 +138,16 @@ const FinanceInsights = (() => {
     const axisNumber = new Intl.NumberFormat('es-ES', {
       maximumFractionDigits: 2,
     });
-    return [...bins].map(([low, count]) => ({
-      low: low / 100,
-      high: (low + width) / 100,
-      value: count,
-      axisLabel: `${axisNumber.format(low / 100)}–<${axisNumber.format((low + width) / 100)}`,
-      label: `${currency.format(low / 100)}–<${currency.format((low + width) / 100)}`,
-    }));
+    return [...bins]
+      .sort(([a], [b]) => a - b)
+      .map(([low, count]) => ({
+        x: low / 100,
+        low: low / 100,
+        high: (low + width) / 100,
+        value: count,
+        axisLabel: `${axisNumber.format(low / 100)}–<${axisNumber.format((low + width) / 100)}`,
+        label: `${currency.format(low / 100)}–<${currency.format((low + width) / 100)}`,
+      }));
   }
   return { spendingMovements, monthlyFlows, expenseHistogram };
 })();

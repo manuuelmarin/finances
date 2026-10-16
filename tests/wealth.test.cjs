@@ -202,3 +202,72 @@ test('treats an empty investment portfolio as zero', () => {
     80,
   );
 });
+
+test('four simultaneous wealth comparisons reuse the same investment observations', () => {
+  let calls = 0;
+  const analytics = {
+    ...FinanceAnalytics,
+    investmentTimeline: (...args) => {
+      calls++;
+      return FinanceAnalytics.investmentTimeline(...args);
+    },
+  };
+  const results = FinanceWealth.comparisons(fixture(), analytics);
+  assert.deepEqual(
+    results.map((row) => row.months),
+    [1, 3, 6, 12],
+  );
+  assert.equal(calls, 1);
+  assert.equal(results[0].current, 92);
+  assert.equal(results[1].pct, null);
+});
+
+test('account comparisons use preceding complete daily moving averages and allow zero balances', () => {
+  const s = {
+    settings: { start: '2026-01-01', asof: '2026-02-01' },
+    tables: {
+      tCuentas: [{ Cuenta: 'A', 'Saldo inicial': 0, 'Saldo calculado': 70 }],
+      tMovimientos: [
+        { Fecha: '2026-01-31', Tipo: 'Ingreso', Destino: 'A', Importe: 140 },
+        { Fecha: '2026-02-01', Tipo: 'Gasto', Origen: 'A', Importe: 70 },
+      ],
+    },
+  };
+  const result = FinanceWealth.accountAverages(s, FinanceAnalytics)[0];
+  assert.equal(result.windows[0].average, 140);
+  assert.equal(result.windows[0].change, -70);
+  assert.equal(result.windows[1].average, 20);
+  assert.equal(result.windows[1].change, 50);
+  assert.equal(result.windows[2].average, 140 / 31);
+  assert.equal(result.windows[3].average, null);
+  s.tables.tCuentas[0]['Saldo calculado'] = 0;
+  assert.equal(
+    FinanceWealth.accountAverages(s, FinanceAnalytics)[0].windows[0].change,
+    -140,
+  );
+  s.settings.start = '2026-02-01';
+  assert.ok(
+    FinanceWealth.accountAverages(s, FinanceAnalytics)[0].windows.every(
+      (row) => row.change === null,
+    ),
+  );
+});
+
+test('account moving averages propagate unknown balances instead of averaging the known subset', () => {
+  const s = fixture();
+  s.tables.tCuentas = [
+    { Cuenta: 'A', 'Saldo inicial': 100, 'Saldo calculado': null },
+  ];
+  assert.ok(
+    FinanceWealth.accountAverages(s, FinanceAnalytics)[0].windows.every(
+      (row) => row.change === null,
+    ),
+  );
+  s.tables.tCuentas[0]['Saldo inicial'] = null;
+  s.tables.tCuentas[0]['Saldo calculado'] = 0;
+  assert.ok(
+    FinanceWealth.accountAverages(s, FinanceAnalytics)[0].windows.every(
+      (row) => row.average === null,
+    ),
+  );
+});

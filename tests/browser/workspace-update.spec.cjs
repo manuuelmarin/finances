@@ -175,3 +175,30 @@ test('@responsive configuration keeps appearance and nested activity accessible 
   await page.locator('#activity-panel > summary').click();
   await expect(page.locator('#finance-sync')).toBeVisible();
 });
+
+test('visual privacy survives a snapshot refresh and restores real empty states when revealed', async ({
+  page,
+}) => {
+  const { server } = await setup(page);
+  await navigate(page, 'connection');
+  await page.locator('#local-settings > summary').click();
+  await page
+    .getByRole('button', { name: 'Ocultar / mostrar datos', exact: true })
+    .click();
+  await navigate(page, 'accounts');
+  await expect(page.locator('#account-comparisons')).toBeHidden();
+  await page.evaluate(
+    (snapshot) => FinanceDashboard.render(snapshot, { review() {} }),
+    server.api({ action: 'read' }),
+  );
+  await expect(page.locator('#account-comparisons')).toBeHidden();
+  await navigate(page, 'home');
+  await expect(page.locator('#finance-kpis')).toBeHidden();
+  await navigate(page, 'connection');
+  await page
+    .getByRole('button', { name: 'Ocultar / mostrar datos', exact: true })
+    .click();
+  await navigate(page, 'home');
+  await expect(page.locator('#finance-kpis')).toBeVisible();
+  await expect(page.locator('#dashboard-empty')).toBeHidden();
+});

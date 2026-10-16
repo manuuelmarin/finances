@@ -665,6 +665,7 @@ const FinanceAnalytics = (() => {
     const rows = days(firstDate, lastDate).map((date) => {
       const values = [],
         capitals = [],
+        distributions = [],
         priceDates = {},
         productValues = {};
       let carried = false,
@@ -677,6 +678,7 @@ const FinanceAnalytics = (() => {
           else precisionAdjustment += t.valuationResidual;
         }
       for (const p of products) {
+        let paid = 0;
         let units =
           date >= (p['Fecha base'] || snapshot.settings.start)
             ? (p['Unidades base'] ?? 0)
@@ -704,6 +706,7 @@ const FinanceAnalytics = (() => {
                 : o.Participaciones * o.Precio +
                   (o.Tipo === 'Compra' ? fee : -fee - tax)
               : null;
+          if (o.Tipo === 'Cobro') paid = sumKnown([paid, amount]);
           const transfer = (snapshot.fundTransfers || []).find(
             (t) => t.outTradeID === o.ID || t.inTradeID === o.ID,
           );
@@ -756,6 +759,7 @@ const FinanceAnalytics = (() => {
           flowKnown = false;
         }
         capitals.push(capital);
+        distributions.push(invalidProducts.has(p.ID) ? null : paid);
         productValues[p.ID] =
           units === 0
             ? 0
@@ -794,6 +798,7 @@ const FinanceAnalytics = (() => {
       }
       const totalReturnPct = returnPct;
       if (productId) {
+        returnPct = null;
         const quote = prices
           .filter(
             (q) =>
@@ -820,6 +825,17 @@ const FinanceAnalytics = (() => {
         value,
         returnPct,
         totalReturnPct,
+        netResult:
+          finite(value) && finite(capital) && finite(sumKnown(distributions))
+            ? value - capital + sumKnown(distributions)
+            : null,
+        resultOnCapitalPct:
+          finite(value) &&
+          finite(capital) &&
+          capital > 0 &&
+          finite(sumKnown(distributions))
+            ? (100 * (value - capital + sumKnown(distributions))) / capital
+            : null,
         precisionAdjustment: productId ? 0 : precisionAdjustment,
         carried,
         priceDates,

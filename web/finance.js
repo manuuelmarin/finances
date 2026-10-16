@@ -2441,29 +2441,10 @@
     ),
   );
   let hiddenData = false;
-  const hiddenBefore = new Map();
   localSettings.append(
     button('Ocultar / mostrar datos', () => {
       hiddenData = !hiddenData;
-      for (const view of [
-        'home',
-        'book',
-        'investments',
-        'accounts',
-        'budgets',
-        'salary',
-        'goals',
-        'activity',
-      ]) {
-        for (const target of $('view-' + view)?.children || []) {
-          if (hiddenData) {
-            hiddenBefore.set(target, target.hidden);
-            target.hidden = true;
-          } else {
-            target.hidden = hiddenBefore.get(target) || false;
-          }
-        }
-      }
+      document.body.classList.toggle('private-data-hidden', hiddenData);
       status(
         hiddenData
           ? 'Datos ocultos visualmente. La copia sigue guardada sin cifrado.'

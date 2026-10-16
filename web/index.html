@@ -28,6 +28,7 @@
     <script src="charts.js" defer></script>
     <script src="insights.js" defer></script>
     <script src="wealth.js" defer></script>
+    <script src="months.js" defer></script>
     <script src="dashboard.js" defer></script>
     <script src="history.js" defer></script>
     <script src="finance.js" defer></script>
@@ -376,6 +377,12 @@
               <option value="">Cartera completa</option>
             </select></label
           ><label class="field"
+            >Medida<select id="investment-measure">
+              <option value="result">Resultado / aportación neta</option>
+              <option value="twr">Rentabilidad TWR</option>
+            </select></label
+          >
+          <label class="field"
             >Periodo<select id="investment-range">
               <option value="1m">Último mes</option>
               <option value="3m">3 meses</option>
@@ -488,33 +495,36 @@
             </button>
           </div>
         </div>
-        <label class="field"
-          >Mes de cuentas<input id="account-month" type="month"
-        /></label>
-        <p id="account-cut" class="calculator-note"></p>
-        <div id="account-comparisons" class="budget-grid"></div>
-        <div id="account-summary" class="kpi-grid analysis-kpis"></div>
-        <div data-register-slot="accounts"></div>
-        <p class="calculator-note">
-          El saldo calculado procede de tus movimientos. Una observación
-          registra el saldo que muestra el banco en una fecha para comprobar si
-          coincide; no crea un ajuste de dinero.
-        </p>
-        <section class="chart-section">
-          <h2 class="section-title">Conciliación de cuentas</h2>
-          <div id="account-charts" class="charts-grid"></div>
-          <h2 class="section-title">Previsión de caja</h2>
-          <p class="calculator-note">
-            Los pagos e ingresos previstos son supuestos, no movimientos reales.
-            Solo se convierten en registros al confirmar su realización.
+        <p id="account-balance-date" class="heading-note"></p>
+        <details class="inline-help">
+          <summary>¿Cómo se calculan las comparativas?</summary>
+          <p>
+            Saldo actual menos la media de los cierres diarios anteriores: 1
+            día, 7 días, 1 mes o 3 meses. El día del informe queda fuera de la
+            media. — indica que falta histórico; cero es un saldo válido.
           </p>
-          <button id="plan-new" type="button" class="button button-secondary">
-            Añadir pago o ingreso previsto
-          </button>
+        </details>
+        <div id="account-comparisons" class="budget-grid"></div>
+        <div data-register-slot="accounts"></div>
+        <details id="account-reconciliation" class="section-details" hidden>
+          <summary>Comprobación con saldos bancarios</summary>
+          <label class="field"
+            >Mes de cuentas<input id="account-month" type="month"
+          /></label>
+          <p id="account-cut" class="calculator-note"></p>
+          <div id="account-summary" class="kpi-grid analysis-kpis"></div>
+          <div id="account-charts" class="charts-grid"></div>
+        </details>
+        <button id="plan-new" type="button" class="button button-secondary">
+          Añadir pago o ingreso previsto
+        </button>
+        <details id="planned-panel" class="section-details">
+          <summary>Pagos e ingresos previstos</summary>
+
           <div id="planned-list" class="budget-grid"></div>
           <p id="forecast-note" class="calculator-note"></p>
           <div id="forecast-chart" class="charts-grid"></div>
-        </section>
+        </details>
       </section>
       <section
         id="view-salary"
@@ -616,11 +626,16 @@
           <div id="goal-summary" class="kpi-grid analysis-kpis"></div>
           <div id="saving-goals" class="budget-grid"></div>
           <div id="goal-charts" class="charts-grid"></div>
+          <section
+            id="emergency-fund"
+            class="emergency-fund"
+            aria-label="Fondo de emergencia"
+          ></section>
           <details id="goal-resources" class="section-details">
             <summary id="goal-resources-summary">
               Activos reservados y disponibles
             </summary>
-            <div id="goal-availability" class="budget-grid"></div>
+            <div id="goal-availability"></div>
           </details>
           <div data-register-slot="goals"></div>
         </section>
@@ -1324,6 +1339,11 @@
               <option value="light">Claro</option>
               <option value="dark">Oscuro</option>
               <option value="warm">Cálido</option>
+              <option value="ocean">Océano</option>
+              <option value="forest">Bosque</option>
+              <option value="slate">Pizarra</option>
+              <option value="lavender">Lavanda</option>
+              <option value="solar">Solar</option>
             </select></label
           >
         </section>
