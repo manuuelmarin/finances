@@ -1,5 +1,7 @@
 # Portfolio analysis and next features
 
+The canonical owner-selectable backlog is now [TODO.md](../TODO.md), with 20 individually developed specifications in [TODO/](../TODO/). The ranked discussion below provides background; use the stable TODO IDs when requesting implementation.
+
 These are proposals, not implemented features. Keep optional analysis under an Investments subview; a new top-level page is unnecessary until the scope justifies it.
 
 ## Ranked candidates
