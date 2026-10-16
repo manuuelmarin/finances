@@ -2866,3 +2866,39 @@ dialog .inline-link {
   background: var(--surface);
   color: var(--muted);
 }
+
+.portfolio-analysis-title {
+  margin-top: 2rem;
+}
+.chart-warning {
+  margin: 0 0 1rem;
+  padding: 0.8rem;
+  border-left: 3px solid var(--accent);
+  background: var(--surface);
+  color: var(--text);
+}
+.correlation-card {
+  min-width: 0;
+}
+.correlation-table {
+  table-layout: fixed;
+  min-width: 360px;
+  width: 100%;
+}
+.correlation-table th {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.correlation-table td {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.correlation-high {
+  background: color-mix(in srgb, var(--series-mint) 24%, transparent);
+}
+.correlation-low {
+  background: color-mix(in srgb, var(--series-red) 24%, transparent);
+}
+.correlation-neutral {
+  background: color-mix(in srgb, var(--series-blue) 10%, transparent);
+}

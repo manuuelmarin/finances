@@ -788,6 +788,8 @@ const FinanceDashboard = (() => {
   function renderInvestments() {
     const target = $('investment-charts');
     FinanceCharts.clear(target);
+    FinanceCharts.clear($('portfolio-analysis-charts'));
+    $('portfolio-analysis-note').textContent = '';
     $('investment-kpis').replaceChildren();
     $('investment-health').replaceChildren();
     $('prices-history-note').textContent = '';
@@ -839,13 +841,14 @@ const FinanceDashboard = (() => {
       productId: product || null,
       range,
     });
-    const chartRows =
+    const fullTimeline =
       range === 'all'
-        ? timeline.rows
+        ? timeline
         : FinanceAnalytics.investmentTimeline(current, {
             productId: product || null,
             range: 'all',
-          }).rows;
+          });
+    const chartRows = fullTimeline.rows;
     const chartRange = {
       from: timeline.coverage.selectedStartDate,
       to: timeline.coverage.selectedEndDate,
@@ -887,7 +890,7 @@ const FinanceDashboard = (() => {
     const resultMeasure = investmentMeasure === 'result';
     const navMeasure = investmentMeasure === 'nav';
     const adjustedMeasure = investmentMeasure === 'adjusted';
-    FinanceCharts.plot(target, {
+    const performance = FinanceCharts.plot(target, {
       title: resultMeasure
         ? 'Resultado sobre aportación neta'
         : navMeasure
@@ -922,8 +925,8 @@ const FinanceDashboard = (() => {
               : navMeasure
                 ? 'Variación de VL'
                 : timeline.coverage.returnStartDate
-                  ? 'TWR ajustado desde ' + timeline.coverage.returnStartDate
-                  : 'TWR ajustado',
+                  ? 'TWR exacto desde ' + timeline.coverage.returnStartDate
+                  : 'TWR exacto',
           tone: 'chart-mint',
         },
       ],
@@ -942,6 +945,31 @@ const FinanceDashboard = (() => {
                 : '') +
               'TWR ajustado entre valoraciones reales con flujos al cierre: excluye diferencias de precisión vinculadas al traspaso; el detalle muestra cada ajuste sin efectivo. Si hay aportaciones o retiradas entre cortes sin valoración, no puede calcularse: registra los VL de esos cortes. El resultado sobre aportación neta aparece arriba como una métrica distinta.',
     });
+    if (!resultMeasure && !navMeasure && !adjustedMeasure) {
+      const diagnostic = FinancePortfolio.exactDiagnostics(
+        current,
+        fullTimeline,
+        product || null,
+      );
+      if (!diagnostic.complete)
+        performance
+          .querySelector('.chart-heading')
+          .after(
+            el(
+              'p',
+              'TWR incompleto' +
+                (diagnostic.last
+                  ? ': solo hasta ' + displayDate(diagnostic.last)
+                  : '') +
+                '. Faltan valoraciones en fechas con operaciones' +
+                (diagnostic.missing.length
+                  ? ': ' + diagnostic.missing.map(displayDate).join(', ')
+                  : '') +
+                '.',
+              'chart-warning',
+            ),
+          );
+    }
     if (product)
       FinanceCharts.plot(target, {
         title: 'Rentabilidad total con distribuciones',
@@ -974,6 +1002,253 @@ const FinanceDashboard = (() => {
           'Peso sobre el valor de mercado conocido, al corte de valoración.',
       });
     $('prices-history-note').textContent = '';
+    renderPortfolioAnalysis(fullTimeline, chartRange);
+  }
+  function renderPortfolioAnalysis(timeline, bounds) {
+    const target = $('portfolio-analysis-charts');
+    const analysis = FinancePortfolio.analyze(current, timeline, {
+      productId: product || null,
+      ...bounds,
+    });
+    const scope = product
+      ? (current.tables.tProductos || []).find((p) => p.ID === product)
+          ?.Producto
+      : 'Cartera';
+    $('portfolio-analysis-note').textContent = analysis.opening
+      ? scope +
+        ' · ' +
+        displayDate(analysis.opening) +
+        ' – ' +
+        displayDate(analysis.ending)
+      : 'Sin valoraciones completas en el periodo.';
+    const tir = FinanceCharts.plot(target, {
+      title: 'TIR anualizada',
+      rows: analysis.xirrRows,
+      unit: '%',
+      fields: [{ key: 'value', label: 'TIR anualizada', tone: 'chart-blue' }],
+      description:
+        'Rentabilidad personal: pondera cuánto dinero aportaste y cuándo. XIRR con fechas reales y año de 365 días. Compras negativas, ventas y cobros netos positivos, más el valor final. Los traspasos internos no son aportaciones a la cartera. En periodos posteriores al inicio usa el valor de mercado inicial, no el coste de compra. No anualiza menos de 30 días. Con varios cambios de signo no elige una raíz arbitraria.',
+      emptyMessage:
+        'TIR no disponible: requiere al menos 30 días y flujos con una solución única.',
+    });
+    const last = analysis.xirrRows.at(-1);
+    tir
+      .querySelector('.chart-heading')
+      .after(
+        el(
+          'p',
+          known(last?.value)
+            ? percentage.format(last.value) +
+                ' % anual · a ' +
+                displayDate(last.date)
+            : last?.status === 'nonconventional'
+              ? 'Sin TIR única acreditada: hay varios cambios de signo en los flujos.'
+              : 'Sin TIR calculable al último corte.',
+          'chart-description',
+        ),
+      );
+    const flowDetails = el('details', undefined, 'chart-data');
+    flowDetails.append(el('summary', 'Flujos de la TIR al último corte'));
+    const flowWrap = el('div', undefined, 'table-responsive');
+    const flowTable = el('table', undefined, 'chart-table');
+    const flowHead = el('tr');
+    flowHead.append(el('th', 'Fecha'), el('th', 'Importe'));
+    flowTable.append(flowHead);
+    const ending = timeline.rows.find((r) => r.date === analysis.ending);
+    for (const f of [
+      ...analysis.flows,
+      ...(ending ? [{ date: ending.date, amount: ending.value }] : []),
+    ]) {
+      const tr = el('tr');
+      tr.append(
+        el('td', displayDate(f.date)),
+        el('td', known(f.amount) ? amount(f.amount) : 'Sin dato'),
+      );
+      flowTable.append(tr);
+    }
+    flowWrap.append(flowTable);
+    flowDetails.append(flowWrap);
+    tir.append(flowDetails);
+    const dd = FinanceCharts.plot(target, {
+      title: 'Caídas desde máximos',
+      rows: analysis.drawdowns.rows,
+      unit: '%',
+      fields: [
+        { key: 'drawdown', label: 'Caída', tone: 'chart-red', area: true },
+      ],
+      description:
+        'Caída del índice de rentabilidad ajustada estimada frente a su máximo previo dentro del periodo seleccionado. Las aportaciones no crean máximos artificiales. Se calcula solo en valoraciones completas; puede omitir caídas entre cotizaciones. Usa la misma estimación Dietz del gráfico principal.',
+    });
+    const max = analysis.drawdowns.max;
+    if (max)
+      dd.querySelector('.chart-heading').after(
+        el(
+          'p',
+          'Máxima: ' +
+            percentage.format(max.value) +
+            ' %' +
+            (max.value < 0
+              ? ' · ' +
+                displayDate(max.peak) +
+                ' → ' +
+                displayDate(max.trough) +
+                (analysis.drawdowns.recovery
+                  ? ' · recuperada el ' +
+                    displayDate(analysis.drawdowns.recovery)
+                  : ' · sin recuperar al corte')
+              : ''),
+          'chart-description',
+        ),
+      );
+    FinanceCharts.plot(target, {
+      title: 'Tiempo bajo máximos',
+      rows: analysis.drawdowns.rows,
+      unit: 'Días',
+      fields: [
+        {
+          key: 'underwaterDays',
+          unit: 'count',
+          label: 'Días desde el máximo',
+          tone: 'chart-lilac',
+        },
+      ],
+      description:
+        'Días naturales desde el último máximo de rentabilidad ajustada estimada. Vuelve a cero cuando lo recupera. Se reinicia al comienzo del periodo seleccionado.',
+    });
+    FinanceCharts.plot(target, {
+      title: 'Contribución al resultado',
+      rows: analysis.contributions,
+      fields: [
+        {
+          key: 'value',
+          label: 'Resultado por fondo',
+          shape: 'bar',
+          tone: 'chart-mint',
+        },
+      ],
+      description:
+        'Euros de resultado de cada fondo en el periodo: valor final − valor inicial − compras + ventas + cobros netos. Desde el origen el valor inicial es cero; en otro periodo se usa el valor de mercado de apertura. Los traspasos son flujos de cada fondo y se cancelan en la cartera. No es la cantidad aportada ni una atribución porcentual del TWR.',
+    });
+    const risk = analysis.risk;
+    const sample =
+      risk.count >= 12
+        ? risk.count +
+          ' rendimientos semanales · ' +
+          displayDate(risk.from) +
+          ' – ' +
+          displayDate(risk.to) +
+          (risk.short ? ' · muestra corta; provisional' : '')
+        : 'Histórico insuficiente: se necesitan 12 rendimientos semanales comparables.';
+    const vol = FinanceCharts.plot(target, {
+      title: 'Volatilidad anualizada',
+      rows: risk.volatility,
+      unit: '%',
+      fields: [
+        {
+          key: 'value',
+          label: 'Volatilidad',
+          shape: 'bar',
+          tone: 'chart-gold',
+        },
+      ],
+      emptyMessage: 'Sin una muestra suficiente de cotizaciones comunes.',
+      description:
+        'Desviación típica muestral de rendimientos semanales × √52. Último VL real común de cada semana completa, en EUR; se omiten semanas sin datos y no se conectan huecos. Misma muestra para todos los fondos incluidos. Los VL no incluyen distribuciones en efectivo. La cartera utiliza su índice ajustado estimado. De 12 a 51 observaciones es provisional; no predice pérdidas futuras.',
+    });
+    vol
+      .querySelector('.chart-heading')
+      .after(
+        el(
+          'p',
+          sample +
+            (risk.excluded.length
+              ? ' · Sin muestra: ' + risk.excluded.join(', ')
+              : ''),
+          'chart-description',
+        ),
+      );
+    const matrix = el('article', undefined, 'chart-card correlation-card');
+    matrix.append(
+      el('h3', 'Correlación entre fondos'),
+      el('p', sample, 'chart-description'),
+    );
+    matrix.append(
+      el(
+        'p',
+        'VL en EUR · −1: opuestos · 0: sin relación lineal · +1: juntos.',
+        'chart-description',
+      ),
+    );
+    if (risk.products.length < 2 || risk.count < 12)
+      matrix.append(
+        el(
+          'p',
+          'Se necesitan dos fondos con histórico común suficiente.',
+          'empty-state',
+        ),
+      );
+    else {
+      const wrap = el('div', undefined, 'table-responsive');
+      const table = el('table', undefined, 'chart-table correlation-table');
+      table.append(
+        el(
+          'caption',
+          'Correlación de Pearson sobre la misma muestra semanal de VL. No incluye distribuciones en efectivo.',
+        ),
+      );
+      const head = el('tr');
+      head.append(el('th', 'Fondo'));
+      for (const p of risk.products) {
+        const th = el('th', p.Producto);
+        th.scope = 'col';
+        head.append(th);
+      }
+      const thead = el('thead');
+      thead.append(head);
+      table.append(thead);
+      const tbody = el('tbody');
+      for (const p of risk.products) {
+        const tr = el('tr');
+        const th = el('th', p.Producto);
+        th.scope = 'row';
+        tr.append(th);
+        for (const q of risk.products) {
+          const pair = risk.correlations.find(
+            (r) =>
+              (r.a === p.ID && r.b === q.ID) || (r.b === p.ID && r.a === q.ID),
+          );
+          const value =
+            p.ID === q.ID
+              ? FinancePortfolio.correlation(
+                  risk.observations.map(
+                    (o) => o.values[risk.products.indexOf(p)],
+                  ),
+                  risk.observations.map(
+                    (o) => o.values[risk.products.indexOf(p)],
+                  ),
+                )
+              : pair?.value;
+          tr.append(
+            el(
+              'td',
+              known(value) ? percentage.format(value) : 'Sin dato',
+              known(value)
+                ? value > 0.6
+                  ? 'correlation-high'
+                  : value < -0.6
+                    ? 'correlation-low'
+                    : 'correlation-neutral'
+                : '',
+            ),
+          );
+        }
+        tbody.append(tr);
+      }
+      table.append(tbody);
+      wrap.append(table);
+      matrix.append(wrap);
+    }
+    target.append(matrix);
   }
   function renderPriceCoverage(coverage) {
     const target = $('investment-health');

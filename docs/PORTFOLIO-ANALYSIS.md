@@ -2,7 +2,7 @@
 
 The canonical owner-selectable backlog is now [TODO.md](../TODO.md), with 20 individually developed specifications in [TODO/](../TODO/). The ranked discussion below provides background; use the stable TODO IDs when requesting implementation.
 
-These are proposals, not implemented features. Keep optional analysis under an Investments subview; a new top-level page is unnecessary until the scope justifies it.
+XIRR, drawdown/recovery, volatility/correlation and euro profit contributions are now implemented as simultaneous panels below the investment charts; see [methodology](PORTFOLIO-METRICS.md). Other candidates remain proposals. Keep optional analysis under an Investments subview; a new top-level page is unnecessary until the scope justifies it.
 
 ## Ranked candidates
 
@@ -41,7 +41,7 @@ Fund domicile is not investment exposure. An EUR share class does not establish 
 
 Use verified NAV/total-return observations for fund risk and a flow-adjusted return series for portfolio risk. Do not calculate volatility from market value, which changes with contributions, or correlation between price levels.
 
-An initial product eligibility rule could require 52 aligned weekly return observations for volatility/correlation. This is a proposed threshold, not a guarantee of statistical precision. Shorter or incompatible histories should show unavailable results. Reconcile share-class currency, distributions and stale observations first.
+The implemented eligibility rule requires 12 aligned weekly returns and explicitly marks 12–51 as provisional. Fewer than 12 or incompatible histories show unavailable results. A 52-observation sample is not a guarantee of statistical precision. Reconcile share-class currency, distributions and stale observations first.
 
 Useful displays: a drawdown area, a correlation matrix and a compact risk/return table under Analysis.
 

@@ -1,5 +1,7 @@
 # Release acceptance and cutover
 
+The [portfolio analytics update](PORTFOLIO-METRICS.md) adds six simultaneous panels below the investment charts and a visible incomplete-exact-TWR diagnostic. Confirm product/period filters, annualized TIR inputs, euro-profit reconciliation, drawdown/recovery and the common weekly risk sample with its short-history note. This update changes no Apps Script files or schema and preserves test binding. Native test-book formula validation and scoped principal historical reconciliation are separate from Pages publication and private-backend activation.
+
 The [period and return-chart follow-up](PERIODS-AND-RETURNS-2026-10-16.md) requires only a Pages/PWA update. Accept it with consecutive-month and exact-day filters, ticket arrows, category close/reopen, collapsed fund provenance and both adjusted-return charts. Confirm the estimate is labeled and exact TWR remains separately selectable. No Google files or financial rows change.
 
 The [2026-10-16 frontend follow-up](FEEDBACK-CLOSURE-2026-10-16.md) adds a focused visual acceptance and confirms the remaining principal aggregation-range and GitHub required-check tasks. That follow-up changes no Google files.
