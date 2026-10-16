@@ -858,7 +858,7 @@ test('TWR identifica la primera valoración real cuando falta el rendimiento ant
   const performance = page.locator('#investment-charts .chart-card').nth(1);
   await expect(
     performance.getByRole('button', {
-      name: 'TWR ajustado desde 2026-02-02',
+      name: 'TWR exacto desde 2026-02-02',
       exact: true,
     }),
   ).toBeVisible();
@@ -1637,4 +1637,122 @@ test('performance result crosses the year boundary while unavailable exact TWR s
   await expect(performance.locator('.chart-readout')).toContainText('Sin dato');
   await page.locator('#investment-measure').selectOption('result');
   await expect(performance.locator('.chart-readout')).toContainText('14,29 %');
+});
+
+test('@responsive portfolio analytics stay visible together below existing charts and follow product/period filters', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  seed.settings.valuation = seed.settings.asof = '2026-04-15';
+  seed.tables.tPrecios = [];
+  for (let i = 0; i < 15; i++) {
+    const date = new Date(Date.parse('2026-01-02') + i * 7 * 86400000)
+      .toISOString()
+      .slice(0, 10);
+    for (const [j, p] of seed.tables.tProductos.entries())
+      seed.tables.tPrecios.push({
+        Producto: p.ID,
+        Fecha: date,
+        'VL EUR': 100 + i * i * (j + 1),
+      });
+  }
+  await setup(page, seed);
+  await navigate(page, 'investments');
+  const panel = page.locator('#portfolio-analysis-charts');
+  await expect(panel.locator('.chart-card')).toHaveCount(6);
+  for (const title of [
+    'TIR anualizada',
+    'Caídas desde máximos',
+    'Tiempo bajo máximos',
+    'Contribución al resultado',
+    'Volatilidad anualizada',
+    'Correlación entre fondos',
+  ])
+    await expect(
+      panel.getByRole('heading', { name: title, exact: true }),
+    ).toBeVisible();
+  await expect(page.locator('#investment-measure option')).toHaveCount(3);
+  await expect(panel.locator('.correlation-table tbody tr')).toHaveCount(2);
+  await expect(panel).toContainText('muestra corta; provisional');
+  const tir = panel.locator('.chart-card').filter({
+    has: page.getByRole('heading', { name: 'TIR anualizada', exact: true }),
+  });
+  await tir
+    .getByText('Flujos de la TIR al último corte', { exact: true })
+    .click();
+  await expect(tir.locator('.chart-table').last()).toContainText('1/2/2026');
+  await page.locator('#investment-measure').selectOption('twr');
+  await expect(page.locator('#investment-charts .chart-warning')).toContainText(
+    'TWR incompleto',
+  );
+  await expect(page.locator('#investment-charts .chart-warning')).toContainText(
+    '1/2/2026',
+  );
+  await expect(panel.locator('.chart-card')).toHaveCount(6);
+  await page
+    .locator('#investment-product')
+    .selectOption(seed.tables.tProductos[1].ID);
+  await expect(page.locator('#portfolio-analysis-note')).toContainText(
+    seed.tables.tProductos[1].Producto,
+  );
+  await expect(panel).toContainText('Se necesitan dos fondos');
+  await page.locator('#investment-range').selectOption('3m');
+  await expect(panel).toContainText('Histórico insuficiente');
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth + 1,
+    ),
+  ).toBe(true);
+  await screenshot(page, 'portfolio-analysis');
+});
+
+test('@responsive calendar average returns appear below profit with inspectable partial-period returns', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  seed.tables.tProductos = [
+    {
+      ID: 'PARTIAL',
+      Producto: 'Fondo parcial ficticio',
+      'Fecha base': '2025-04-22',
+      'Unidades base': 10,
+      'Coste base': 100,
+    },
+  ];
+  seed.tables.tOperaciones = [];
+  seed.tables.tPrecios = [
+    ['2025-04-22', 10],
+    ['2025-04-30', 11],
+    ['2025-05-31', 12.1],
+    ['2025-12-31', 13.2],
+    ['2026-01-31', 14.52],
+    ['2026-02-14', 13.068],
+  ].map(([Fecha, price]) => ({ Producto: 'PARTIAL', Fecha, 'VL EUR': price }));
+  seed.settings.asof = seed.settings.valuation = '2026-02-14';
+  await setup(page, seed);
+  await navigate(page, 'investments');
+  const averages = page.locator('#investment-average-returns');
+  await expect(averages.locator('.kpi')).toHaveCount(2);
+  await expect(
+    averages.locator('.kpi').first().locator('.kpi-value'),
+  ).toHaveText('5 %');
+  await expect(
+    averages.locator('.kpi').last().locator('.kpi-value'),
+  ).toHaveText('15,5 %');
+  await expect(averages).toContainText('incluye periodos parciales');
+  await averages.locator('summary').click();
+  await expect(
+    averages.locator('table').last().locator('tbody tr'),
+  ).toHaveCount(2);
+  await expect(averages.locator('table').last()).toContainText('22/4/2025');
+  await expect(averages.locator('table').last()).toContainText('-1 %');
+  await page.locator('#investment-measure').selectOption('twr');
+  await expect(
+    averages.locator('.kpi').last().locator('.kpi-value'),
+  ).toHaveText('15,5 %');
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth + 1,
+    ),
+  ).toBe(true);
 });

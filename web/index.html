@@ -25,6 +25,7 @@
     <script src="domain.js" defer></script>
     <script src="queue.js" defer></script>
     <script src="analytics.js" defer></script>
+    <script src="portfolio.js" defer></script>
     <script src="charts.js" defer></script>
     <script src="insights.js" defer></script>
     <script src="wealth.js" defer></script>
@@ -398,6 +399,10 @@
           </div>
         </div>
         <div id="investment-kpis" class="kpi-grid investment-kpis"></div>
+        <div
+          id="investment-average-returns"
+          class="investment-average-returns"
+        ></div>
         <div class="analysis-controls">
           <label class="field"
             >Selección<select id="investment-product">
@@ -476,6 +481,11 @@
             <div id="investment-health" class="budget-grid"></div>
           </details>
           <div id="investment-charts" class="charts-grid"></div>
+          <h2 class="section-title portfolio-analysis-title">
+            Análisis de la inversión
+          </h2>
+          <p id="portfolio-analysis-note" class="calculator-note"></p>
+          <div id="portfolio-analysis-charts" class="charts-grid"></div>
         </section>
       </section>
       <section

@@ -16,6 +16,7 @@ const assets = [
   'history.js',
   'history-template.csv',
   'analytics.js',
+  'portfolio.js',
   'insights.js',
   'wealth.js',
   'months.js',

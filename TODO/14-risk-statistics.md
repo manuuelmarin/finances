@@ -1,6 +1,6 @@
 # 14. Volatility and correlation with coverage gates
 
-Status: **Proposed — awaiting owner selection.** This document authorizes no implementation or financial write.
+Status: **Selected by the owner; implemented in the portfolio-analysis branch.** See [implemented methodology and verification](../docs/PORTFOLIO-METRICS.md). Publication is a separate release step.
 
 Priority: **Medium** · Relative effort: **Medium–high**. Estimates describe the current Sheets/Apps Script/PWA architecture, not delivery dates.
 
@@ -14,7 +14,7 @@ Investments → Analysis. Show annualized volatility, sample period/frequency an
 
 ## Data and calculation contract
 
-Calculate returns, not price-level correlations or balance volatility. Align effective dates, share-class currencies and distribution conventions. Start with 52 aligned weekly returns as a proposed eligibility rule; document annualization and missing-data policy.
+Calculate returns, not price-level correlations or balance volatility. Align effective dates, share-class currencies and distribution conventions. The implemented rule requires 12 common weekly returns, flags 12–51 as provisional and uses 52 as a coverage milestone; document annualization and missing-data policy.
 
 ## Scope, prerequisites and exclusions
 
@@ -33,7 +33,7 @@ Stale carried prices suppress measured volatility. Different pairwise samples ca
 
 ## Rollout
 
-Implement only after the owner selects this numbered proposal. Add focused synthetic calculation and browser checks, run the existing financial-flow regressions, and demonstrate the result on the test book. Identify any required Google files and schema migration before publication. Preserve the private review/confirmation, book binding and retry protections.
+Owner selection is recorded; use the implemented methodology and release checklist for acceptance. Add focused synthetic calculation and browser checks, run the existing financial-flow regressions, and demonstrate the result on the test book. Identify any required Google files and schema migration before publication. Preserve the private review/confirmation, book binding and retry protections.
 
 ## Primary reference
 

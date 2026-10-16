@@ -76,6 +76,7 @@ module.exports = [
         ScriptApp: 'readonly',
         FinanceDomain: 'readonly',
         FinanceAnalytics: 'readonly',
+        FinancePortfolio: 'readonly',
         FinanceInsights: 'readonly',
         FinanceWealth: 'readonly',
         FinanceCharts: 'readonly',

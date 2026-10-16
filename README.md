@@ -14,8 +14,9 @@ For a new setup, start with the [blank model 3 workbook](templates/finances-mode
 
 ## Documentation
 
-- [20 proposed improvements](TODO.md) — individually numbered specifications, pending owner selection.
+- [20 proposed improvements](TODO.md) — stable proposal IDs; 12–14 selected and implemented.
 
+- [Portfolio metrics](docs/PORTFOLIO-METRICS.md) — TIR, drawdown, profit contributions, volatility and correlation.
 - [Workbook compatibility](docs/WORKBOOK.md) — required Sheets structure, formulas, and safe anonymized setup.
 - [Google module map](apps-script/README.md) · [Owner acceptance checklist](docs/RELEASE-CHECKLIST.md).
 - [Development](docs/DEVELOPMENT.md) — setup, checks and generated files.

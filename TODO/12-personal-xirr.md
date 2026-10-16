@@ -1,6 +1,6 @@
 # 12. Personal money-weighted return (XIRR)
 
-Status: **Proposed — awaiting owner selection.** This document authorizes no implementation or financial write.
+Status: **Selected by the owner; implemented in the portfolio-analysis branch.** See [implemented methodology and verification](../docs/PORTFOLIO-METRICS.md). Publication is a separate release step.
 
 Priority: **High** · Relative effort: **Medium**. Estimates describe the current Sheets/Apps Script/PWA architecture, not delivery dates.
 
@@ -33,7 +33,7 @@ No solution, multiple roots, a terminal valuation before a flow or short periods
 
 ## Rollout
 
-Implement only after the owner selects this numbered proposal. Add focused synthetic calculation and browser checks, run the existing financial-flow regressions, and demonstrate the result on the test book. Identify any required Google files and schema migration before publication. Preserve the private review/confirmation, book binding and retry protections.
+Owner selection is recorded; use the implemented methodology and release checklist for acceptance. Add focused synthetic calculation and browser checks, run the existing financial-flow regressions, and demonstrate the result on the test book. Identify any required Google files and schema migration before publication. Preserve the private review/confirmation, book binding and retry protections.
 
 ## Primary reference
 
