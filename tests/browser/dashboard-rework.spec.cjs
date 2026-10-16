@@ -1788,7 +1788,7 @@ test('@responsive monthly return bars exclude deposits and use green for gains a
     ['2025-01-01', 10],
     ['2025-01-31', 10],
     ['2025-02-28', 11],
-    ['2025-03-31', 9.9],
+    ['2025-03-31', 10.89],
   ].map(([Fecha, price]) => ({ Producto: 'FLOW', Fecha, 'VL EUR': price }));
   await setup(page, seed);
   await navigate(page, 'investments');
@@ -1806,7 +1806,7 @@ test('@responsive monthly return bars exclude deposits and use green for gains a
   await expect(rows.nth(0)).toContainText('2025-01');
   await expect(rows.nth(0)).toContainText('0 %');
   await expect(rows.nth(1)).toContainText('10 %');
-  await expect(rows.nth(2)).toContainText('-10 %');
+  await expect(rows.nth(2)).toContainText('-1 %');
   await page.locator('#investment-measure').selectOption('twr');
   await expect(chart.locator('.chart-table tbody tr').first()).toContainText(
     '0 %',
@@ -1816,5 +1816,12 @@ test('@responsive monthly return bars exclude deposits and use green for gains a
       () => document.documentElement.scrollWidth <= innerWidth + 1,
     ),
   ).toBe(true);
+  expect(
+    await chart
+      .locator('.chart-axis')
+      .evaluateAll((nodes) =>
+        nodes.some((n) => /^-0(?:[,.]0+)?$/.test(n.textContent.trim())),
+      ),
+  ).toBe(false);
   await screenshot(page, 'monthly-return-bars');
 });
