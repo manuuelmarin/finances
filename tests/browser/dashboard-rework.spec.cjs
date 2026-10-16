@@ -332,6 +332,18 @@ test('@responsive checklist filtra categorías; salario y cuentas mantienen sus 
   await expect(salaryCharts.nth(1).locator('.chart-readout')).toContainText(
     '25 %',
   );
+  const firstSalary = await salaryCharts.nth(0).boundingBox();
+  const secondSalary = await salaryCharts.nth(1).boundingBox();
+  if (page.viewportSize().width >= 1000) {
+    expect(Math.abs(firstSalary.y - secondSalary.y)).toBeLessThan(2);
+    expect(secondSalary.x).toBeGreaterThanOrEqual(
+      firstSalary.x + firstSalary.width,
+    );
+  } else {
+    expect(secondSalary.y).toBeGreaterThanOrEqual(
+      firstSalary.y + firstSalary.height,
+    );
+  }
   await screenshot(page, 'salary');
   await navigate(page, 'accounts');
   await expect(page.locator('#account-charts .chart-card')).toHaveCount(1);

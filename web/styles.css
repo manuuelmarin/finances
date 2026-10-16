@@ -565,12 +565,8 @@ html[data-book-state='loading'] .app-status {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
-#dashboard-charts .chart-card:first-child,
 #investment-charts .chart-card:first-child {
   grid-column: 1 / -1;
-}
-#salary-charts {
-  grid-template-columns: 1fr;
 }
 .chart-card {
   background: var(--surface);
@@ -1994,13 +1990,6 @@ dialog .inline-link {
 }
 #dashboard-charts .chart-card:last-child {
   grid-column: 1/-1;
-}
-#investment-charts .chart-card:first-child {
-  grid-column: 1/-1;
-}
-#salary-saving-charts {
-  grid-template-columns: 1fr;
-  margin-top: 20px;
 }
 .chart-description {
   font-size: 0.78rem;
