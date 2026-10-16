@@ -850,7 +850,8 @@ const FinanceDashboard = (() => {
             range: 'all',
           });
     const chartRows = fullTimeline.rows;
-    renderAverageReturns(chartRows);
+    const series = FinancePortfolio.returnSeries(fullTimeline);
+    renderAverageReturns(series.rows, series.estimated);
     const chartRange = {
       from: timeline.coverage.selectedStartDate,
       to: timeline.coverage.selectedEndDate,
@@ -879,10 +880,14 @@ const FinanceDashboard = (() => {
         productName +
         ' · aportaciones en escalera y valor con último VL registrado. No se interpolan cotizaciones.',
     });
+    if (!series.estimated && investmentMeasure === 'adjusted')
+      investmentMeasure = 'twr';
     investmentMeasure = selectOptions(
       'investment-measure',
       [
-        ['adjusted', 'Rentabilidad ajustada (estimada)'],
+        ...(series.estimated
+          ? [['adjusted', 'Rentabilidad ajustada (estimada)']]
+          : []),
         ['result', 'Resultado / aportación neta'],
         ['twr', 'TWR exacto'],
         ...(product ? [['nav', 'Variación del valor liquidativo']] : []),
@@ -972,23 +977,6 @@ const FinanceDashboard = (() => {
             ),
           );
     }
-    if (product)
-      FinanceCharts.plot(target, {
-        title: 'Rentabilidad total con distribuciones',
-        rows: chartRows.filter((r) => known(r.adjustedReturnPct)),
-        dateRange: chartRange,
-        unit: '%',
-        fields: [
-          {
-            key: 'adjustedReturnPct',
-            label: 'Rentabilidad total (estimada)',
-            tone: 'chart-gold',
-            connectGaps: true,
-          },
-        ],
-        description:
-          'Estimación con Dietz modificado entre valoraciones reales, con flujos al cierre. Incluye una sola vez los cobros netos de comisión y retención. La variación de VL y el TWR exacto se consultan por separado.',
-      });
     const positions = (current.tables.tProductos || [])
       .filter((p) => !product || p.ID === product)
       .map((p) => ({
@@ -1004,9 +992,13 @@ const FinanceDashboard = (() => {
           'Peso sobre el valor de mercado conocido, al corte de valoración.',
       });
     $('prices-history-note').textContent = '';
-    renderPortfolioAnalysis(fullTimeline, chartRange);
+    renderPortfolioAnalysis(
+      { ...fullTimeline, rows: series.rows },
+      chartRange,
+      series.estimated,
+    );
   }
-  function renderPortfolioAnalysis(timeline, bounds) {
+  function renderPortfolioAnalysis(timeline, bounds, estimated) {
     const target = $('portfolio-analysis-charts');
     const analysis = FinancePortfolio.analyze(current, timeline, {
       productId: product || null,
@@ -1039,13 +1031,17 @@ const FinanceDashboard = (() => {
       fields: [
         {
           key: 'value',
-          label: 'Rentabilidad mensual (estimada)',
+          label: estimated ? 'Rentabilidad mensual (estimada)' : 'TWR mensual',
           shape: 'bar',
           tone: 'chart-mint',
         },
       ],
       description:
-        'Cada barra muestra la rentabilidad del mes, no el cambio del saldo: (índice ajustado final / índice ajustado inicial − 1) × 100. La estimación Dietz descuenta aportaciones y retiradas; ingresar dinero sin variación de precios no genera rentabilidad. Verde para rendimientos no negativos y rojo para pérdidas. Usa los meses naturales del periodo seleccionado; el primero y el último pueden ser parciales. Se omiten periodos sin datos, sin inventar cotizaciones ni convertir ausencias en ceros.',
+        'Cada barra muestra la rentabilidad del mes: (índice final / índice inicial − 1) × 100. ' +
+        (estimated
+          ? 'Usa la estimación Dietz porque el TWR completo no está disponible. '
+          : 'Usa el TWR entre valoraciones reales, con flujos al cierre. ') +
+        'Ingresar dinero sin variación de precios no genera rentabilidad. Verde para ganancias y rojo para pérdidas. El primer y último mes pueden ser parciales; se omiten periodos sin datos.',
       emptyMessage:
         'Sin dos valoraciones que permitan medir una rentabilidad mensual en este periodo.',
     });
@@ -1105,7 +1101,9 @@ const FinanceDashboard = (() => {
         { key: 'drawdown', label: 'Caída', tone: 'chart-red', area: true },
       ],
       description:
-        'Caída del índice de rentabilidad ajustada estimada frente a su máximo previo dentro del periodo seleccionado. Las aportaciones no crean máximos artificiales. Se calcula solo en valoraciones completas; puede omitir caídas entre cotizaciones. Usa la misma estimación Dietz del gráfico principal.',
+        'Caída del índice de rentabilidad ' +
+        (estimated ? 'estimada con Dietz' : 'TWR') +
+        ' frente a su máximo previo dentro del periodo seleccionado. Las aportaciones no crean máximos artificiales. Se calcula solo en valoraciones completas; puede omitir caídas entre cotizaciones.',
     });
     const max = analysis.drawdowns.max;
     if (max)
@@ -1141,7 +1139,9 @@ const FinanceDashboard = (() => {
         },
       ],
       description:
-        'Días naturales desde el último máximo de rentabilidad ajustada estimada. Vuelve a cero cuando lo recupera. Se reinicia al comienzo del periodo seleccionado.',
+        'Días naturales desde el último máximo de rentabilidad ' +
+        (estimated ? 'estimada con Dietz' : 'TWR') +
+        '. Vuelve a cero cuando lo recupera. Se reinicia al comienzo del periodo seleccionado.',
     });
     FinanceCharts.plot(target, {
       title: 'Contribución al resultado',
@@ -1181,7 +1181,9 @@ const FinanceDashboard = (() => {
       ],
       emptyMessage: 'Sin una muestra suficiente de cotizaciones comunes.',
       description:
-        'Desviación típica muestral de rendimientos semanales × √52. Último VL real común de cada semana completa, en EUR; se omiten semanas sin datos y no se conectan huecos. Misma muestra para todos los fondos incluidos. Los VL no incluyen distribuciones en efectivo. La cartera utiliza su índice ajustado estimado. De 12 a 51 observaciones es provisional; no predice pérdidas futuras.',
+        'Desviación típica muestral de rendimientos semanales × √52. Último VL real común de cada semana completa, en EUR; se omiten semanas sin datos y no se conectan huecos. Misma muestra para todos los fondos incluidos. Los VL no incluyen distribuciones en efectivo. La cartera utiliza su índice ' +
+        (estimated ? 'estimado con Dietz' : 'TWR') +
+        '. De 12 a 51 observaciones es provisional; no predice pérdidas futuras.',
     });
     vol
       .querySelector('.chart-heading')
@@ -1278,12 +1280,12 @@ const FinanceDashboard = (() => {
     }
     target.append(matrix);
   }
-  function renderAverageReturns(rows) {
+  function renderAverageReturns(rows, estimated) {
     const target = $('investment-average-returns');
     const cards = el('div', undefined, 'kpi-grid');
     const data = [
-      ['month', 'Media mensual (estimada)', 'meses'],
-      ['year', 'Media anual (estimada)', 'años'],
+      ['month', 'Media mensual' + (estimated ? ' (estimada)' : ''), 'meses'],
+      ['year', 'Media anual' + (estimated ? ' (estimada)' : ''), 'años'],
     ].map(([frequency, title, unit]) => {
       const result = FinancePortfolio.averageReturns(rows, frequency);
       stat(
@@ -1305,7 +1307,9 @@ const FinanceDashboard = (() => {
     details.append(
       el(
         'p',
-        'Media aritmética de las rentabilidades de cada mes o año con registros, incluidos el primero y el último aunque estén incompletos. Conserva las pérdidas con signo negativo. Usa todo el histórico del producto o cartera seleccionados, hasta su última valoración real. Se basa en la rentabilidad ajustada estimada: cada periodo es (índice final / índice inicial − 1) × 100. La media anual no anualiza años parciales ni multiplica por doce la mensual. Los periodos sin observaciones se omiten; no se rellenan con ceros.',
+        'Media aritmética de las rentabilidades de cada mes o año con registros, incluidos el primero y el último aunque estén incompletos. El TWR acumulado encadena los periodos; esta media los suma y divide entre su número, por lo que son medidas distintas. Conserva las pérdidas con signo negativo. Usa todo el histórico del producto o cartera seleccionados, hasta su última valoración real. Se basa en ' +
+          (estimated ? 'la estimación Dietz' : 'el TWR') +
+          ': cada periodo es (índice final / índice inicial − 1) × 100. La media anual no anualiza años parciales ni multiplica por doce la mensual. Los periodos sin observaciones se omiten; no se rellenan con ceros.',
       ),
     );
     for (const result of data) {

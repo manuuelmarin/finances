@@ -28,6 +28,18 @@ The earlier completion summary was too broad. Regression tests passed, but they 
 | 10. Configuration                                              | Delivered                                        | Four appearance choices and one system-check action remain. Its three checks run sequentially through one private session; individual checks are available.                                                                                                                                           |
 | Future proposals                                               | Analysis delivered separately                    | The 18 candidates and portfolio feasibility analysis are in PORTFOLIO-ANALYSIS.md. Country/sector exposure, volatility, correlation and fundamentals are proposals, not implemented metrics.                                                                                                          |
 
+## Subsequent interface and portfolio review
+
+The later feedback is covered by the current interface and its regression checks:
+
+- Summary cash charts accept one month, consecutive months or exact inclusive dates. Spending, ticket statistics and drilldowns use matching intervals.
+- Ticket controls cycle mean, median and mode; the largest expense includes its concept and exact day. Category details close through their disclosure control.
+- Historical-price import has a visible disclosure. Provider/history diagnostics stay under contextual information, with dynamic products rather than a fixed fund list.
+- Seven simultaneous analysis panels below the existing investment charts show signed monthly returns, TIR, drawdown, time below the peak, euro profit contributions, volatility and correlation. Short or absent histories stay unavailable and excluded funds are named.
+- Complete TWR replaces its redundant estimate in the selector. The duplicate product total-return chart is removed. Arithmetic monthly/yearly means remain separate from cumulative TWR, and monthly return bars remain green/red and neutral to deposits.
+
+The 20 numbered TODO specifications remain an owner-selectable backlog. TIR, drawdown and risk metrics were subsequently implemented; composition, overlap, fundamentals and the other unselected proposals are not implicitly authorized by this review. See [portfolio methodology](PORTFOLIO-METRICS.md) and the [later feedback closure](FEEDBACK-CLOSURE-2026-10-16.md).
+
 ## Verification boundaries
 
 Validation passed: build, formatting, lint, 264 unit/backend tests and 121 desktop/mobile browser tests. Spending and goal layouts were also inspected from responsive screenshots.

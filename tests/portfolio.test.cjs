@@ -174,6 +174,28 @@ test('missing flow valuations report the exact cut without silently extending TW
   assert.equal(a.diagnostics.last, '2025-01-01');
   assert.ok(Number.isFinite(a.xirrRows.at(-1).value));
 });
+test('return basis uses complete TWR and preserves a single estimated basis through a missing flow valuation', () => {
+  const s = fixture();
+  const t = A.investmentTimeline(s);
+  const original = structuredClone(t);
+  const exact = P.returnSeries(t);
+  assert.equal(exact.estimated, false);
+  close(exact.rows.at(-1).adjustedReturnPct, t.rows.at(-1).totalReturnPct);
+  assert.deepEqual(t, original);
+  const broken = structuredClone(t);
+  const point = broken.rows.find((r) => r.totalReturnPct !== null);
+  point.totalReturnPct = null;
+  const estimated = P.returnSeries(broken);
+  assert.equal(estimated.estimated, true);
+  assert.deepEqual(
+    estimated.rows.map((r) => r.adjustedReturnPct),
+    broken.rows.map((r) => r.adjustedReturnPct),
+  );
+  t.coverage.sinceInception = false;
+  assert.equal(P.returnSeries(t).estimated, true);
+  assert.equal(P.returnSeries({ rows: [], coverage: {} }).estimated, true);
+});
+
 test('drawdown tracks peak/trough, recovery and elapsed calendar days', () => {
   const a = P.drawdowns(
     [
