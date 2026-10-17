@@ -15,20 +15,22 @@ flowchart TD
     Source["Source and tests"] --> CI["Quality checks"]
     CI --> Pages["GitHub Pages: public assets"]
     subgraph Device["Your device"]
-        Pages --> App["PWA: records, charts, planning"]
+        App["PWA: records, charts, planning"]
         App <--> Local["IndexedDB: snapshot and pending requests"]
         App --> Review["Review operation and persist UUID"]
         Review --> Bridge["Google session bridge"]
         App <-->|"Read and recover receipts"| Bridge
     end
     subgraph Google["Private Google environment"]
-        Bridge <-->|"Authenticated JSON"| API["Apps Script: owner, book, revision, lock"]
+        API["Apps Script: owner, book, revision, lock"]
         API --> Batch["Atomic inputs, audit and receipt"]
         Batch --> Sheets["Sheets tables and native formulas"]
         Sheets -->|"Calculated snapshot"| API
         Schedule["Optional price schedule"] --> API
-        API <-->|"Verified, dated NAVs"| Provider["Price provider"]
     end
+    Pages --> App
+    Bridge <-->|"Authenticated JSON"| API
+    API <-->|"Verified, dated NAVs"| Provider["External price provider"]
 ```
 
 The backend selects the workbook. The PWA caches public assets; financial snapshots and pending requests remain in the device profile. Missing values stay unknown.
