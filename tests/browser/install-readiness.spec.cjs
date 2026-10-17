@@ -9,7 +9,18 @@ const releases = JSON.parse(
 const currentVersion = JSON.parse(
   fs.readFileSync(path.join(root, 'package.json'), 'utf8'),
 ).version;
-const baseline = releases['3.9.3'];
+const baselineVersion = Object.keys(releases).find(
+  (version) => version !== currentVersion,
+);
+const baseline = releases[baselineVersion];
+const installFiles = [
+  ...JSON.parse(
+    fs.readFileSync(path.join(root, 'apps-script/modules.json'), 'utf8'),
+  ).scripts,
+  'Bridge.html',
+  'appsscript.json',
+];
+const fileCount = installFiles.length;
 const current = releases[currentVersion];
 
 test('unknown baseline keeps all files visible and never labels them as new', async ({
@@ -17,12 +28,12 @@ test('unknown baseline keeps all files visible and never labels them as new', as
 }) => {
   await page.goto('/install.html');
   const sections = page.locator('.code-section');
-  await expect(sections).toHaveCount(15);
+  await expect(sections).toHaveCount(fileCount);
   await expect(page.locator('#release-summary')).toContainText(
-    'obligatorios los 15 archivos',
+    'obligatorios los ' + fileCount + ' archivos',
   );
   await expect(page.locator('.file-status')).toHaveText(
-    Array(15).fill('SIN REFERENCIA'),
+    Array(fileCount).fill('SIN REFERENCIA'),
   );
   expect(
     await sections.evaluateAll((items) => items.every((item) => !item.hidden)),
@@ -40,12 +51,12 @@ test('@responsive release comparison assigns truthful per-file badges and filter
         document.documentElement.clientWidth,
     ),
   ).toBe(true);
-  await page.locator('#installed-release').selectOption('3.9.3');
+  await page.locator('#installed-release').selectOption(baselineVersion);
   const changedNames = Object.keys(current).filter(
     (name) => baseline[name] !== current[name],
   );
   await expect(page.locator('#release-summary')).toContainText(
-    changedNames.length + ' de 15 archivos',
+    changedNames.length + ' de ' + fileCount + ' archivos',
   );
   const sections = await page.locator('.code-section').evaluateAll((items) =>
     items.map((item) => ({
@@ -130,7 +141,7 @@ test('synthetic release identifies new files and tells users to retire removed f
   await expect(page.locator('#removed-files')).toContainText(
     'elimina estos archivos antiguos',
   );
-  await expect(page.locator('.code-section')).toHaveCount(15);
+  await expect(page.locator('.code-section')).toHaveCount(fileCount);
   expect(
     await page.locator('[data-file-name="Transactions.gs"] pre').textContent(),
   ).toBe(
@@ -138,15 +149,27 @@ test('synthetic release identifies new files and tells users to retire removed f
   );
 });
 
-test('copying a file does not claim or save an installed baseline', async ({
+test('installer copies exact files without claiming an installed baseline', async ({
   page,
   context,
 }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.goto('/install.html');
-  await page.locator('[data-copy="code-1"]').click();
-  await expect(page.locator('#copy-status')).toContainText('copiado.');
+  for (const [index, name] of installFiles.entries()) {
+    const id = index + 1;
+    const button = page.locator('[data-copy="code-' + id + '"]');
+    await expect(button).toHaveText('Copiar ' + name);
+    const expected = await page.locator('#code-' + id).textContent();
+    await button.click();
+    await expect(page.locator('#copy-status')).toContainText(
+      name + ' copiado.',
+    );
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      expected,
+    );
+    if (name === 'Bridge.html')
+      expect(expected.trim()).toMatch(/^<!doctype html>/i);
+  }
   await expect(page.locator('#installed-release')).toHaveValue('');
   expect(await page.evaluate(() => localStorage.length)).toBe(0);
-  await expect(page.locator('h2#file-1')).toHaveText('Code.gs');
 });

@@ -63,7 +63,7 @@ npm run build
 node tools/serve.cjs
 ```
 
-Open `http://127.0.0.1:4173`. Run `npm run check` and `npm run audit` before a PR. Tests use fictional data; private Google and physical-device acceptance remain separate.
+Open `http://127.0.0.1:4173`. Run `npm run check` and `npm run audit` before a PR. Tests use fictional data; private Google and physical-device acceptance remain separate. Capacity tests cover every editable table and longer histories; portfolio tests check that splitting identical holdings preserves return and risk results. Browser suites cover the current installer, channel, recovery and mobile flows. Deployment publishes the exact public files produced and tested by `quality`.
 
 | Directory      | Purpose                                          |
 | -------------- | ------------------------------------------------ |

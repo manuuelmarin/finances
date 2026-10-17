@@ -10,20 +10,77 @@ All tables start with the exact headers below in the exact order. “Inputs” a
 
 Each native table range must include its header row and at least one data or template row. Table positions are read from Sheets table metadata rather than fixed cell addresses.
 
-| Sheet | Native table | Exact headers (left to right) | Inputs | Formula-managed |
-| --- | --- | --- | --- |
-| `Movimientos` | `tMovimientos` | `ID`, `Fecha`, `Tipo`, `Concepto`, `Subcategoría`, `Origen`, `Destino`, `Importe`, `Recuperable`, `Localización`, `Recurrente` | All columns | — |
-| `Inversiones` | `tProductos` | `ID`, `Producto`, `Cuenta`, `Clase`, `Fecha base`, `Unidades base`, `Coste base`, `Participaciones`, `Aportado neto`, `Valor`, `Resultado`, `Rentabilidad`, `Peso` | `ID` through `Coste base` | `Participaciones` through `Peso` |
-| `Inversiones` | `tOperaciones` | `ID`, `Fecha`, `Producto`, `Tipo`, `Participaciones`, `Precio`, `Comisión`, `Retención`, `Importe`, `Movimiento` | All except `Importe` | `Importe` |
-| `Inversiones` | `tPrecios` | `Producto`, `Fecha`, `VL EUR`, `Fuente` | All columns | — |
-| `Cuentas` | `tCuentas` | `Cuenta`, `Saldo inicial`, `Saldo real`, `Fecha saldo`, `Saldo calculado` | First four columns | `Saldo calculado` |
-| `Cuentas` | `tDeudas` | `ID`, `Acreedor`, `Saldo inicial`, `Saldo pendiente` | First three columns | `Saldo pendiente` |
-| `Cuentas` | `tVinculos` | `Movimiento`, `Vinculado a`, `Fecha`, `Tipo`, `Importe` | `Movimiento`, `Vinculado a` | `Fecha`, `Tipo`, `Importe` |
-| `Salario` | `tNominas` | `Movimiento`, `Fecha cobro`, `Neto`, `Bruto`, `Cotización`, `IRPF`, `Otras deducciones` | `Movimiento`, `Bruto`, `Cotización`, `IRPF`, `Otras deducciones` | `Fecha cobro`, `Neto` |
-| `Objetivos` | `tObjetivos` | `ID`, `Objetivo`, `Meta`, `Fecha`, `Asignado`, `Pendiente`, `Avance` | First four columns | `Asignado`, `Pendiente`, `Avance` |
-| `Objetivos` | `tAsignaciones` | `Objetivo`, `Origen`, `Importe` | All columns | — |
-| `Configuración` | `tParametros` | `Parámetro`, `Valor` | Both columns | — |
-| `Configuración` | `tCategorias` | `Grupo`, `Subgrupo`, `Categoría`, `Subcategoría` | All columns | — |
+### `tMovimientos` · `Movimientos`
+
+Columns, in order: `ID`, `Fecha`, `Tipo`, `Concepto`, `Subcategoría`, `Origen`, `Destino`, `Importe`, `Recuperable`, `Localización`, `Recurrente`.
+
+Inputs: All columns. Calculated: —.
+
+### `tProductos` · `Inversiones`
+
+Columns, in order: `ID`, `Producto`, `Cuenta`, `Clase`, `Fecha base`, `Unidades base`, `Coste base`, `Participaciones`, `Aportado neto`, `Valor`, `Resultado`, `Rentabilidad`, `Peso`.
+
+Inputs: `ID` through `Coste base`. Calculated: `Participaciones` through `Peso`.
+
+### `tOperaciones` · `Inversiones`
+
+Columns, in order: `ID`, `Fecha`, `Producto`, `Tipo`, `Participaciones`, `Precio`, `Comisión`, `Retención`, `Importe`, `Movimiento`.
+
+Inputs: All except `Importe`. Calculated: `Importe`.
+
+### `tPrecios` · `Inversiones`
+
+Columns, in order: `Producto`, `Fecha`, `VL EUR`, `Fuente`.
+
+Inputs: All columns. Calculated: —.
+
+### `tCuentas` · `Cuentas`
+
+Columns, in order: `Cuenta`, `Saldo inicial`, `Saldo real`, `Fecha saldo`, `Saldo calculado`.
+
+Inputs: First four columns. Calculated: `Saldo calculado`.
+
+### `tDeudas` · `Cuentas`
+
+Columns, in order: `ID`, `Acreedor`, `Saldo inicial`, `Saldo pendiente`.
+
+Inputs: First three columns. Calculated: `Saldo pendiente`.
+
+### `tVinculos` · `Cuentas`
+
+Columns, in order: `Movimiento`, `Vinculado a`, `Fecha`, `Tipo`, `Importe`.
+
+Inputs: `Movimiento`, `Vinculado a`. Calculated: `Fecha`, `Tipo`, `Importe`.
+
+### `tNominas` · `Salario`
+
+Columns, in order: `Movimiento`, `Fecha cobro`, `Neto`, `Bruto`, `Cotización`, `IRPF`, `Otras deducciones`.
+
+Inputs: `Movimiento`, `Bruto`, `Cotización`, `IRPF`, `Otras deducciones`. Calculated: `Fecha cobro`, `Neto`.
+
+### `tObjetivos` · `Objetivos`
+
+Columns, in order: `ID`, `Objetivo`, `Meta`, `Fecha`, `Asignado`, `Pendiente`, `Avance`.
+
+Inputs: First four columns. Calculated: `Asignado`, `Pendiente`, `Avance`.
+
+### `tAsignaciones` · `Objetivos`
+
+Columns, in order: `Objetivo`, `Origen`, `Importe`.
+
+Inputs: All columns. Calculated: —.
+
+### `tParametros` · `Configuración`
+
+Columns, in order: `Parámetro`, `Valor`.
+
+Inputs: Both columns. Calculated: —.
+
+### `tCategorias` · `Configuración`
+
+Columns, in order: `Grupo`, `Subgrupo`, `Categoría`, `Subcategoría`.
+
+Inputs: All columns. Calculated: —.
 
 The other required business-sheet names are `Resumen financiero`, `Inflación`, `Hipoteca` and `Cálculos`. The complete required set is: `Resumen financiero`, `Movimientos`, `Inversiones`, `Cuentas`, `Salario`, `Objetivos`, `Inflación`, `Hipoteca`, `Configuración`, `Cálculos`.
 
@@ -50,15 +107,13 @@ Keep the workbook's native formulas and their references. A static copy of displ
 
 Seven named calculation blocks are expected. `prepareApplication` can discover/create their named ranges from the matching header rows and maintain capacity, and regenerates their canonical formulas:
 
-| Named range                   | Anchor area             | Header signature                                            | Width |
-| ----------------------------- | ----------------------- | ----------------------------------------------------------- | ----: |
-| `Finanzas_CalculoMovimientos` | `Cálculos`, column B    | `ID`, `Fecha`, `Tipo`                                       |    13 |
-| `Finanzas_ResumenMensual`     | `Cálculos`, column B    | `Mes`, `Ingresos`, `Gastos`, `Ahorro`, `Efectivo`           |     6 |
-| `Finanzas_CalculoCategorias`  | `Cálculos`, column B    | `Categoría`, `Gasto propio`                                 |     5 |
-| `Finanzas_HistoricoProductos` | `Cálculos`, column B    | `Mes`, `Producto`, `Corte`                                  |    10 |
-| `Finanzas_GraficoProductos`   | `Cálculos`, column E    | `Producto`, `Valor`                                         |     2 |
-| `Finanzas_MesesInversiones`   | `Inversiones`, column B | `Mes`, `Capital invertido`, `Valor de mercado`, `Resultado` |     4 |
-| `Finanzas_GraficoCiudades`    | `Cálculos`, column P    | `Localización`, `Gasto propio`                              |     2 |
+- `Finanzas_CalculoMovimientos` (`Cálculos`, column B; 13 columns): `ID`, `Fecha`, `Tipo`.
+- `Finanzas_ResumenMensual` (`Cálculos`, column B; 6 columns): `Mes`, `Ingresos`, `Gastos`, `Ahorro`, `Efectivo`.
+- `Finanzas_CalculoCategorias` (`Cálculos`, column B; 5 columns): `Categoría`, `Gasto propio`.
+- `Finanzas_HistoricoProductos` (`Cálculos`, column B; 10 columns): `Mes`, `Producto`, `Corte`.
+- `Finanzas_GraficoProductos` (`Cálculos`, column E; 2 columns): `Producto`, `Valor`.
+- `Finanzas_MesesInversiones` (`Inversiones`, column B; 4 columns): `Mes`, `Capital invertido`, `Valor de mercado`, `Resultado`.
+- `Finanzas_GraficoCiudades` (`Cálculos`, column P; 2 columns): `Localización`, `Gasto propio`.
 
 The movement, monthly, category and product-history header signatures are located in column B within the calculation sheet's support area; keep each block distinct and its following formula rows intact. `Cálculos!T8` is managed capacity metadata written by preparation, not a user input. Do not edit or repurpose it.
 

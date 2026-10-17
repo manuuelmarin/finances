@@ -70,6 +70,21 @@ test('planning forms accept actual month deadlines and reject overflowing zero-c
   });
   await page.locator('#goal-time-form button').click();
   await expect(page.locator('#goal-time-result')).toContainText('13 meses');
+  await fill(page, 'goal-time', { monthly: 0 });
+  await expect(page.locator('#goal-time-result')).toBeHidden();
+  await page.locator('#goal-time-form button').click();
+  await expect(page.locator('#goal-time-result')).toContainText(
+    'La meta no se alcanza',
+  );
+  await expect(page.locator('#goal-time-note')).toContainText('no garantiza');
+  await fill(page, 'goal-saving', {
+    capital: 1000,
+    target: 10000,
+    months: 60,
+    annualReturn: 0,
+  });
+  await page.locator('#goal-saving-form button').click();
+  await expect(page.locator('#goal-saving-result')).toContainText('150,00');
   await fill(page, 'goal-time', {
     capital: 0,
     monthly: 100,
@@ -114,6 +129,7 @@ test('planning forms accept actual month deadlines and reject overflowing zero-c
   });
   await page.locator('#liquidity-form button').click();
   await expect(page.locator('#liquidity-result')).toContainText('2,5 meses');
+  await expect(page.locator('#liquidity-result')).toContainText(/4\.?200,00/);
 });
 
 test('integrated early repayment compares fees, quota and term and handles full/zero repayment', async ({

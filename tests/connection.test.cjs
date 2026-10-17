@@ -6,6 +6,7 @@ const path = require('node:path');
 const {
   acceptsConnectionMessage,
   validDeploymentUrl,
+  savedDeployment,
 } = require('../web/connection.js');
 
 const state = '68c0eea1-d067-4af1-a61d-e5b27aacb0b9';
@@ -538,4 +539,22 @@ test('los permisos mínimos permiten datos, fuentes y lifecycle de triggers; el 
     fs.readFileSync(path.join(__dirname, '../web/config.json')),
   );
   assert.equal(config.appsScriptUrl, null);
+});
+
+test('solo recupera URLs válidas, incluso sin almacenamiento disponible', () => {
+  const url = 'https://script.google.com/macros/s/fixture-deployment/exec';
+  assert.equal(savedDeployment({ getItem: () => url }), url);
+  assert.equal(
+    savedDeployment({ getItem: () => 'https://example.com/exec' }),
+    null,
+  );
+  assert.equal(
+    savedDeployment({
+      getItem: () => {
+        throw new Error('Blocked');
+      },
+    }),
+    null,
+  );
+  assert.equal(savedDeployment(null), null);
 });
