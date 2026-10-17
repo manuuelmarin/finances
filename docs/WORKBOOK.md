@@ -63,7 +63,7 @@ The first three header signatures are located in column B within the calculation
 
 ## Technical and generated sheets
 
-Preparation creates missing backend-owned technical sheets as needed. Names are `_Finanzas_Solicitudes`, `_Finanzas_Auditoria`, `_Finanzas_Observaciones`, `_Finanzas_Fondos`, `_Finanzas_Cotizaciones`, `_Finanzas_TraspasosFondos`, `_Finanzas_Migraciones`, `_Finanzas_Archivados`, `_Finanzas_Plantillas`, `_Finanzas_Obligaciones`, and `_Finanzas_Presupuestos`. These hold receipts, audit/recovery state, bindings and optional feature history; they are not user inputs. Do not rename, edit, or delete them during normal operation.
+Preparation creates missing backend-owned technical sheets as needed. Names are `_Finanzas_Solicitudes`, `_Finanzas_Auditoria`, `_Finanzas_Observaciones`, `_Finanzas_Fondos`, `_Finanzas_Cotizaciones`, `_Finanzas_TraspasosFondos`, `_Finanzas_Migraciones`, `_Finanzas_Archivados`, `_Finanzas_Plantillas`, `_Finanzas_Obligaciones`, `_Finanzas_Presupuestos`, and `_Finanzas_PresupuestosIntervalos`. These hold receipts, audit/recovery state, bindings and optional feature history; they are not user inputs. Do not rename, edit, or delete them during normal operation.
 
 `Histórico` is an app-generated view, not a required input sheet or a source of prices. It is marked as generated; an unrelated existing sheet with that name is preserved. `tPrecios` remains the price-history source. Do not edit the generated view as if it were source data.
 

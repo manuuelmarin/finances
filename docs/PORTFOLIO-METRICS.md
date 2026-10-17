@@ -1,6 +1,6 @@
 # Portfolio performance and risk panels
 
-Owner-selected work: XIRR (12), drawdown/recovery (13), volatility/correlation (14) and euro profit contributions. These panels appear together below the existing investment charts, outside the performance-measure selector. They follow the product and period filters; each time-series chart also retains its own inspection range. No new backend module, permanent Sheet, table or schema migration is needed.
+TIR/XIRR, monthly return bars, drawdown/recovery, euro profit contributions, volatility and correlation appear together below the investment charts, outside the performance-measure selector. They follow the product and period filters; each time-series chart also has its own inspection range.
 
 ## Exact TWR and missing history
 
@@ -36,12 +36,6 @@ Fund returns use positive real EUR NAVs only. Products need at least 13 weeks of
 
 At least 12 comparable weekly returns are required. Samples of 12–51 returns display a prominent provisional/short-sample note; 52 is a coverage milestone, not an accuracy guarantee. Sample dates and count are visible. Products excluded for insufficient history are named. Volatility is sample standard deviation (`n−1`) × `√52`; fund correlation is Pearson on the same weekly NAV returns. Constant-series correlation is undefined. EUR NAV returns exclude cash distributions and must not be called total-return risk for distributing funds. Portfolio volatility uses the selected flow-adjusted index at those same endpoints, only when all required values exist. No price-level correlation, carried quote interpolation or balance volatility is used.
 
-## Verification and private-data handling
-
-Synthetic tests cover analytic IRRs, fees/distributions/transfers, opening market positions, ambiguous roots, missing flow valuations, drawdown/recovery, Pearson edge cases, common-date sampling and short-history gates. Browser checks verify simultaneous panels, selector independence, scope/range changes and mobile width.
-
-Native Google Sheets checks on the private test book independently reproduced XIRR, sample volatility, CORREL, running-maximum drawdown and summed profit contributions. Temporary verification cells are removed after checking. Inputs and cell backups remain outside the public repository. Only attributable missing provider NAVs may be reconciled into the principal, preserving operations, units, costs, source precision, native table bounds and generated historical views. Updating historical data does not activate or certify the principal backend.
-
 ## References
 
 - [GIPS handbook](https://www.gipsstandards.org/standards/gips-standards-for-firms/gips-standards-handbook-for-firms/): valuation boundaries, time-weighted returns and Modified Dietz.
@@ -55,3 +49,9 @@ Below the result/return KPI, show separate arithmetic means of observed calendar
 ## Monthly return bars
 
 The simultaneous analysis grid includes a signed monthly bar chart: green for nonnegative return, red for loss, month on X and percentage on Y. It reuses the same selected flow-adjusted period-return calculation as the arithmetic means, restricted to the selected product and chart period, with real first/last partial boundaries. A capital deposit alone cannot create a return. Regression examples add 100 and 1,000 EUR at unchanged NAV and verify 0%, followed by genuine +10% and −10% months. Missing observations remain omitted rather than represented as zero. Bar tables and chart exports retain the underlying signed monthly percentages.
+
+## Calculator assumptions
+
+Calculators are local estimates; they do not read or write financial records. Compound growth converts an effective annual return to a monthly rate, with contributions at month-end and annual inflation. Goal saving accepts whole months and finds the smallest cent contribution that reaches the target.
+
+Fixed mortgages use nominal annual TIN divided by twelve, with upfront costs separate from the loan. Early repayment starts from outstanding capital and remaining months, applies an immediate repayment and its percentage charge, and compares a lower payment with a shorter term. Its schedule rounds interest and payments to cents; the final payment clears the balance. Net saving is interest avoided minus the charge, excluding the principal repaid. Insurance, taxes, alternative investment returns and other bank fees are excluded.
