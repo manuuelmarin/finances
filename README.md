@@ -4,7 +4,7 @@
 
 Personal finance PWA for cash, investments, budgets and goals. GitHub Pages serves the interface; private Google Sheets stores the data.
 
-[Open app](https://manuuelmarin.github.io/finances/) · [Install / update](https://manuuelmarin.github.io/finances/install.html) · [TODOs](TODO.md)
+[Open app](https://manuuelmarin.github.io/finances/) · [Install / update](https://manuuelmarin.github.io/finances/install.html) · [TODOs](TODO.md) · [History](History.md)
 
 **App 3.10.1 · API 3.3.0 · workbook model 3.**
 
