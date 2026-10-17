@@ -44,7 +44,7 @@ The backend selects the workbook. The PWA caches public assets; financial snapsh
 
 For production, retain the test setup and use a separate project with `ENVIRONMENT=production`, `PRODUCTION_SPREADSHEET_ID` and a different `TEST_SPREADSHEET_ID`. Keep all private configuration outside GitHub.
 
-Updates require replacing the installer's changed files, running preparation/checks and publishing **New version** of the existing deployment. Pages does not update Apps Script. Preparation repairs managed summaries and expands capacity; enter records through the app or within the native tables.
+Updates require replacing the installer's changed files, running preparation/checks and publishing **New version** of the existing deployment. Pages does not update Apps Script. Add records through the app: it expands capacity automatically. After changing table structure directly in Sheets, run preparation again.
 
 ## Recovery
 
