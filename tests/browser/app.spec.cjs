@@ -574,7 +574,7 @@ test('comprobación con fuentes fallidas exige revisión sin presentar el sistem
   page,
 }) => {
   await setup(page);
-  await page.evaluate(() => {
+  await page.evaluate((buildVersion) => {
     FinanceApiClient.prototype.acceptance = async () => ({
       ok: true,
       environment: 'test',
@@ -597,7 +597,7 @@ test('comprobación con fuentes fallidas exige revisión sin presentar el sistem
         },
       ],
     });
-  });
+  }, buildVersion);
   await navigate(page, 'connection');
   await diagnostic(page);
   await page.locator('#acceptance-check').click();
