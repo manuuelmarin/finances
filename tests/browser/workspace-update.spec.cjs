@@ -34,7 +34,18 @@ for (const withIsin of [false, true]) {
       .at(-1).accounts['Cuenta A'];
     await navigate(page, 'investments');
     await page.locator('#view-investments [data-operation=compra]').click();
+    await expect(
+      page.locator('#operation-price').locator('xpath=..'),
+    ).toContainText('Precio');
+    await expect(page.locator('#operation-location')).toHaveCount(0);
+    await expect(page.locator('.operation-additional summary')).toContainText(
+      'Opciones avanzadas',
+    );
     await page.locator('#operation-product').selectOption('__new_product__');
+    await expect(page.locator('.inline-new-product')).toContainText(
+      'Se añadirá el producto',
+    );
+    await expect(page.locator('#operation-newProduct_date')).toHaveCount(0);
     await page.locator('#operation-date').fill(before.settings.asof);
     await page
       .locator('#operation-newProduct_name')
@@ -43,13 +54,28 @@ for (const withIsin of [false, true]) {
       .locator('#operation-newProduct_account')
       .selectOption('Cuenta A');
     await page.locator('#operation-newProduct_class').selectOption('Otros');
-    if (withIsin)
+    if (withIsin) {
       await page.locator('#operation-newProduct_isin').fill('ES0112611001');
+      await page
+        .locator('#operation-newProduct_referenceName')
+        .fill('Synthetic new investment class A');
+    }
     await page.locator('#operation-concept').fill('Synthetic first purchase');
     await page.locator('#operation-units').fill('2');
     await page.locator('#operation-price').fill('5');
     await page.locator('#operation-form button[type=submit]').click();
     await expect(page.locator('#review-dialog')).toBeVisible();
+    await expect(page.locator('#review-fields')).toContainText(
+      'Synthetic new investment',
+    );
+    await expect(page.locator('#review-fields')).toContainText('$newProduct');
+    if (withIsin)
+      await expect(page.locator('#review-fields')).toContainText(
+        'ES0112611001',
+      );
+    await expect(page.locator('#review-note')).toContainText(
+      'se descontará una sola vez',
+    );
     await page.locator('#review-confirm').click();
     await expect
       .poll(async () => (await queueData(page)).queue[0]?.status)

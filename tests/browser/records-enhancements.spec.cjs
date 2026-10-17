@@ -490,48 +490,6 @@ test('@responsive payroll opens a unified editor and reviews old/new values; can
   await expect(page.locator('#review-note')).toContainText('80 EUR');
 });
 
-test('compra crea producto, vincula ISIN y registra caja en un único lote revisado', async ({
-  page,
-}) => {
-  await setupRecords(page);
-  await navigate(page, 'investments');
-  await page.locator('#view-investments [data-operation=compra]').click();
-  await expect(
-    page.locator('#operation-price').locator('xpath=..'),
-  ).toContainText('Precio');
-  await expect(page.locator('#operation-location')).toHaveCount(0);
-  await expect(page.locator('.operation-additional summary')).toContainText(
-    'Opciones avanzadas',
-  );
-  await page.locator('#operation-product').selectOption('__new_product__');
-  await expect(page.locator('.inline-new-product')).toContainText(
-    'Se añadirá el producto',
-  );
-  await page.locator('#operation-newProduct_name').fill('Fondo nuevo');
-  await page
-    .locator('#operation-newProduct_account')
-    .selectOption({ label: 'Cuenta A' });
-  await page
-    .locator('#operation-newProduct_class')
-    .selectOption('Renta variable');
-  await expect(page.locator('#operation-newProduct_date')).toHaveCount(0);
-  await page.locator('#operation-newProduct_isin').fill('ES0112611001');
-  await page
-    .locator('#operation-newProduct_referenceName')
-    .fill('Fondo nuevo clase A');
-  await page.locator('#operation-date').fill('2026-01-02');
-  await page.locator('#operation-concept').fill('Compra inicial');
-  await page.locator('#operation-units').fill('2');
-  await page.locator('#operation-price').fill('5');
-  await page.locator('#operation-form button[type=submit]').click();
-  await expect(page.locator('#review-fields')).toContainText('Fondo nuevo');
-  await expect(page.locator('#review-fields')).toContainText('ES0112611001');
-  await expect(page.locator('#review-fields')).toContainText('$newProduct');
-  await expect(page.locator('#review-note')).toContainText(
-    'se descontará una sola vez',
-  );
-});
-
 test('filtros de categoría mantienen varias cuentas seleccionadas con lógica OR', async ({
   page,
 }) => {

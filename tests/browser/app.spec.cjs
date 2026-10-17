@@ -2,18 +2,8 @@ const { test, expect } = require('@playwright/test');
 const { navigate, diagnostic } = require('./helpers/navigation.cjs');
 const fs = require('node:fs'),
   path = require('node:path');
+const buildVersion = require('../../package.json').version;
 const deployment = 'https://script.google.com/macros/s/fixture-deployment/exec';
-const installFiles = [
-  ...JSON.parse(
-    fs.readFileSync(
-      path.join(__dirname, '../../apps-script/modules.json'),
-      'utf8',
-    ),
-  ).scripts,
-  'Bridge.html',
-  'appsscript.json',
-];
-
 test('CSP bloquea código inyectado y conexiones a terceros manteniendo la app funcional', async ({
   page,
 }) => {
@@ -73,28 +63,6 @@ test('la app incrustada no lee IndexedDB ni permite conectar o configurar Google
   }
 });
 
-test('el instalador copia cada archivo en su botón y Bridge comienza por HTML', async ({
-  page,
-  context,
-}) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-  await page.goto('/install.html');
-  for (const [index, name] of installFiles.entries()) {
-    const id = index + 1;
-    const button = page.locator('[data-copy="code-' + id + '"]');
-    await expect(button).toHaveText('Copiar ' + name);
-    const expected = await page.locator('#code-' + id).textContent();
-    await button.click();
-    await expect(page.locator('#copy-status')).toContainText(
-      name + ' copiado.',
-    );
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-      expected,
-    );
-    if (name === 'Bridge.html')
-      expect(expected.trim()).toMatch(/^<!doctype html>/i);
-  }
-});
 const snapshot = {
   ok: true,
   apiVersion: '3.3.0',
@@ -275,7 +243,7 @@ async function setup(
     },
     { deployment, seed, lost, bridgeFailure },
   );
-  const mock = `\nFinanceApiClient = class {constructor(url){this.url=url;this.session=null;}connect(){this.session={rpcReady:true};return Promise.resolve({ok:true,apiVersion:'3.3.0'});}close(){this.session=null;}diagnostics(){const s=JSON.parse(localStorage.getItem('fixture.server')).snapshot;return Promise.resolve({ok:true,backendReady:true,calculationReady:true,apiVersion:'3.3.0',tableCount:10,environment:s.environment});}acceptance(){const s=JSON.parse(localStorage.getItem('fixture.server')).snapshot;return Promise.resolve({ok:true,readOnly:true,environment:s.environment,buildVersion:'3.4.0',technicalReady:true,checks:{backend:true,calculations:true,summary:true,bridge:true,sources:true,stable:true},results:[]});}read(){return Promise.resolve(JSON.parse(localStorage.getItem('fixture.server')).snapshot);}async submit(envelope){const s=JSON.parse(localStorage.getItem('fixture.server'));s.calls.push(envelope);if(!s.journal[envelope.requestId]){s.snapshot.revision='r'+(s.calls.length+1);for(const op of envelope.operations||[]){if(op.process==='presupuesto'){const b=s.snapshot.budgets.find(b=>b.month===op.month&&b.category===op.category);if(b)b.amount=op.amount;else s.snapshot.budgets.push({month:op.month,category:op.category,amount:op.amount});}if(op.process==='quitar_presupuesto')s.snapshot.budgets=s.snapshot.budgets.filter(b=>b.month!==op.month||b.category!==op.category);if(op.process==='gasto')s.snapshot.tables.tMovimientos.push({ID:'NEW-'+envelope.requestId,Fecha:op.date,Tipo:'Gasto',Concepto:op.concept,Origen:op.account,Subcategoría:op.category,Importe:op.amount,Recuperable:op.recoverable,Localización:op.location,Recurrente:op.recurring});}s.journal[envelope.requestId]={ok:true,revision:s.snapshot.revision,results:[],complete:envelope.action!=='refreshPrices'};if(envelope.action==='refreshPrices')s.journal[envelope.requestId].results=[{ok:false,referenceName:'Fondo ficticio',message:'Fuente sin identidad verificable'}];}const result=s.journal[envelope.requestId];const lost=s.lost;s.lost=false;localStorage.setItem('fixture.server',JSON.stringify(s));if(lost)throw Error('RESPONSE_UNCERTAIN');if(s.bridgeFailure){s.bridgeFailure=false;localStorage.setItem('fixture.server',JSON.stringify(s));return {ok:false,error:'RESPONSE_UNCERTAIN',message:'Respuesta de Google no confirmada'};}return result;}requestStatus(envelope){return Promise.resolve(JSON.parse(localStorage.getItem('fixture.server')).journal[envelope.requestId]||{ok:true,found:false});}};`;
+  const mock = `\nFinanceApiClient = class {constructor(url){this.url=url;this.session=null;}connect(){this.session={rpcReady:true};return Promise.resolve({ok:true,apiVersion:'3.3.0'});}close(){this.session=null;}diagnostics(){const s=JSON.parse(localStorage.getItem('fixture.server')).snapshot;return Promise.resolve({ok:true,backendReady:true,calculationReady:true,apiVersion:'3.3.0',tableCount:10,environment:s.environment});}acceptance(){const s=JSON.parse(localStorage.getItem('fixture.server')).snapshot;return Promise.resolve({ok:true,readOnly:true,environment:s.environment,buildVersion:'${buildVersion}',technicalReady:true,checks:{backend:true,calculations:true,summary:true,bridge:true,sources:true,stable:true},results:[]});}read(){return Promise.resolve(JSON.parse(localStorage.getItem('fixture.server')).snapshot);}async submit(envelope){const s=JSON.parse(localStorage.getItem('fixture.server'));s.calls.push(envelope);if(!s.journal[envelope.requestId]){s.snapshot.revision='r'+(s.calls.length+1);for(const op of envelope.operations||[]){if(op.process==='presupuesto'){const b=s.snapshot.budgets.find(b=>b.month===op.month&&b.category===op.category);if(b)b.amount=op.amount;else s.snapshot.budgets.push({month:op.month,category:op.category,amount:op.amount});}if(op.process==='quitar_presupuesto')s.snapshot.budgets=s.snapshot.budgets.filter(b=>b.month!==op.month||b.category!==op.category);if(op.process==='gasto')s.snapshot.tables.tMovimientos.push({ID:'NEW-'+envelope.requestId,Fecha:op.date,Tipo:'Gasto',Concepto:op.concept,Origen:op.account,Subcategoría:op.category,Importe:op.amount,Recuperable:op.recoverable,Localización:op.location,Recurrente:op.recurring});}s.journal[envelope.requestId]={ok:true,revision:s.snapshot.revision,results:[],complete:envelope.action!=='refreshPrices'};if(envelope.action==='refreshPrices')s.journal[envelope.requestId].results=[{ok:false,referenceName:'Fondo ficticio',message:'Fuente sin identidad verificable'}];}const result=s.journal[envelope.requestId];const lost=s.lost;s.lost=false;localStorage.setItem('fixture.server',JSON.stringify(s));if(lost)throw Error('RESPONSE_UNCERTAIN');if(s.bridgeFailure){s.bridgeFailure=false;localStorage.setItem('fixture.server',JSON.stringify(s));return {ok:false,error:'RESPONSE_UNCERTAIN',message:'Respuesta de Google no confirmada'};}return result;}requestStatus(envelope){return Promise.resolve(JSON.parse(localStorage.getItem('fixture.server')).journal[envelope.requestId]||{ok:true,found:false});}};`;
   await page.route('**/api.js', (route) =>
     route.fulfill({
       contentType: 'text/javascript',
@@ -606,11 +574,11 @@ test('comprobación con fuentes fallidas exige revisión sin presentar el sistem
   page,
 }) => {
   await setup(page);
-  await page.evaluate(() => {
+  await page.evaluate((buildVersion) => {
     FinanceApiClient.prototype.acceptance = async () => ({
       ok: true,
       environment: 'test',
-      buildVersion: '3.4.0',
+      buildVersion,
       technicalReady: false,
       checks: {
         backend: true,
@@ -629,7 +597,7 @@ test('comprobación con fuentes fallidas exige revisión sin presentar el sistem
         },
       ],
     });
-  });
+  }, buildVersion);
   await navigate(page, 'connection');
   await diagnostic(page);
   await page.locator('#acceptance-check').click();

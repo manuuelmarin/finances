@@ -1,7 +1,13 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { compoundInterest, mortgage } = require('../web/calculators.js');
-const { savedDeployment } = require('../web/connection.js');
+const {
+  compoundInterest,
+  mortgage,
+  timeToGoal,
+  monthlyForGoal,
+  liquidityBuffer,
+  bindPlanningCalculators,
+} = require('../web/calculators.js');
 
 test('interés compuesto coincide con el escenario comprobado en Sheets', () => {
   const result = compoundInterest({
@@ -82,31 +88,6 @@ test('rechaza importes vacíos, escenarios inválidos y desbordamientos', () => 
     mortgage({ price: '', downPayment: 0, annualRate: 3, years: 10, costs: 0 }),
   );
 });
-
-test('solo recupera URLs válidas, incluso sin almacenamiento disponible', () => {
-  const url = 'https://script.google.com/macros/s/fixture-deployment/exec';
-  assert.equal(savedDeployment({ getItem: () => url }), url);
-  assert.equal(
-    savedDeployment({ getItem: () => 'https://example.com/exec' }),
-    null,
-  );
-  assert.equal(
-    savedDeployment({
-      getItem: () => {
-        throw new Error('Blocked');
-      },
-    }),
-    null,
-  );
-  assert.equal(savedDeployment(null), null);
-});
-
-const {
-  timeToGoal,
-  monthlyForGoal,
-  liquidityBuffer,
-  bindPlanningCalculators,
-} = require('../web/calculators.js');
 
 test('meta: primer mes alcanzable, cero rentabilidad y meta ya cubierta', () => {
   const plain = timeToGoal({

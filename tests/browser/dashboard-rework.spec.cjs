@@ -642,56 +642,6 @@ test('@responsive selección genérica de producto y periodo conserva escalera, 
   await screenshot(page, 'investments');
 });
 
-test('tres nuevas calculadoras funcionan localmente y mantienen las existentes', async ({
-  page,
-}) => {
-  await setup(page);
-  await navigate(page, 'tools');
-  for (const id of [
-    'inflation-form',
-    'mortgage-form',
-    'goal-time-form',
-    'goal-saving-form',
-    'liquidity-form',
-  ])
-    await expect(page.locator('#' + id)).toBeVisible();
-  for (const [field, value] of Object.entries({
-    capital: '1000',
-    monthly: '100',
-    target: '2250',
-    annualReturn: '0',
-  }))
-    await page.locator('#goal-time-' + field).fill(value);
-  await page.locator('#goal-time-form button[type=submit]').click();
-  await expect(page.locator('#goal-time-result')).toContainText('13 meses');
-  await page.locator('#goal-time-monthly').fill('0');
-  await expect(page.locator('#goal-time-result')).toBeHidden();
-  await page.locator('#goal-time-form button[type=submit]').click();
-  await expect(page.locator('#goal-time-result')).toContainText(
-    'La meta no se alcanza',
-  );
-  for (const [field, value] of Object.entries({
-    capital: '1000',
-    target: '10000',
-    months: '60',
-    annualReturn: '0',
-  }))
-    await page.locator('#goal-saving-' + field).fill(value);
-  await page.locator('#goal-saving-form button[type=submit]').click();
-  await expect(page.locator('#goal-saving-result')).toContainText('150,00');
-  for (const [field, value] of Object.entries({
-    essentialMonthly: '1200',
-    liquidCapital: '3000',
-    targetMonths: '6',
-  }))
-    await page.locator('#liquidity-' + field).fill(value);
-  await page.locator('#liquidity-form button[type=submit]').click();
-  await expect(page.locator('#liquidity-result')).toContainText('2,5 meses');
-  await expect(page.locator('#liquidity-result')).toContainText(/4\.?200,00/);
-  await expect(page.locator('#goal-time-note')).toContainText('no garantiza');
-  await screenshot(page, 'tools');
-});
-
 test('@responsive datos del gráfico permiten ordenar y filtrar con teclado sin alterar las series', async ({
   page,
 }) => {

@@ -135,3 +135,42 @@ test('adaptador genera referencias y vínculo de libro para ambos entornos; dato
     /READ_REQUIRED/,
   );
 });
+
+test('adaptador de agentes genera referencias y exige guardar antes de enviar', async () => {
+  const { prepare, submit } = require('../tools/agent-envelope.cjs');
+  const r = runtime();
+  r.init();
+  const snapshot = r.api({ action: 'read' });
+  const envelope = prepare(snapshot, [
+    {
+      process: 'gasto',
+      date: '2026-01-02',
+      concept: 'Agente ficticio',
+      account: 'Cuenta A',
+      category: 'Café',
+      amount: 1,
+    },
+  ]);
+  assert.match(envelope.requestId, /^[0-9a-f-]{36}$/);
+  assert.throws(() => prepare({ ...snapshot, environment: 'production' }, []));
+  let persisted = false;
+  const result = await submit(
+    {
+      submit: async (req) => {
+        assert.equal(persisted, true);
+        const result = r.api(req);
+        throw Error('Perdida');
+      },
+      requestStatus: async (req) =>
+        r.api({ action: 'requestStatus', requestId: req.requestId }),
+    },
+    envelope,
+    {
+      persist: async () => {
+        persisted = true;
+      },
+    },
+  );
+  assert.equal(result.replayed, true);
+  assert.equal(r.state().tables.tMovimientos.length, 1);
+});

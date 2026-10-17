@@ -5,6 +5,7 @@ const { navigate, diagnostic } = require('./helpers/navigation.cjs');
 const fs = require('node:fs');
 const path = require('node:path');
 const { runtime } = require('../helpers/runtime.cjs');
+const buildVersion = require('../../package.json').version;
 const root = path.resolve(__dirname, '../..');
 const origin = 'https://manuuelmarin.github.io';
 const deployment =
@@ -34,16 +35,10 @@ async function channel(context, options = {}) {
     });
     return result;
   };
-  let rawBridge = fs.readFileSync(
+  const rawBridge = fs.readFileSync(
     path.join(root, 'apps-script/Bridge.html'),
     'utf8',
   );
-  // La entrega privada anterior solo difiere en su identificador de build.
-  if (options.googleBuild)
-    rawBridge = rawBridge.replace(
-      /const BRIDGE_VERSION = '[^']+';/,
-      `const BRIDGE_VERSION = '${options.googleBuild}';`,
-    );
   let template;
   r.ctx.HtmlService = {
     createTemplateFromFile() {
@@ -52,11 +47,6 @@ async function channel(context, options = {}) {
         evaluate: () => ({
           setTitle: () => {
             const payload = JSON.parse(template.payloadJson);
-            if (options.googleBuild) {
-              payload.buildVersion = options.googleBuild;
-              if (payload.snapshot)
-                payload.snapshot.buildVersion = options.googleBuild;
-            }
             return rawBridge
               .replace(
                 '<?= payloadJson ?>',
@@ -139,11 +129,6 @@ async function channel(context, options = {}) {
       if (options.holdRead && request.action === 'read') return;
       if (options.holdAction === request.action) return;
       let response = r.ctx.financialApiJson(json);
-      if (options.googleBuild) {
-        const data = JSON.parse(response);
-        data.buildVersion = options.googleBuild;
-        response = JSON.stringify(data);
-      }
       if (options.badPing && request.action === 'ping')
         response = '{"ok":false}';
       if (options.badRead && request.action === 'read')
@@ -265,11 +250,11 @@ test('canal de operaciones inválido mantiene lectura nativa pero bloquea confir
   expect(calls.filter((c) => c.action === 'transact')).toHaveLength(0);
 });
 
-test('conectar, comprobar y registrar reutilizan una sola ventana con Google 3.6.0', async ({
+test('conectar, comprobar y registrar reutilizan una sola ventana con el backend vigente', async ({
   page,
   context,
 }) => {
-  const { calls } = await channel(context, { googleBuild: '3.6.0' });
+  const { calls } = await channel(context);
   let popups = 0;
   page.on('popup', () => popups++);
   await page.goto(origin + '/finances/');
@@ -289,7 +274,7 @@ test('conectar, comprobar y registrar reutilizan una sola ventana con Google 3.6
   await diagnostic(page);
   await page.locator('#acceptance-check').click();
   await expect(page.locator('#acceptance-result')).toContainText(
-    'versión 3.6.0',
+    'versión ' + buildVersion,
   );
   expect(google.isClosed()).toBe(false);
   await page.locator('#connect').click();

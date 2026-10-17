@@ -368,3 +368,66 @@ test('monthly bars use flow-adjusted returns: deposits at a flat NAV yield zero,
     months.forEach((r, i) => close(r.value, [0, 10, -10][i]));
   }
 });
+
+test('splitting identical holdings across 1, 3 or 17 products preserves all portfolio return and risk measures', () => {
+  function split(count) {
+    const s = fixture();
+    s.settings.start = '2025-01-03';
+    s.settings.asof = s.settings.valuation = '2025-04-04';
+    s.tables.tOperaciones = [];
+    s.tables.tProductos = Array.from({ length: count }, (_, i) => ({
+      ID: 'SPLIT-' + i,
+      Producto: 'Independent label ' + (count - i),
+      'Fecha base': '2025-01-03',
+      'Unidades base': 10 / count,
+      'Coste base': 100 / count,
+    }));
+    s.tables.tPrecios = s.tables.tProductos
+      .flatMap((p) =>
+        Array.from({ length: 14 }, (_, i) => ({
+          Producto: p.ID,
+          Fecha: new Date(Date.parse('2025-01-03') + i * 7 * 86400000)
+            .toISOString()
+            .slice(0, 10),
+          'VL EUR': 10 + i / 10 + Math.sin(i) / 5,
+        })),
+      )
+      .reverse();
+    const t = A.investmentTimeline(s);
+    const a = P.analyze(s, t);
+    return {
+      timeline: t.rows
+        .filter((r) => r.totalReturnPct !== null)
+        .map((r) => [r.date, r.value, r.capital, r.totalReturnPct]),
+      xirr: a.xirrRows.at(-1).value,
+      profit: a.contributions.reduce((sum, p) => sum + p.value, 0),
+      drawdown: a.drawdowns.max?.value,
+      monthly: P.averageReturns(P.returnSeries(t).rows).value,
+      annual: P.averageReturns(P.returnSeries(t).rows, 'year').value,
+      risk: a.risk,
+    };
+  }
+  const baseline = split(1);
+  assert.ok(Number.isFinite(baseline.xirr));
+  assert.ok(Number.isFinite(baseline.risk.volatility[0].value));
+  for (const count of [3, 17]) {
+    const next = split(count);
+    assert.deepEqual(
+      next.timeline.map((row) => row[0]),
+      baseline.timeline.map((row) => row[0]),
+    );
+    next.timeline.forEach((row, i) =>
+      row
+        .slice(1)
+        .forEach((v, j) => close(v, baseline.timeline[i][j + 1], 1e-8)),
+    );
+    for (const key of ['xirr', 'profit', 'drawdown', 'monthly', 'annual'])
+      close(next[key], baseline[key], 1e-8);
+    assert.equal(next.risk.products.length, count);
+    assert.equal(next.risk.correlations.length, (count * (count - 1)) / 2);
+    next.risk.volatility.forEach((v) =>
+      close(v.value, baseline.risk.volatility[0].value, 1e-8),
+    );
+    next.risk.correlations.forEach((p) => close(p.value, 1));
+  }
+});

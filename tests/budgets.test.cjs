@@ -422,3 +422,57 @@ test('renaming a subcategory preserves active custom limits and their stable ide
   assert.equal(after.category, 'Cafetería');
   assert.equal(after.amount, 50);
 });
+
+const intervalSnapshot = {
+  settings: { start: '2026-01-01', asof: '2026-01-20' },
+  tables: {
+    tMovimientos: [
+      {
+        Fecha: '2026-01-02',
+        Tipo: 'Gasto',
+        Subcategoría: 'Café',
+        Importe: 100,
+        Recuperable: 20,
+      },
+      {
+        Fecha: '2026-01-03',
+        Tipo: 'Devolución gasto',
+        Subcategoría: 'Café',
+        Importe: 20,
+        Recuperable: 5,
+      },
+      { Fecha: '2026-01-03', Tipo: 'Compra inversión', Importe: 200 },
+    ],
+  },
+};
+const intervalRecord = {
+  start: '2026-01-01',
+  end: '2026-01-31',
+  category: 'Café',
+  amount: 100,
+};
+test('interval limits and evolution reconcile shared refunds with monthly own expense', () => {
+  assert.equal(A.spending(intervalSnapshot, '2026-01', 'Café'), 65);
+  assert.equal(A.intervalBudget(intervalSnapshot, intervalRecord).spent, 65);
+  assert.equal(
+    A.budgetEvolution(intervalSnapshot, intervalRecord).at(-1).expense,
+    65,
+  );
+});
+test('unobserved intervals never become zero expense or a fabricated cumulative starting balance', () => {
+  assert.equal(
+    A.intervalBudget(intervalSnapshot, {
+      ...intervalRecord,
+      start: '2026-02-01',
+      end: null,
+    }).spent,
+    null,
+  );
+  const partial = { ...intervalRecord, start: '2025-12-18' };
+  assert.equal(A.intervalBudget(intervalSnapshot, partial).spent, null);
+  assert.ok(
+    A.budgetEvolution(intervalSnapshot, partial).every(
+      (row) => row.expense === null,
+    ),
+  );
+});
