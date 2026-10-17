@@ -35,6 +35,7 @@ const assets = [
   'install.js',
 ];
 const hash = crypto.createHash('sha256');
+hash.update(fs.readFileSync(__filename));
 for (const file of assets)
   hash.update(file).update(fs.readFileSync(path.join(web, file)));
 const version = 'finances-' + hash.digest('hex').slice(0, 16);
@@ -42,7 +43,7 @@ const script = `'use strict';
 const CACHE = ${JSON.stringify(version)};
 const ASSETS = ${JSON.stringify(assets)};
 const urls = () => ASSETS.map(file => new URL(file, self.registration.scope).href);
-self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(urls()))); });
+self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(urls().map(url => new Request(url, { cache: 'reload' }))))); });
 self.addEventListener('activate', event => { event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('finances-') && key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim())); });
 self.addEventListener('message', event => { if(event.data?.type === 'ACTIVATE_UPDATE') self.skipWaiting(); });
 self.addEventListener('fetch', event => {

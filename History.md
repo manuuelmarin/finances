@@ -110,6 +110,7 @@ Changes in repository order, from the first recorded build to the current app. V
 - Validated growth across all editable tables, longer histories and portfolio-size invariance; consolidated tests and made deployment publish the tested artifact ([#36](https://github.com/manuuelmarin/finances/pull/36)).
 - Made workbook tables readable and consolidated version history here. TODO proposals remain separate from implemented features.
 - Swapped Investments and Planning in desktop and mobile navigation.
+- Refresh public PWA assets from the network during installation so browser HTTP caches cannot preserve an old interface after an update.
 
 ### Private Google update from 3.10.0
 
