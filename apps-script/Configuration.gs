@@ -112,12 +112,11 @@ const TABLE_SCHEMA_ = [
 ];
 
 const API_VERSION_ = '3.3.0';
-const BUILD_VERSION_ = '3.10.0';
+const BUILD_VERSION_ = '3.10.1';
 const DAILY_HISTORY_MARKER_ = 'Finanzas · Histórico generado';
 const DAILY_HISTORY_MAX_DAYS_ = 36525;
 const API_TRANSPORT_ = 'finances.rpc.json.v1';
-// El motor de fórmulas no cambia en el paso 4; conserva su sello de capacidad.
-const CAPACITY_VERSION_ = '3.1.0';
+const CAPACITY_VERSION_ = '3.2.0';
 const INPUT_SCHEMA_ = {
   tMovimientos: {
     inputs: [
@@ -538,6 +537,7 @@ const PARAMETER_NAMES_ = {
 
 const SUPPORT_NAMES_ = {
   movements: 'Finanzas_CalculoMovimientos',
+  cashMonths: 'Finanzas_ResumenMensual',
   categories: 'Finanzas_CalculoCategorias',
   history: 'Finanzas_HistoricoProductos',
   products: 'Finanzas_GraficoProductos',

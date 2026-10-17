@@ -1,40 +1,58 @@
-# Finanzas
+# Finance
 
 [![CI](https://github.com/manuuelmarin/finances/actions/workflows/pages.yml/badge.svg)](https://github.com/manuuelmarin/finances/actions/workflows/pages.yml)
 
-Aplicación de finanzas personales con cuentas, movimientos, inversiones, presupuestos y objetivos. La interfaz pública funciona en GitHub Pages; los datos permanecen en Google Sheets y se consultan mediante un Apps Script privado del propietario.
+Personal finance PWA for cash, investments, budgets and goals. GitHub Pages serves the interface; private Google Sheets stores the data.
 
-[**Abrir aplicación**](https://manuuelmarin.github.io/finances/) · [Instalar o actualizar el backend](https://manuuelmarin.github.io/finances/install.html)
+[Open app](https://manuuelmarin.github.io/finances/) · [Install / update](https://manuuelmarin.github.io/finances/install.html) · [TODOs](TODO.md)
 
-App **3.10.0** · API **3.3.0** · modelo de libro **3**.
+**App 3.10.1 · API 3.3.0 · workbook model 3.**
 
-## Instalación y actualización
+## End to end
 
-1. Para una instalación nueva, convierte la [plantilla vacía](templates/finances-model-3.xlsx) completa a Google Sheets y comprueba su [estructura](docs/WORKBOOK.md). Conserva una copia de pruebas separada.
-2. Sigue el instalador para copiar los 13 módulos de [`apps-script/modules.json`](apps-script/modules.json), `Bridge.html` y `appsscript.json` a tu proyecto privado de Apps Script.
-3. Configura las propiedades `OWNER_EMAIL`, `ENVIRONMENT=test` y `TEST_SPREADSHEET_ID` en Google, nunca en este repositorio.
-4. Ejecuta `prepareApplication` y después `checkApplication`. Comprueba versión, entorno, cálculo, resumen y fuentes; `ok:true` solo indica que la comprobación terminó.
-5. Implementa como **Yo**, con acceso **Solo yo**, y configura la URL privada en la aplicación. Tras actualizar código, publica una **nueva versión de la misma implementación** para conservar su URL. Publicar GitHub Pages no actualiza Google.
+```mermaid
+flowchart TD
+    Source["Source and tests"] --> CI["Quality checks"]
+    CI --> Pages["GitHub Pages: public assets"]
+    subgraph Device["Your device"]
+        Pages --> App["PWA: records, charts, planning"]
+        App <--> Local["IndexedDB: snapshot and pending requests"]
+        App --> Review["Review operation and persist UUID"]
+        Review --> Bridge["Google session bridge"]
+        App <-->|"Read and recover receipts"| Bridge
+    end
+    subgraph Google["Private Google environment"]
+        Bridge <-->|"Authenticated JSON"| API["Apps Script: owner, book, revision, lock"]
+        API --> Batch["Atomic inputs, audit and receipt"]
+        Batch --> Sheets["Sheets tables and native formulas"]
+        Sheets -->|"Calculated snapshot"| API
+        Schedule["Optional price schedule"] --> API
+        API <-->|"Verified, dated NAVs"| Provider["Price provider"]
+    end
+```
 
-El instalador compara los archivos de una versión instalada conocida. Si la instalación está personalizada o no conoces su versión, revisa todos los archivos. Conserva los hashes históricos de `tools/install-releases.json`; una versión registrada no puede cambiar de contenido.
+The backend selects the workbook. The PWA caches public assets; financial snapshots and pending requests remain in the device profile. Missing values stay unknown.
 
-Para utilizar el libro personal, valida primero una copia aislada. Utiliza otro proyecto y otra implementación privados, `ENVIRONMENT=production` y `PRODUCTION_SPREADSHEET_ID`, conservando también un `TEST_SPREADSHEET_ID` distinto. Mantén disponible la instalación de pruebas. El servidor decide qué libro abrir; cambiar una selección en el navegador no cambia sus propiedades.
+## Setup
 
-## Uso y recuperación
+1. Convert the complete [blank workbook](templates/finances-model-3.xlsx) to Google Sheets. Preserve its [tables and formulas](docs/WORKBOOK.md).
+2. Follow the installer to add its 15 files to a private Apps Script project. Set `OWNER_EMAIL`, `ENVIRONMENT=test` and `TEST_SPREADSHEET_ID` in Script Properties.
+3. Run `prepareApplication`, then `checkApplication`. Check calculation, summary and source results; `ok:true` alone is insufficient.
+4. Deploy as **Me**, access **Only me**. Connect its private URL in the app.
 
-- **Conexión:** abre la sesión de Google con la cuenta propietaria. En Configuración, usa **Comprobar sistema** para revisar la instalación conectada. Acepta las actualizaciones de la PWA y vuelve a abrirla para cargar los nuevos recursos.
-- **Operaciones:** revisa antes de confirmar. El cliente conserva una solicitud con UUID, revisión y vínculo al libro; el backend registra cambios, auditoría y recibo en una operación atómica.
-- **Respuesta incierta:** conserva la solicitud completa y consulta su recibo en la implementación original. Reintenta el mismo contenido y UUID; no lo edites, descartes ni vuelvas a crear. Una revisión obsoleta exige leer y revisar de nuevo.
-- **Cambio de libro o dispositivo:** resuelve los pendientes en su entorno original. Nunca transfieras solicitudes de pruebas al principal ni borres el almacenamiento local con solicitudes sin confirmar.
-- **Respaldo:** antes de preparar un libro o actualizar Google, guarda una copia nativa completa del libro y, por separado, código, propiedades y versión de implementación. Una copia de Sheets no acredita el respaldo de la configuración de Apps Script.
-- **Restauración:** conserva el libro y los recibos actuales, restaura en otra copia, valida fórmulas y concilia los movimientos posteriores antes de reanudar. Haz las pruebas ficticias en una copia desechable.
-- **Precios:** la actualización diaria es opcional. `enableDailyPrices`, `updatePrices` y `disableDailyPrices` usan el entorno configurado. Consulta las [reglas de precios e importación](apps-script/PRICES.md).
+For production, retain the test setup and use a separate project with `ENVIRONMENT=production`, `PRODUCTION_SPREADSHEET_ID` and a different `TEST_SPREADSHEET_ID`. Keep all private configuration outside GitHub.
 
-Los filtros y las exportaciones no modifican Sheets. La caché PWA guarda recursos públicos; las instantáneas y solicitudes privadas están en el almacenamiento del perfil. Los datos ausentes no se convierten en cero. La [guía de métricas](docs/PORTFOLIO-METRICS.md) explica TWR, TIR, medias, contribuciones y riesgo.
+Updates require replacing the installer's changed files, running preparation/checks and publishing **New version** of the existing deployment. Pages does not update Apps Script. Preparation repairs managed summaries and expands capacity; enter records through the app or within the native tables.
 
-## Desarrollo
+## Recovery
 
-Requiere Node.js 24 o posterior.
+Back up the complete native workbook and the script code/configuration before updates. Resolve pending requests in their original deployment before switching books or clearing storage. An uncertain write retains its original content and UUID: query its receipt before retrying. Restore into a separate copy and reconcile before resuming.
+
+[Workbook and prices](docs/WORKBOOK.md) · [Return and risk calculations](docs/PORTFOLIO-METRICS.md) · [Security](SECURITY.md)
+
+## Development
+
+Node.js 24+:
 
 ```sh
 npm ci --ignore-scripts
@@ -43,28 +61,15 @@ npm run build
 node tools/serve.cjs
 ```
 
-Abre `http://127.0.0.1:4173`. Las pruebas usan datos ficticios y servicios simulados.
+Open `http://127.0.0.1:4173`. Run `npm run check` and `npm run audit` before a PR. Tests use fictional data; private Google and physical-device acceptance remain separate.
 
-| Ruta                | Contenido                                                   |
-| ------------------- | ----------------------------------------------------------- |
-| `web/`              | Interfaz, conexión, solicitudes pendientes, gráficos y PWA. |
-| `apps-script/`      | Autorización, lectura, validación, transacciones y precios. |
-| `tools/`            | Instalador, compilación, servidor y adaptadores del agente. |
-| `tests/`            | Pruebas de cálculo, backend, recuperación y navegador.      |
-| `templates/`        | Libro inicial sin datos financieros.                        |
-| `TODO.md` y `TODO/` | Propuestas y estado de las tareas seleccionadas.            |
+| Directory      | Purpose                                          |
+| -------------- | ------------------------------------------------ |
+| `web/`         | UI, charts, API client, queue and PWA            |
+| `apps-script/` | Authorization, transactions, formulas and prices |
+| `tools/`       | Builds, local server and checks                  |
+| `tests/`       | Financial, recovery and browser tests            |
+| `templates/`   | Empty workbook                                   |
+| `TODO/`        | Feature proposals                                |
 
-Edita los módulos y `tools/install-template.html`; regenera `web/install.html`, los hashes CSP y `web/sw.js` con `npm run build`. No edites esos resultados a mano. Una limpieza documental no requiere cambiar la versión de la aplicación.
-
-```sh
-npm run check
-npm run audit
-```
-
-`check` ejecuta compilación, formato, lint y ambas suites. La auditoría de dependencias se ejecuta aparte. CI comprueba también los mensajes de commit y solo publica después de superar `quality`. Las pruebas simuladas no certifican una instalación privada ni un teléfono físico.
-
-Trabaja en una rama y abre un PR con el cambio y su validación. Usa commits `type(scope): descripción`; el scope es opcional. Tipos admitidos: `feat`, `fix`, `chore`, `refactor`, `test`, `docs`, `build`, `ci`, `perf`, `style`, `revert`. Valida con `node tools/check-commits.cjs BASE_SHA HEAD`.
-
-La [política de protección](.github/rulesets/main.json) debe activarse y verificarse en GitHub; guardar el JSON no la activa. Los cambios deben seguir el flujo de PR y comprobaciones, sin saltarse controles. Conserva fuera del repositorio datos personales, IDs privados, URLs de implementación, recibos y copias financieras. Consulta [Seguridad](SECURITY.md).
-
-Los adaptadores `tools/agent-envelope.cjs` y `tools/agent-queue.cjs` requieren un cliente privado ya autenticado. Guarda su estado fuera del repositorio; al reanudar, abre la misma cola y usa `run(client)` sin volver a encolar solicitudes. Un archivo corrupto o un bloqueo ocupado debe investigarse antes de reemplazarlo.
+Edit source files and rebuild generated installer, CSP and service-worker assets. Keep existing release hashes immutable. Use Conventional Commits and merge through a checked PR; deployment depends on `quality`.

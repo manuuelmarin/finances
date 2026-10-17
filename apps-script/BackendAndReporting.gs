@@ -66,10 +66,7 @@ function initializeBackendUnlocked_(config) {
   return readState_(config);
 }
 function diagnostics_(s) {
-  const capacityReady =
-    Object.keys(supportRanges_(s)).length ===
-      Object.keys(SUPPORT_NAMES_).length &&
-    s.supportSignature === capacitySignature_(s);
+  const capacityReady = capacityReady_(s);
   const calculationReady = !(s.calculationErrors || []).length;
   return {
     ok: true,
@@ -181,8 +178,12 @@ function publicSnapshot_(s) {
         }),
     ),
   );
-  return Object.assign(diagnostics_(s), {
-    calculationState: calculationErrors.length ? 'needs_review' : 'ready',
+  const diagnostics = diagnostics_(s);
+  return Object.assign(diagnostics, {
+    calculationState:
+      calculationErrors.length || !diagnostics.capacityReady
+        ? 'needs_review'
+        : 'ready',
     calculationErrors,
     settings: Object.fromEntries(
       Object.keys(s.settings).map((k) => [k, isoDate_(s.settings[k])]),
@@ -365,6 +366,10 @@ function nativeSummary_(s, data) {
   if (missingPrices.length)
     metrics
       .filter((m) => ['Patrimonio neto', 'Inversiones'].indexOf(m.label) >= 0)
+      .forEach((m) => (m.value = null));
+  if (!capacityReady_(s))
+    metrics
+      .filter((m) => groups[1].includes(m.label))
       .forEach((m) => (m.value = null));
   return {
     source: 'Sheets · Resumen financiero',

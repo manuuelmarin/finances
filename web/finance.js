@@ -59,7 +59,7 @@
       EMBEDDED_CONTEXT:
         'Abre Finanzas en su propia ventana para acceder a tu libro.',
       UPDATE_REQUIRED:
-        'Actualiza los archivos marcados como nuevos o modificados en el instalador 3.10.0 y publica Nueva versión de la implementación existente. Guardar el editor no actualiza el enlace /exec.',
+        'Actualiza Apps Script con el instalador 3.10.1 y publica una nueva versión.',
       POPUP_BLOCKED:
         'Permite abrir la ventana de Google y vuelve a pulsar Abrir mi libro.',
       NOT_CONNECTED: 'Abre Google para leer o enviar los pendientes.',
