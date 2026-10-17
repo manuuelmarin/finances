@@ -513,6 +513,7 @@ function runtime(options = {}) {
       .properties.sheetId;
   const blocks = [
     [calc, 7, 1, ['ID', 'Fecha', 'Tipo'], 20, 13],
+    [calc, 29, 1, ['Mes', 'Ingresos', 'Gastos', 'Ahorro', 'Efectivo'], 12, 6],
     [calc, 49, 1, ['Categoría', 'Gasto propio'], 9, 5],
     [calc, 65, 1, ['Mes', 'Producto', 'Corte'], 18, 10],
     [calc, 124, 4, ['Producto', 'Valor'], 1, 2],

@@ -48,18 +48,19 @@ The app reads the native summary range `Resumen financiero!B2:U80`. It needs two
 
 Keep the workbook's native formulas and their references. A static copy of displayed values is not equivalent. The app also reads the monthly chart headings `Mes`, `Ingresos`, `Gastos`, `Efectivo` from this range when present.
 
-Six named calculation blocks are expected. `prepareApplication` can discover/create their named ranges from the matching header rows and maintain capacity, but the formulas and anchors must already be correct:
+Seven named calculation blocks are expected. `prepareApplication` can discover/create their named ranges from the matching header rows and maintain capacity, and regenerates their canonical formulas:
 
 | Named range                   | Anchor area             | Header signature                                            | Width |
 | ----------------------------- | ----------------------- | ----------------------------------------------------------- | ----: |
 | `Finanzas_CalculoMovimientos` | `Cálculos`, column B    | `ID`, `Fecha`, `Tipo`                                       |    13 |
+| `Finanzas_ResumenMensual`     | `Cálculos`, column B    | `Mes`, `Ingresos`, `Gastos`, `Ahorro`, `Efectivo`           |     6 |
 | `Finanzas_CalculoCategorias`  | `Cálculos`, column B    | `Categoría`, `Gasto propio`                                 |     5 |
 | `Finanzas_HistoricoProductos` | `Cálculos`, column B    | `Mes`, `Producto`, `Corte`                                  |    10 |
 | `Finanzas_GraficoProductos`   | `Cálculos`, column E    | `Producto`, `Valor`                                         |     2 |
 | `Finanzas_MesesInversiones`   | `Inversiones`, column B | `Mes`, `Capital invertido`, `Valor de mercado`, `Resultado` |     4 |
 | `Finanzas_GraficoCiudades`    | `Cálculos`, column P    | `Localización`, `Gasto propio`                              |     2 |
 
-The first three header signatures are located in column B within the calculation sheet's support area; keep each block distinct and its following formula rows intact. `Cálculos!T8` is managed capacity metadata written by preparation, not a user input. Do not edit or repurpose it.
+The movement, monthly, category and product-history header signatures are located in column B within the calculation sheet's support area; keep each block distinct and its following formula rows intact. `Cálculos!T8` is managed capacity metadata written by preparation, not a user input. Do not edit or repurpose it.
 
 ## Technical and generated sheets
 
@@ -80,3 +81,13 @@ The app origin is fixed in `APP_ORIGIN_` in `apps-script/Configuration.gs`, and 
 ## Source of truth and limits
 
 This guide summarizes the current contract in [`Configuration.gs`](../apps-script/Configuration.gs): `REQUIRED_SHEETS_`, `TABLE_SCHEMA_`, `INPUT_SCHEMA_`, `TECH_SCHEMA_`, and `SUPPORT_NAMES_`. Structural checks are in [`AccessAndUtilities.gs`](../apps-script/AccessAndUtilities.gs), capacity and formula preparation in [`SupportAndCapacity.gs`](../apps-script/SupportAndCapacity.gs), and native summary/chart interpretation in [`BackendAndReporting.gs`](../apps-script/BackendAndReporting.gs). Consult those files before changing a copied model. The template is a starting point; run `checkApplication` on your own native copy before entering real data.
+
+## Prices
+
+`tPrecios` is the NAV source. Daily updates validate ISIN, share class, currency, effective date and provider identity. An older or conflicting quote never overwrites a newer verified price; weekends and missing publications do not create artificial observations.
+
+Historical CSV columns: `isin,referenceName,classCurrency,quoteCurrency,date,price,provider,sourceUrl,exportedAt`. Preserve dates and precision, use EUR quotes and identify the exact share class and provenance. The app previews imports in chunks of at most 20 rows. Equal existing observations are duplicates; conflicts reject the chunk. Imports never change holdings or cash. Reviewed exports are identified as owner-reviewed, not independently certified.
+
+`Histórico` is a generated view of exact stored quotes. It stays blank on unsupported dates and is not an input. Daily prices are optional: `enableDailyPrices`, `updatePrices` and `disableDailyPrices` use the configured environment. The schedule checks Madrid hours 20, 21 and 22, with bounded retries, locks and receipt recovery. A successful request does not imply a newly published NAV. Inspect scheduling/publication status in diagnostics before reactivating a missing or incorrectly bound trigger.
+
+The trigger is bound to its owner, workbook and script project. Reconfigure it explicitly after copying a project. Keep pending UUIDs and query their original receipts when recovering. Never copy another book's receipts or use current quotes to fill historical gaps.

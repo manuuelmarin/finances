@@ -36,6 +36,7 @@ function discoverSupport_(config, state) {
   }).valueRanges;
   const definitions = {
     movements: [0, 0, ['ID', 'Fecha', 'Tipo'], 13],
+    cashMonths: [0, 0, ['Mes', 'Ingresos', 'Gastos', 'Ahorro', 'Efectivo'], 6],
     categories: [0, 0, ['Categoría', 'Gasto propio'], 5],
     history: [0, 0, ['Mes', 'Producto', 'Corte'], 10],
     products: [0, 3, ['Producto', 'Valor'], 2],
@@ -194,6 +195,7 @@ function growSupportRequests_(state, desired) {
   const ranges = supportRanges_(state),
     needed = {
       movements: state.raw.tMovimientos.length,
+      cashMonths: 12,
       categories: state.raw.tCategorias.length,
       products: state.raw.tProductos.length,
       history:
@@ -304,9 +306,129 @@ function nativeFormula_(state, formula) {
     );
   });
 }
+function movementColumnRef_(column) {
+  const index = { C: 2, F: 5, K: 10, L: 11, M: 12, N: 13 }[column];
+  check_(!!index, 'Columna de movimientos desconocida.');
+  return 'INDEX(' + SUPPORT_NAMES_.movements + ';0;' + index + ')';
+}
+function movementSummaryRequests_(state) {
+  const calc = state.book.sheets.find((s) => s.properties.title === 'Cálculos'),
+    monthly = supportRanges_(state).cashMonths.range,
+    ref = movementColumnRef_,
+    account = "'Resumen financiero'!$Q$4";
+  const total = (column, from, until) => {
+    const sum =
+      'SUMIFS(' +
+      ref(column) +
+      ';' +
+      ref('C') +
+      ';">="&' +
+      from +
+      ';' +
+      ref('C') +
+      ';"<"&' +
+      until;
+    return (
+      'IF(' +
+      account +
+      '="Todas";' +
+      sum +
+      ');' +
+      sum +
+      ';' +
+      ref('N') +
+      ';' +
+      account +
+      '))'
+    );
+  };
+  const rows = [];
+  for (let row = monthly.startRowIndex; row < monthly.endRowIndex; row++) {
+    const r = row + 1,
+      month = 'B' + r,
+      end = 'MIN(EDATE(' + month + ";1);'Configuración'!$C$7+1)",
+      known =
+        'AND(EDATE(' +
+        month +
+        ";1)>'Configuración'!$C$6;" +
+        month +
+        "<='Configuración'!$C$7)",
+      cash = (filtered) => {
+        const opening = filtered
+          ? 'SUMIFS(tCuentas[Saldo inicial];tCuentas[Cuenta];' + account + ')'
+          : 'SUM(tCuentas[Saldo inicial])';
+        const sum = (side) =>
+          'SUMIFS(tMovimientos[Importe];tMovimientos[' +
+          side +
+          '];' +
+          (filtered ? account : '"<>"') +
+          ';tMovimientos[Fecha];">="&\'Configuración\'!$C$6;' +
+          'tMovimientos[Fecha];"<"&' +
+          end +
+          ')';
+        return opening + '+' + sum('Destino') + '-' + sum('Origen');
+      };
+    rows.push([
+      "=DATE('Resumen financiero'!$E$4;" +
+        (row - monthly.startRowIndex + 1) +
+        ';1)',
+      '=IF(' + known + ';' + total('K', month, end) + ';"")',
+      '=IF(' + known + ';' + total('L', month, end) + ';"")',
+      '=IF(COUNT(C' + r + ';D' + r + ')<2;"";C' + r + '-D' + r + ')',
+      '=IF(' +
+        known +
+        ';IF(' +
+        account +
+        '="Todas";' +
+        cash(false) +
+        ';' +
+        cash(true) +
+        ');"")',
+      '=IF(COUNT(C' + r + ')=0;"";TEXT(' + month + ';"mmm yyyy"))',
+    ]);
+  }
+  return [
+    formulaBlock_(
+      {
+        sheetId: calc.properties.sheetId,
+        startRowIndex: 3,
+        startColumnIndex: 4,
+      },
+      [
+        [
+          '=' + total('K', 'C4', 'D4'),
+          '=' + total('L', 'C4', 'D4'),
+          '=E4-F4',
+          '=IF(E4=0;"";G4/E4)',
+        ],
+      ],
+      state,
+    ),
+    formulaBlock_(
+      {
+        sheetId: calc.properties.sheetId,
+        startRowIndex: 4,
+        startColumnIndex: 2,
+      },
+      [
+        [
+          '=SUMIFS(' +
+            ref('M') +
+            ';' +
+            ref('C') +
+            ';">="&\'Configuración\'!$C$6;' +
+            ref('C') +
+            ';"<="&\'Configuración\'!$C$7)',
+        ],
+      ],
+      state,
+    ),
+    formulaBlock_(monthly, rows, state),
+  ];
+}
 function supportFormulaRequests_(state, originalOnly) {
   const blocks = supportRanges_(state),
-    requests = [];
+    requests = movementSummaryRequests_(state);
   const fill = (kind, make) => {
     const range = blocks[kind].range,
       rows = [];
@@ -328,8 +450,7 @@ function supportFormulaRequests_(state, originalOnly) {
     }
     requests.push(formulaBlock_(range, rows, state));
   };
-  const mr = blocks.movements.range,
-    md = state.layout.tMovimientos.range.startRowIndex + 2;
+  const md = state.layout.tMovimientos.range.startRowIndex + 2;
   fill('movements', (r, index) => {
     const source = md + index,
       guard = 'Movimientos!B' + source + '=""';
@@ -410,15 +531,7 @@ function supportFormulaRequests_(state, originalOnly) {
     );
     return out;
   });
-  const ref = (c) =>
-    "'Cálculos'!$" +
-    c +
-    '$' +
-    (mr.startRowIndex + 1) +
-    ':$' +
-    c +
-    '$' +
-    mr.endRowIndex;
+  const ref = movementColumnRef_;
   const city = blocks.cities.range,
     move = state.layout.tMovimientos.range,
     loc =
@@ -722,6 +835,13 @@ function capacitySignature_(state) {
         Object.entries(supportRanges_(state)).map(([k, v]) => [k, v.range]),
       ),
     })
+  );
+}
+function capacityReady_(state) {
+  return (
+    Object.keys(supportRanges_(state)).length ===
+      Object.keys(SUPPORT_NAMES_).length &&
+    state.supportSignature === capacitySignature_(state)
   );
 }
 function prepareCapacity_(config, before, desired) {

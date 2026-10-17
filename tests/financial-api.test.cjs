@@ -435,6 +435,10 @@ test('no se escriben columnas calculadas, IDs manuales ni fechas inexistentes; t
 test('capacidad agotada amplía tabla y cálculo; el reintento conserva una única solicitud', () => {
   const r = runtime();
   r.init();
+  const calc = r.book().sheets.find((s) => s.properties.title === 'Cálculos')
+    .properties.sheetId;
+  const summaryFormula = r.cell(calc, 3, 5).userEnteredValue.formulaValue;
+  assert.match(summaryFormula, /INDEX\(Finanzas_CalculoMovimientos;0;11\)/);
   const cap = r.state().raw.tMovimientos.length;
   for (let i = 0; i < cap; i += 20)
     assert.equal(
@@ -461,6 +465,55 @@ test('capacidad agotada amplía tabla y cálculo; el reintento conserva una úni
     s.raw.tMovimientos.length,
   );
   assert.equal(s.technical.requests.length, cap / 20 + 1);
+  assert.equal(
+    r.cell(calc, 3, 5).userEnteredValue.formulaValue,
+    summaryFormula,
+  );
+  const monthly = s.book.namedRanges.find(
+    (n) => n.name === 'Finanzas_ResumenMensual',
+  ).range;
+  assert.match(
+    r.cell(calc, monthly.startRowIndex, 3).userEnteredValue.formulaValue,
+    /INDEX\(Finanzas_CalculoMovimientos;0;11\)/,
+  );
+});
+
+test('la preparación migra totales antiguos sin modificar entradas y es idempotente', () => {
+  const r = runtime();
+  r.init();
+  const before = JSON.stringify(r.state().tables),
+    calc = r.book().sheets.find((s) => s.properties.title === 'Cálculos')
+      .properties.sheetId;
+  r.ctx.Sheets.Spreadsheets.batchUpdate(
+    {
+      requests: [
+        {
+          updateCells: {
+            start: { sheetId: calc, rowIndex: 3, columnIndex: 5 },
+            rows: [
+              {
+                values: [
+                  { userEnteredValue: { formulaValue: '=SUM(L9:L28)' } },
+                ],
+              },
+            ],
+            fields: 'userEnteredValue',
+          },
+        },
+        r.ctx.cellRequest_(calc, 7, 19, 'API-3.1.0-A1-legacy'),
+      ],
+    },
+    'fixture-book',
+  );
+  assert.equal(r.init().ok, true);
+  assert.match(
+    r.cell(calc, 3, 5).userEnteredValue.formulaValue,
+    /INDEX\(Finanzas_CalculoMovimientos;0;11\)/,
+  );
+  assert.equal(JSON.stringify(r.state().tables), before);
+  const writes = r.writes.length;
+  assert.equal(r.init().ok, true);
+  assert.equal(r.writes.length, writes);
 });
 test('objetivos y asignaciones no producen efectivo; anulación no deja asignaciones huérfanas', () => {
   const r = runtime();

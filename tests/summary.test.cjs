@@ -83,3 +83,19 @@ test('dos bloques completos de tarjetas requieren revisión y conservan desconoc
   assert.equal(result.metrics.find((m) => m.label === 'Efectivo').value, null);
   assert.equal(result.metrics.find((m) => m.label === 'Ingresos').value, 200);
 });
+
+test('un cambio de capacidad sin preparar no presenta totales nativos antiguos como válidos', () => {
+  const { r, s, data } = fixture();
+  s.book.namedRanges.find((n) => n.name === 'Finanzas_CalculoMovimientos').range
+    .endRowIndex++;
+  const result = r.ctx.nativeSummary_(s, data);
+  assert.equal(result.complete, false);
+  for (const label of [
+    'Ingresos',
+    'Gastos propios',
+    'Ahorro',
+    'Tasa de ahorro',
+  ])
+    assert.equal(result.metrics.find((m) => m.label === label).value, null);
+  assert.equal(r.ctx.publicSnapshot_(s).calculationState, 'needs_review');
+});
