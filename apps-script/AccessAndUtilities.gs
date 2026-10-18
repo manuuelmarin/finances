@@ -291,6 +291,7 @@ function apiError_(error, context) {
     'READ_REQUIRED',
     'BOOK_CHANGED',
     'TEST_ONLY',
+    'UPDATE_REQUIRED',
   ];
   const code =
     codes.indexOf(error.code || error.message) >= 0

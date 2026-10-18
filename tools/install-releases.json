@@ -70,7 +70,7 @@
   "3.10.2": {
     "Code.gs": "24c6714ffd4a0f06c409e5f4900b1473eec7c1daf5ebb91ae07035839c0eb15d",
     "Configuration.gs": "02287da38c5508a9ac5cba58b31e653ac7259de0c12ff295c9c7cca6e7123542",
-    "AccessAndUtilities.gs": "6ca8ef2c353969e1fde542f12b4ee976535444e98e574542b339ab0f3ed77106",
+    "AccessAndUtilities.gs": "d8185f0d8c3fb23303094c558a8d1abe73f7d7aed2663c1acd091d85d38abcb9",
     "BackendAndReporting.gs": "48ced1736bd4a58ef8bc381d14b0cf2810c2c02b01e524e2f329dc572cdeaadd",
     "DailyHistory.gs": "58cd749c210b0a9f16bf5fffb60e9f40bbd608f7890a42af280a4a92fcab6f6a",
     "DailyPriceAutomation.gs": "347e4ff8f0c0f207d02076a0a4964650f0458b5954396f44c1759d80b374c7a9",

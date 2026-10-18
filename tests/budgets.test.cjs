@@ -276,22 +276,19 @@ test('interval budgets reject malformed dates, negative limits and invalid categ
 test('the server returns UPDATE_REQUIRED if a custom-budget request reaches a backend without its schema', () => {
   const r = runtime();
   r.init();
-  const state = r.state();
-  delete state.tech.intervalBudgets;
-  assert.throws(
-    () =>
-      r.evaluate(
-        `applyOperations_(${JSON.stringify(state)}, ${JSON.stringify([
-          {
-            process: 'presupuesto_intervalo',
-            title: 'Cafés',
-            start: '2026-08-18',
-            amount: 50,
-          },
-        ])}, 'request-id', '2026-08-01T00:00:00.000Z', false)`,
-      ),
-    (error) => error.code === 'UPDATE_REQUIRED',
-  );
+  r.removeTechnical('_Finanzas_PresupuestosIntervalos');
+  const writes = r.writes.length;
+  const result = r.transact([
+    {
+      process: 'presupuesto_intervalo',
+      title: 'Cafés',
+      start: '2026-08-18',
+      amount: 50,
+    },
+  ]);
+  assert.equal(result.error, 'UPDATE_REQUIRED');
+  assert.match(result.message, /Prepara el backend/);
+  assert.equal(r.writes.length, writes);
 });
 
 test('custom interval spending is bounded inclusively, uses own expense rules, and does not synthesize future spending', () => {
