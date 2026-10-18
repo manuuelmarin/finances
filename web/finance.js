@@ -59,7 +59,7 @@
       EMBEDDED_CONTEXT:
         'Abre Finanzas en su propia ventana para acceder a tu libro.',
       UPDATE_REQUIRED:
-        'Actualiza Apps Script con el instalador 3.10.3 y publica una nueva versión.',
+        'Actualiza Apps Script con el instalador 3.10.4 y publica una nueva versión.',
       POPUP_BLOCKED:
         'Permite abrir la ventana de Google y vuelve a pulsar Abrir mi libro.',
       NOT_CONNECTED: 'Abre Google para leer o enviar los pendientes.',
@@ -87,6 +87,8 @@
         'El canal falló durante el envío. Se conserva la solicitud para consultar su recibo.',
       STATUS_FAILED:
         'No se pudo consultar el recibo. La solicitud se conserva sin confirmar.',
+      RECEIPT_MISMATCH:
+        'La respuesta no corresponde a esta solicitud. Se conserva el envío y se consultará su recibo; no lo vuelvas a crear.',
       REVIEW_REQUIRED: 'Hay solicitudes que requieren revisión en Actividad.',
       RESPONSE_UNCERTAIN:
         'Envío sin confirmar. La solicitud se conserva para consultar el recibo antes de reintentar.',
@@ -407,12 +409,14 @@
           ? 'Otra ventana está comprobando o enviando los pendientes.'
           : outcome.reason === 'POST_CONFIRM_READ_FAILED'
             ? 'Google confirmó la operación. La lectura posterior falló; el recibo se conserva. Actualiza los datos.'
-            : outcome.status === 'unconfirmed'
-              ? 'Quedan envíos sin confirmar. ' +
-                errorText(Error(outcome.reason))
-              : outcome.status === 'review'
-                ? 'Hay operaciones que requieren revisión. Consulta Actividad.'
-                : 'Sincronización confirmada. Revisa el estado de cada operación.',
+            : outcome.reason === 'POST_CONFIRM_MOVEMENT_MISSING'
+              ? 'Google confirmó el movimiento, pero no aparece en la última lectura. El recibo se conserva; actualiza los datos sin volver a enviarlo.'
+              : outcome.status === 'unconfirmed'
+                ? 'Quedan envíos sin confirmar. ' +
+                  errorText(Error(outcome.reason))
+                : outcome.status === 'review'
+                  ? 'Hay operaciones que requieren revisión. Consulta Actividad.'
+                  : 'Sincronización confirmada. Revisa el estado de cada operación.',
         snapshot ? 'loaded' : 'unread',
       );
     } catch (error) {
@@ -1291,6 +1295,21 @@
       .filter((q) => q.status === 'confirmed')
       .slice()
       .reverse();
+    const confirmedMovements = confirmed.filter(
+      (item) =>
+        item.envelope.action === 'transact' &&
+        (item.result?.results || []).some((row) => row.id?.startsWith('MOV-')),
+    ).length;
+    parent.append(
+      el(
+        'p',
+        confirmedMovements +
+          ' solicitudes con movimientos confirmados · ' +
+          confirmed.filter((item) => item.envelope.action === 'refreshPrices')
+            .length +
+          ' actualizaciones de precios.',
+      ),
+    );
     const pendingCount = items.filter(
       (item) => !['confirmed', 'discarded'].includes(item.status),
     ).length;
@@ -1359,13 +1378,71 @@
         card.append(el('p', item.result.message));
       else if (item.result?.error)
         card.append(el('p', errorText(Error(item.result.error))));
-      if (item.status === 'confirmed')
+      card.append(
+        el(
+          'p',
+          item.envelope.action === 'refreshPrices'
+            ? 'Actualización de precios · no crea movimientos.'
+            : item.envelope.action === 'importPriceHistory'
+              ? 'Importación de precios · no crea movimientos.'
+              : (item.envelope.operations || [])
+                  .map((op) =>
+                    [
+                      D.processes[op.process]?.label || op.process,
+                      op.concept,
+                      op.date,
+                      typeof op.amount === 'number'
+                        ? money.format(op.amount)
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · '),
+                  )
+                  .join('; '),
+        ),
+      );
+      if (item.status === 'confirmed') {
         card.append(
           el(
             'p',
             'Recibo de Google confirmado y conservado en este navegador.',
           ),
         );
+        const readback = FinanceSync.movementReadback(item, snapshot);
+        if (readback) {
+          card.append(
+            el(
+              'p',
+              readback.present
+                ? 'Movimiento presente en la última lectura del libro.'
+                : 'El recibo confirma un movimiento que no aparece en la última lectura. Actualiza los datos; no lo vuelvas a enviar.',
+            ),
+          );
+          for (const id of readback.ids)
+            card.append(el('small', 'Movimiento: ' + id));
+          if (readback.present)
+            card.append(
+              button('Ver movimiento', () => {
+                const movement = snapshot.tables.tMovimientos.find(
+                  (row) => row.ID === readback.ids[0],
+                );
+                registerContext('book');
+                $('finance-section').value = 'tMovimientos';
+                $('finance-search').value = movement.Concepto || '';
+                $('finance-from').value = movement.Fecha;
+                $('finance-to').value = movement.Fecha;
+                registerFilters.set('tMovimientos', {
+                  search: movement.Concepto || '',
+                  from: movement.Fecha,
+                  to: movement.Fecha,
+                });
+                tableState.delete('tMovimientos');
+                location.hash = 'book';
+                renderRegister();
+              }),
+            );
+        }
+      }
       if (item.result?.complete === false)
         card.append(
           el(

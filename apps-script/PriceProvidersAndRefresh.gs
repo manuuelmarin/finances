@@ -760,6 +760,8 @@ function refreshPrices_(config, request) {
     );
     const response = {
       ok: true,
+      action: 'refreshPrices',
+      bookKey: before.bookKey,
       apiVersion: API_VERSION_,
       buildVersion: BUILD_VERSION_,
       environment: config.environment,

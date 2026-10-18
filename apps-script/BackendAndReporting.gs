@@ -565,6 +565,8 @@ function financialApi_(request) {
       context.phase = 'batch';
       const response = {
         ok: true,
+        action: 'transact',
+        bookKey: before.bookKey,
         apiVersion: API_VERSION_,
         buildVersion: BUILD_VERSION_,
         environment: config.environment,

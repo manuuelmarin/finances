@@ -404,3 +404,119 @@ test('settled uncertainty releases only its own claim in the same saved update',
   assert.equal(item.result.error, 'RESPONSE_UNCERTAIN');
   assert.equal(item.status, 'uncertain');
 });
+
+test('an unrelated successful price receipt never confirms an expense, including recovery', async () => {
+  for (const recovered of [false, true]) {
+    const { q, store, client, r, calls } = setup();
+    await q.saveSnapshot(await client.read());
+    await q.enqueue([expense(7)], 'Expected expense');
+    const original = (await q.get()).queue[0].envelope;
+    const priceReceipt = {
+      ok: true,
+      requestId: original.requestId,
+      revision: r.state().revision,
+      results: [{ product: 'PRODUCT-A', status: 'unchanged', ok: true }],
+    };
+    if (recovered) await q.status(original.requestId, 'uncertain');
+    const send = client.submit,
+      lookup = client.requestStatus;
+    if (recovered) client.requestStatus = async () => priceReceipt;
+    else client.submit = async () => priceReceipt;
+    const outcome = await q.run(client);
+    const uncertain = (await q.get()).queue[0];
+    assert.equal(outcome.reason, 'RECEIPT_MISMATCH');
+    assert.equal(outcome.confirmed, 0);
+    assert.equal(uncertain.status, 'uncertain');
+    assert.deepEqual(uncertain.envelope, original);
+    assert.deepEqual(uncertain.result.received, priceReceipt);
+    await assert.rejects(q.discard(original.requestId), /CANNOT_DISCARD/);
+    assert.equal(r.state().tables.tMovimientos.length, 0);
+    client.submit = send;
+    let checked = false;
+    client.requestStatus = async (envelope) => {
+      checked = true;
+      return lookup(envelope);
+    };
+    await new Queue(store, 'fixture', { locks: null }).run(client);
+    assert.equal(checked, true);
+    assert.equal((await q.get()).queue[0].status, 'confirmed');
+    assert.deepEqual(calls, [original]);
+    assert.equal(r.state().tables.tMovimientos.length, 1);
+  }
+});
+
+test('receipt contract binds identity, action, book, environment and operation results while retaining legacy receipts', async () => {
+  const { receiptMatches, movementReadback } = require('../web/queue.js');
+  const { q, client } = setup();
+  await q.saveSnapshot(await client.read());
+  await q.enqueue([expense(2)], 'Receipt identity');
+  const envelope = (await q.get()).queue[0].envelope;
+  const result = await client.submit(envelope),
+    snapshot = await client.read();
+  assert.equal(result.action, envelope.action);
+  assert.equal(result.bookKey, snapshot.bookKey);
+  assert.equal(receiptMatches(envelope, result, snapshot), true);
+  for (const patch of [
+    { requestId: 'other' },
+    { action: 'refreshPrices' },
+    { bookKey: 'other' },
+    { environment: 'production' },
+    { revision: null },
+    { results: [] },
+    { results: [{ process: 'ingreso' }] },
+    { results: [{ process: 'gasto' }] },
+    { results: [{ process: 'gasto', id: 'MOV-other-1' }] },
+  ])
+    assert.equal(
+      receiptMatches(envelope, { ...result, ...patch }, snapshot),
+      false,
+    );
+  assert.equal(receiptMatches(envelope, { ok: true }, snapshot), false);
+  const legacy = clone(result);
+  delete legacy.action;
+  delete legacy.bookKey;
+  assert.equal(receiptMatches(envelope, legacy, snapshot), true);
+  assert.equal(movementReadback({ result }, snapshot).present, true);
+  assert.equal(
+    movementReadback({ result }, { ...snapshot, tables: { tMovimientos: [] } })
+      .present,
+    false,
+  );
+  assert.equal(
+    movementReadback(
+      { result: { results: [{ product: 'PRODUCT-A' }] } },
+      snapshot,
+    ),
+    null,
+  );
+});
+
+test('post-cutoff movement remains in readback; a stale post-confirm read never resubmits the confirmed expense', async () => {
+  const { movementReadback } = require('../web/queue.js');
+  const { q, client, calls, r } = setup();
+  const before = await client.read();
+  await q.saveSnapshot(before);
+  await q.enqueue([{ ...expense(3), date: '2026-01-04' }], 'After cutoff');
+  const read = client.read;
+  client.read = async () => before;
+  const outcome = await q.run(client);
+  assert.equal(outcome.reason, 'POST_CONFIRM_MOVEMENT_MISSING');
+  const confirmed = (await q.get()).queue[0];
+  assert.equal(confirmed.status, 'confirmed');
+  assert.equal(
+    movementReadback(confirmed, (await q.get()).snapshot).present,
+    false,
+  );
+  // Model an operator-selected earlier reporting cut after the cash write.
+  assert.equal(
+    r.transact([{ process: 'fechas', asof: before.settings.asof }]).ok,
+    true,
+  );
+  client.read = read;
+  await q.run(client);
+  assert.equal(calls.length, 1);
+  const current = (await q.get()).snapshot;
+  assert.equal(current.settings.asof, before.settings.asof);
+  assert.equal(current.tables.tMovimientos[0].Fecha, '2026-01-04');
+  assert.equal(movementReadback(confirmed, current).present, true);
+});

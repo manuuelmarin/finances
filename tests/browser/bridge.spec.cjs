@@ -131,7 +131,19 @@ async function channel(context, options = {}) {
       calls.push(request);
       if (options.holdRead && request.action === 'read') return;
       if (options.holdAction === request.action) return;
-      let response = r.ctx.financialApiJson(json);
+      let response =
+        options.unrelatedReceipt && request.action === 'transact'
+          ? JSON.stringify({
+              ok: true,
+              requestId: request.requestId,
+              revision: r.state().revision,
+              action: 'refreshPrices',
+              bookKey: r.state().bookKey,
+              results: [
+                { product: 'PRODUCT-A', status: 'unchanged', ok: true },
+              ],
+            })
+          : r.ctx.financialApiJson(json);
       if (options.badPing && request.action === 'ping')
         response = '{"ok":false}';
       if (options.badRead && request.action === 'read')
@@ -596,4 +608,117 @@ test('cambiar la conexión desde otra pestaña invalida la revisión y no regist
   );
   expect(pending).toEqual([0, 0]);
   expect(calls.filter((c) => c.action === 'transact')).toHaveLength(0);
+});
+
+test('@responsive @safari unrelated price acknowledgement preserves the expense until its own receipt is recovered', async ({
+  page,
+  context,
+}) => {
+  const options = { unrelatedReceipt: true };
+  const { r, calls } = await channel(context, options);
+  await open(page);
+  await require('./helpers/finalization-runtime.cjs').expense(
+    page,
+    'Receipt mismatch expense',
+  );
+  await page.locator('#operation-form button[type=submit]').click();
+  await page.locator('#review-confirm').click();
+  await expect(page.locator('#history-total')).toHaveText('0');
+  await expect(page.locator('#finance-queue')).toContainText(
+    'La respuesta no corresponde',
+  );
+  expect(r.state().tables.tMovimientos).toHaveLength(0);
+  const original = calls.find((call) => call.action === 'transact');
+  options.unrelatedReceipt = false;
+  await navigate(page, 'activity');
+  await page.locator('#finance-sync').click();
+  await expect(page.locator('#history-total')).toHaveText('1');
+  expect(calls.filter((call) => call.action === 'transact')).toEqual([
+    original,
+    original,
+  ]);
+  expect(
+    calls.some(
+      (call) =>
+        call.action === 'requestStatus' &&
+        call.requestId === original.requestId,
+    ),
+  ).toBe(true);
+  const state = r.state();
+  expect(state.tables.tMovimientos).toHaveLength(1);
+  expect(state.technical.requests).toHaveLength(1);
+  expect(
+    state.technical.audit.some(
+      (row) => row[0] === original.requestId && row[2] === 'tMovimientos',
+    ),
+  ).toBe(true);
+  await page.locator('#confirmed-history summary').click();
+  await expect(page.locator('#finance-history')).toContainText(
+    'Movimiento presente en la última lectura',
+  );
+  await page.reload();
+  expect(r.state().tables.tMovimientos).toHaveLength(1);
+  await expect(page.locator('#history-total')).toHaveText('1');
+});
+
+test('@responsive @safari confirmed prices create no movement; a later expense remains visible beyond cutoff and active filters', async ({
+  page,
+  context,
+}) => {
+  const { r } = await channel(context);
+  await open(page);
+  const cutoff = r.state().settings.asof;
+  await navigate(page, 'investments');
+  await page.locator('#finance-prices').click();
+  await page.locator('#review-confirm').click();
+  await expect(page.locator('#history-total')).toHaveText('1');
+  await expect(page.locator('#finance-queue')).toContainText(
+    '0 solicitudes con movimientos confirmados · 1 actualizaciones de precios',
+  );
+  expect(r.state().tables.tMovimientos).toHaveLength(0);
+  await navigate(page, 'activity');
+  await page.locator('#confirmed-history summary').click();
+  await expect(page.locator('#finance-history')).toContainText(
+    'Actualización de precios · no crea movimientos',
+  );
+  await navigate(page, 'book');
+  await page.locator('#finance-search').fill('hidden by user filter');
+  await page.locator('#finance-to').fill('2026-01-02');
+  await navigate(page, 'home');
+  await require('./helpers/finalization-runtime.cjs').expense(
+    page,
+    'Expense after cutoff',
+  );
+  await page.locator('#operation-date').fill('2026-01-04');
+  await page.locator('#operation-form button[type=submit]').click();
+  await page.locator('#review-confirm').click();
+  await expect(page.locator('#history-total')).toHaveText('2');
+  expect(
+    r.transact([{ process: 'fechas', asof: r.ctx.isoDate_(cutoff) }]).ok,
+  ).toBe(true);
+  expect(r.state().settings.asof).toBe(cutoff);
+  await navigate(page, 'book');
+  await expect(page.locator('#finance-register')).not.toContainText(
+    'Expense after cutoff',
+  );
+  await navigate(page, 'activity');
+  await page
+    .locator('#finance-history')
+    .getByRole('button', { name: 'Ver movimiento', exact: true })
+    .click();
+  await expect(page.locator('#view-book')).toBeVisible();
+  await expect(page.locator('#finance-register')).toContainText(
+    'Expense after cutoff',
+  );
+  await page.reload();
+  const popup = page.waitForEvent('popup');
+  await page.locator('#finance-connect').click();
+  await popup;
+  await expect(page.locator('#finance-state')).toContainText(
+    'Lectura confirmada',
+  );
+  await expect(page.locator('#finance-register')).toContainText(
+    'Expense after cutoff',
+  );
+  expect(r.state().tables.tMovimientos).toHaveLength(1);
 });
