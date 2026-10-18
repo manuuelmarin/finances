@@ -307,9 +307,9 @@ async function setupChannel(page, { delayed = false } = {}) {
             else reply(snapshot);
           } else if (m.request.action === 'transact') {
             const op = m.request.operations[0];
-            snapshot.tables.tMovimientos.push({ID:'FICTICIO',Fecha:op.date,Tipo:'Gasto',Concepto:op.concept,Origen:op.account,Subcategoría:op.category,Importe:op.amount,Recuperable:op.recoverable,Localización:op.location,Recurrente:op.recurring});
+            snapshot.tables.tMovimientos.push({ID:'MOV-'+m.request.requestId+'-1',Fecha:op.date,Tipo:'Gasto',Concepto:op.concept,Origen:op.account,Subcategoría:op.category,Importe:op.amount,Recuperable:op.recoverable,Localización:op.location,Recurrente:op.recurring});
             snapshot.revision = 'r2';
-            reply({ok:true,revision:'r2',results:[]});
+            reply({ok:true,requestId:m.request.requestId,revision:'r2',results:[{process:op.process,id:'MOV-'+m.request.requestId+'-1'}]});
           }
         });
         opener.postMessage({type:'finances.connection.v1',state,ok:true,apiVersion:'3.3.0',apiTransport:'finances.rpc.json.v1',rpcReady:true,environment:'test',modelVersion:3,sheetCount:10,checkedAt:'2026-01-02T10:00:00Z'},'http://127.0.0.1:4173');

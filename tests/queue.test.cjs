@@ -464,6 +464,8 @@ test('receipt contract binds identity, action, book, environment and operation r
     { revision: null },
     { results: [] },
     { results: [{ process: 'ingreso' }] },
+    { results: [{ process: 'gasto' }] },
+    { results: [{ process: 'gasto', id: 'MOV-other-1' }] },
   ])
     assert.equal(
       receiptMatches(envelope, { ...result, ...patch }, snapshot),
@@ -497,7 +499,8 @@ test('post-cutoff movement remains in readback; a stale post-confirm read never 
   await q.enqueue([{ ...expense(3), date: '2026-01-04' }], 'After cutoff');
   const read = client.read;
   client.read = async () => before;
-  await q.run(client);
+  const outcome = await q.run(client);
+  assert.equal(outcome.reason, 'POST_CONFIRM_MOVEMENT_MISSING');
   const confirmed = (await q.get()).queue[0];
   assert.equal(confirmed.status, 'confirmed');
   assert.equal(

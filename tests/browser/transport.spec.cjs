@@ -98,8 +98,10 @@ test('offline queued and uncertain envelopes survive reopening; receipt survives
         if (reads++) throw Error('READ_TIMEOUT');
         return window.raceSnapshot;
       },
-      submit: async () => ({
+      submit: async (envelope) => ({
         ok: true,
+        requestId: envelope.requestId,
+        results: envelope.operations.map((op) => ({ process: op.process })),
         revision: 'r2',
         receipt: 'fictional-receipt',
       }),
