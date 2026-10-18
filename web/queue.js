@@ -3,9 +3,79 @@
 const FinanceSync = (() => {
   const clone = (value) => JSON.parse(JSON.stringify(value));
   const uncertainResult = (result) =>
-    ['WRITE_UNCERTAIN', 'RESPONSE_UNCERTAIN', 'BUSY', 'API_FAILED'].includes(
-      result?.error,
-    );
+    [
+      'WRITE_UNCERTAIN',
+      'RESPONSE_UNCERTAIN',
+      'BUSY',
+      'API_FAILED',
+      'RECEIPT_MISMATCH',
+    ].includes(result?.error);
+  // Older receipts lack action/bookKey, but still identify their UUID and results.
+  function receiptMatches(envelope, result, snapshot) {
+    if (
+      result?.ok !== true ||
+      result.found === false ||
+      result.requestId !== envelope.requestId ||
+      typeof result.revision !== 'string' ||
+      !result.revision ||
+      !Array.isArray(result.results) ||
+      (result.action !== undefined && result.action !== envelope.action) ||
+      (result.bookKey !== undefined && result.bookKey !== snapshot.bookKey) ||
+      (result.environment !== undefined &&
+        result.environment !== snapshot.environment)
+    )
+      return false;
+    if (envelope.action === 'transact')
+      return (
+        result.results.length === envelope.operations.length &&
+        result.results.every(
+          (row, i) =>
+            row?.process === envelope.operations[i].process &&
+            (![
+              'gasto',
+              'ingreso',
+              'nomina',
+              'traspaso',
+              'cobro_compartido',
+              'devolucion_gasto',
+              'prestamo',
+              'pago_deuda',
+            ].includes(row.process) ||
+              row.id === 'MOV-' + envelope.requestId + '-' + (i + 1)),
+        )
+      );
+    if (envelope.action === 'refreshPrices')
+      return (
+        result.results.length > 0 &&
+        result.results.every(
+          (row) =>
+            typeof row?.product === 'string' && typeof row.status === 'string',
+        )
+      );
+    if (envelope.action === 'importPriceHistory')
+      return (
+        result.results.length === envelope.rows.length &&
+        result.results.every(
+          (row, i) =>
+            row?.date === envelope.rows[i].date &&
+            row.price === envelope.rows[i].price,
+        )
+      );
+    return false;
+  }
+  function movementReadback(item, snapshot) {
+    const ids = (item.result?.results || [])
+      .filter((row) => typeof row?.id === 'string' && row.id.startsWith('MOV-'))
+      .map((row) => row.id);
+    if (!ids.length) return null;
+    const rows = snapshot?.tables?.tMovimientos;
+    return {
+      ids,
+      present:
+        Array.isArray(rows) &&
+        ids.every((id) => rows.some((row) => row.ID === id)),
+    };
+  }
   class BrowserStore {
     constructor(indexedDB = globalThis.indexedDB) {
       this.indexedDB = indexedDB;
@@ -333,6 +403,17 @@ const FinanceSync = (() => {
               if (uncertain) break;
               continue;
             }
+            if (!receiptMatches(item.envelope, result, current)) {
+              await this.status(claimedId, 'uncertain', {
+                ok: false,
+                error: 'RECEIPT_MISMATCH',
+                received: result,
+              });
+              outcome.status = 'unconfirmed';
+              outcome.reason = 'RECEIPT_MISMATCH';
+              notify();
+              break;
+            }
             await this.status(item.envelope.requestId, 'confirmed', result);
             outcome.confirmed++;
             notify();
@@ -346,6 +427,10 @@ const FinanceSync = (() => {
               return outcome;
             }
             await this.saveSnapshot(after);
+            if (movementReadback({ result }, after)?.present === false) {
+              outcome.reason = 'POST_CONFIRM_MOVEMENT_MISSING';
+              return outcome;
+            }
             // Solo avanzar sobres NUNCA enviados si la revisión procede de nuestro propio lote.
             if (after.revision === result.revision)
               await this.store.update(this.key, (data) => {
@@ -380,7 +465,7 @@ const FinanceSync = (() => {
         : work();
     }
   }
-  return { BrowserStore, Queue, namespace };
+  return { BrowserStore, Queue, namespace, receiptMatches, movementReadback };
 })();
 if (typeof module !== 'undefined' && module.exports)
   module.exports = FinanceSync;

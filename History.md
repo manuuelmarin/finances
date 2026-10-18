@@ -131,8 +131,20 @@ Changes in repository order, from the first recorded build to the current app. V
 - Replace `Code.gs`, `Configuration.gs`, `AccessAndUtilities.gs`, `BackendAndReporting.gs` and `Bridge.html` with the installer versions. Preserve the current deployment URL and script properties.
 - Run `checkSending` and `checkApplication`, then publish **New version** of the existing deployment. Update the app and use **Send pending** to recover the original requests; do not recreate them.
 
-## 3.10.3 · current
+## 3.10.3
 
 - Ship an isolated, complete Apps Script backend in Code.gs; updates from 3.10.2 replace only Code.gs and Bridge.html.
 - Test the shipped artifact through the complete sending and receipt recovery flow, including legacy helpers left in the project.
 - Renew scheduled price handlers with enableDailyPrices after upgrading.
+
+## 3.10.4 · current
+
+- Check receipt UUID, operation results, action and book before confirming queued writes; keep mismatched responses uncertain with their original envelope. New receipts identify their action and book; compatible old receipts remain recoverable.
+- Distinguish price updates from movement confirmations in Activity, show movement references and whether they appear in the latest snapshot, and offer a filtered movement view.
+- Keep segmented sources and the isolated installer delivery. A confirmed price update does not establish a movement write.
+
+### Private Google update from 3.10.3
+
+- Replace only generated `Code.gs` (or `Código.gs`) and `Bridge.html` from the installer. The manifest, properties, deployment URL and daily triggers are unchanged.
+- Run `checkSending` and `checkApplication`, publish **New version** on the existing deployment, reopen Google from the app and check the deployed backend/bridge versions. Diagnostics do not write movements.
+- Recover the original expense from Activity in its original browser/profile and deployment. Query its receipt before retrying the same UUID; never recreate an uncertain expense. The app cannot inspect another device's queue.

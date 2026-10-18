@@ -117,6 +117,8 @@ function priceHistory_(config, request) {
     applied = apply(before);
     const response = {
       ok: true,
+      action: 'importPriceHistory',
+      bookKey: before.bookKey,
       apiVersion: API_VERSION_,
       buildVersion: BUILD_VERSION_,
       environment: config.environment,
