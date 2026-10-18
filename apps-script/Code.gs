@@ -1,8 +1,11 @@
+// Source facade. Install the complete generated Code.gs from install.html.
 // Operator facade for the authorized production or test book.
 function reportOperator_(callback) {
   let result;
   try {
     result = callback();
+    if (result && typeof result === 'object')
+      result.runtimeDelivery = RUNTIME_DELIVERY_;
   } catch (error) {
     result = apiError_(error);
   }

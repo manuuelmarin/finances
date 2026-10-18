@@ -13,13 +13,8 @@ const baselineVersion = Object.keys(releases).find(
   (version) => version !== currentVersion,
 );
 const baseline = releases[baselineVersion];
-const installFiles = [
-  ...JSON.parse(
-    fs.readFileSync(path.join(root, 'apps-script/modules.json'), 'utf8'),
-  ).scripts,
-  'Bridge.html',
-  'appsscript.json',
-];
+const installFiles = ['Code.gs', 'Bridge.html', 'appsscript.json'];
+const { buildRuntime } = require('../../tools/build-runtime.cjs');
 const fileCount = installFiles.length;
 const current = releases[currentVersion];
 
@@ -83,7 +78,7 @@ test('@responsive release comparison assigns truthful per-file badges and filter
           .map((item) => item.dataset.fileName),
       ),
   ).toEqual(changedNames);
-  expect(await page.locator('.code-section').count()).toBe(15);
+  expect(await page.locator('.code-section').count()).toBe(fileCount);
   await page.locator('#changed-only').uncheck();
   expect(
     await page
@@ -105,7 +100,7 @@ test('synthetic release identifies new files and tells users to retire removed f
   page,
 }) => {
   const synthetic = { ...current };
-  delete synthetic['Transactions.gs'];
+  delete synthetic['Code.gs'];
   synthetic['RetiredModule.gs'] = 'a'.repeat(64);
   await page.route('**/install.html', async (route) => {
     const response = await route.fetch();
@@ -130,23 +125,21 @@ test('synthetic release identifies new files and tells users to retire removed f
   });
   await page.locator('#installed-release').selectOption('3.9.2');
   await expect(
-    page.locator('[data-file-name="Transactions.gs"] [data-file-status]'),
+    page.locator('[data-file-name="Code.gs"] [data-file-status]'),
   ).toHaveText('NUEVO');
   await expect(page.locator('#removed-files')).toContainText(
     'RetiredModule.gs',
   );
   await expect(page.locator('#removed-files')).toContainText(
-    'copia de seguridad',
+    'backend está aislado',
   );
   await expect(page.locator('#removed-files')).toContainText(
-    'elimina estos archivos antiguos',
+    'pueden permanecer sin usarse',
   );
   await expect(page.locator('.code-section')).toHaveCount(fileCount);
   expect(
-    await page.locator('[data-file-name="Transactions.gs"] pre').textContent(),
-  ).toBe(
-    fs.readFileSync(path.join(root, 'apps-script/Transactions.gs'), 'utf8'),
-  );
+    await page.locator('[data-file-name="Code.gs"] pre').textContent(),
+  ).toBe(buildRuntime());
 });
 
 test('installer copies exact files without claiming an installed baseline', async ({

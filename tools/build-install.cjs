@@ -41,19 +41,13 @@ if (JSON.stringify(diskScripts) !== JSON.stringify(manifestScripts))
     'Manifest must include every Apps Script .gs file exactly once',
   );
 
+const { buildRuntime } = require('./build-runtime.cjs');
 const files = [
-  ...scripts.map((name) => ({
+  { name: 'Code.gs', source: buildRuntime(appScript, scripts) },
+  ...['Bridge.html', 'appsscript.json'].map((name) => ({
     name,
     source: fs.readFileSync(path.join(appScript, name), 'utf8'),
   })),
-  {
-    name: 'Bridge.html',
-    source: fs.readFileSync(path.join(appScript, 'Bridge.html'), 'utf8'),
-  },
-  {
-    name: 'appsscript.json',
-    source: fs.readFileSync(path.join(appScript, 'appsscript.json'), 'utf8'),
-  },
 ];
 const releasePath = path.join(__dirname, 'install-releases.json');
 const releases = JSON.parse(fs.readFileSync(releasePath, 'utf8'));

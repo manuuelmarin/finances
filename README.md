@@ -6,7 +6,7 @@ Personal finance PWA for cash, investments, budgets and goals. GitHub Pages serv
 
 [Open app](https://manuuelmarin.github.io/finances/) · [Install / update](https://manuuelmarin.github.io/finances/install.html) · [TODOs](TODO.md) · [History](History.md)
 
-**App 3.10.2 · API 3.3.0 · workbook model 3.**
+**App 3.10.3 · API 3.3.0 · workbook model 3.**
 
 ## End to end
 
@@ -38,7 +38,7 @@ The backend selects the workbook. The PWA caches public assets; financial snapsh
 ## Setup
 
 1. Convert the complete [blank workbook](templates/finances-model-3.xlsx) to Google Sheets. Preserve its [tables and formulas](docs/WORKBOOK.md).
-2. Follow the installer to add its 15 files to a private Apps Script project. Set `OWNER_EMAIL`, `ENVIRONMENT=test` and `TEST_SPREADSHEET_ID` in Script Properties.
+2. Follow the installer to add its three files (the generated `Code.gs`, `Bridge.html`, and `appsscript.json`) to a private Apps Script project. Set `OWNER_EMAIL`, `ENVIRONMENT=test` and `TEST_SPREADSHEET_ID` in Script Properties.
 3. Run `prepareApplication`, then `checkApplication`. Check calculation, summary and source results; `ok:true` alone is insufficient.
 4. Deploy as **Me**, access **Only me**. Connect its private URL in the app.
 

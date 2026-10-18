@@ -83,5 +83,10 @@
     "Transactions.gs": "d9e1f386c49fab43ed1e73c34fba945e0d620163b98fd7554a06da715e17ba06",
     "Bridge.html": "464fc8077bdade5b35cb49a2a4f1c197f1ee8f6df75d97851ba82c341e99c620",
     "appsscript.json": "6d9e30fcdbf21cec70850bceb611d2c88dc7d79139f0bd1ffe19f91a6b1d50f8"
+  },
+  "3.10.3": {
+    "Code.gs": "19aa99c1453253773b582c6c4a8cc07ff7e251f883cdd0a7dc32dbb5eeb31e5c",
+    "Bridge.html": "54407a4779ded2a03d0d3a6e2a4b779cbd35746d6ba7368141ef4111d50599c7",
+    "appsscript.json": "6d9e30fcdbf21cec70850bceb611d2c88dc7d79139f0bd1ffe19f91a6b1d50f8"
   }
 }

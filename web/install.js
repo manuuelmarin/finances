@@ -41,7 +41,9 @@ function updateReleaseComparison() {
   }
   if (!selected) {
     releaseSummary.textContent =
-      'Sin una versión de referencia, considera obligatorios los 15 archivos y revisa el código antes de instalar.';
+      'Sin una versión de referencia, considera obligatorios los ' +
+      codeSections.length +
+      ' archivos y revisa el código antes de instalar.';
     removedFiles.hidden = true;
     removedFiles.textContent = '';
   } else {
@@ -63,7 +65,7 @@ function updateReleaseComparison() {
     removedFiles.textContent = removed.length
       ? 'Archivos retirados desde ' +
         selected +
-        '. Haz una copia de seguridad y elimina estos archivos antiguos del proyecto de Apps Script: ' +
+        '. El backend está aislado; estos módulos pueden permanecer sin usarse: ' +
         removed.join(', ') +
         '.'
       : '';

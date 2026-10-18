@@ -5,6 +5,8 @@ const { navigate, diagnostic } = require('./helpers/navigation.cjs');
 const fs = require('node:fs');
 const path = require('node:path');
 const { runtime } = require('../helpers/runtime.cjs');
+const { buildRuntime } = require('../../tools/build-runtime.cjs');
+const vm = require('node:vm');
 const buildVersion = require('../../package.json').version;
 const root = path.resolve(__dirname, '../..');
 const origin = 'https://manuuelmarin.github.io';
@@ -16,6 +18,7 @@ const htmlEscape = (s) =>
 async function channel(context, options = {}) {
   const r = runtime();
   r.init();
+  vm.runInContext(buildRuntime(), r.ctx);
   const calls = [];
   const nativeGet = r.ctx.Sheets.Spreadsheets.Values.batchGet;
   r.ctx.Sheets.Spreadsheets.Values.batchGet = (id, request) => {
@@ -176,14 +179,14 @@ test('internal server failure recovers through the full bridge with one original
 }) => {
   const { r, calls } = await channel(context);
   await open(page);
-  const apply = r.ctx.applyOperations_;
+  const nativeGet = r.ctx.Sheets.Spreadsheets.Values.batchGet;
   let failOnce = true;
-  r.ctx.applyOperations_ = (...args) => {
-    if (failOnce) {
+  r.ctx.Sheets.Spreadsheets.Values.batchGet = (id, request) => {
+    if (failOnce && !request.ranges.includes("'Resumen financiero'!B2:U80")) {
       failOnce = false;
       throw Error('Fictional native failure');
     }
-    return apply(...args);
+    return nativeGet(id, request);
   };
   await require('./helpers/finalization-runtime.cjs').expense(
     page,

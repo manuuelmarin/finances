@@ -1,3 +1,4 @@
+const RUNTIME_DELIVERY_ = 'modules';
 // All top-level configuration constants, in original declaration order.
 const CONNECTION_TYPE_ = 'finances.connection.v1';
 const APP_ORIGIN_ = 'https://manuuelmarin.github.io';
@@ -112,7 +113,7 @@ const TABLE_SCHEMA_ = [
 ];
 
 const API_VERSION_ = '3.3.0';
-const BUILD_VERSION_ = '3.10.2';
+const BUILD_VERSION_ = '3.10.3';
 const DAILY_HISTORY_MARKER_ = 'Finanzas · Histórico generado';
 const DAILY_HISTORY_MAX_DAYS_ = 36525;
 const API_TRANSPORT_ = 'finances.rpc.json.v1';

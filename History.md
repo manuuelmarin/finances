@@ -130,3 +130,9 @@ Changes in repository order, from the first recorded build to the current app. V
 
 - Replace `Code.gs`, `Configuration.gs`, `AccessAndUtilities.gs`, `BackendAndReporting.gs` and `Bridge.html` with the installer versions. Preserve the current deployment URL and script properties.
 - Run `checkSending` and `checkApplication`, then publish **New version** of the existing deployment. Update the app and use **Send pending** to recover the original requests; do not recreate them.
+
+## 3.10.3
+
+- Ship an isolated, complete Apps Script backend in Code.gs; updates from 3.10.2 replace only Code.gs and Bridge.html.
+- Test the shipped artifact through the complete sending and receipt recovery flow, including legacy helpers left in the project.
+- Renew scheduled price handlers with enableDailyPrices after upgrading.

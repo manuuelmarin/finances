@@ -280,7 +280,7 @@ if (typeof document !== 'undefined') {
         new Date(data.checkedAt).toLocaleString('es-ES');
       const versionDetail = document.createElement('p');
       versionDetail.textContent =
-        'App 3.10.2 · Google ' +
+        'App 3.10.3 · Google ' +
         (data.buildVersion || 'Sin dato') +
         ' · API ' +
         (data.apiVersion || 'Sin dato') +

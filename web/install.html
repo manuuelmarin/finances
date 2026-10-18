@@ -280,7 +280,7 @@
       <p class="eyebrow">GOOGLE SHEETS · CONEXIÓN PRIVADA</p>
       <h1>Instalación de Apps Script</h1>
       <p class="intro">
-        Archivos de Apps Script · Entrega 3.10.2. Instala los módulos
+        Archivos de Apps Script · Entrega 3.10.3. Instala los módulos
         del backend privado en el proyecto que ya está conectado.
       </p>
       <p class="notice">
@@ -293,14 +293,15 @@
         <label for="installed-release">¿Qué versión tienes instalada?</label>
         <select id="installed-release">
           <option value="">No sé / instalación nueva</option>
-          <option value="3.10.2">3.10.2</option>
+          <option value="3.10.3">3.10.3</option>
+<option value="3.10.2">3.10.2</option>
 <option value="3.10.1">3.10.1</option>
 <option value="3.10.0">3.10.0</option>
 <option value="3.9.4">3.9.4</option>
 <option value="3.9.3">3.9.3</option>
         </select>
         <p id="release-summary" role="status" aria-live="polite">
-          Sin una versión de referencia, instala y revisa los 15 archivos.
+          Sin una versión de referencia, instala y revisa los 3 archivos.
         </p>
         <label class="filter"
           ><input id="changed-only" type="checkbox" disabled /> Mostrar solo
@@ -308,14 +309,14 @@
         >
         <p id="removed-files" hidden></p>
       </section>
-      <template id="install-releases" data-current-version="3.10.2"
-        >{"3.9.3":{"Code.gs":"9ffe7cdef6cb4f3f4189fe9ab064ca11c3014851476212a0ca38ce25ba0f763e","Configuration.gs":"4748f6ee5e214687e22531f0bf5056dc380e8c3ebcf348755813bbeb2e06f4c4","AccessAndUtilities.gs":"ee4a4abcc5f5a963178f65f4591a068c222fc79041e1a9c0bc6b600448107333","BackendAndReporting.gs":"f8d3cf3d70536e2afbf7b3ae2a3d413bcc4e9d4af8af5f7f229e31d3bdebc405","DailyHistory.gs":"58cd749c210b0a9f16bf5fffb60e9f40bbd608f7890a42af280a4a92fcab6f6a","DailyPriceAutomation.gs":"347e4ff8f0c0f207d02076a0a4964650f0458b5954396f44c1759d80b374c7a9","OperatorChecks.gs":"7066876c821b99b83527ddaa92c749024c30e899152611178bb866c6f75c347e","PriceHistory.gs":"24900e2ae46f43faf843c0e9f5bf728540f260c132ad24ed1c87feb382b099cd","PriceProvidersAndRefresh.gs":"936c8fbb8b7b0b8fdf00e7a12df7de0154b9b134983004ea1a252237cd8988ed","StateAndValidation.gs":"1eb75be16e737a96a7f123ab8b1d8d9786c27c9a787407f7363a5303d7e2dbc6","Operations.gs":"9597cbfd971a074def13da1c74fa613a7d4a0d5df467a8b01154cdd8062dcd11","SupportAndCapacity.gs":"6781747c2f0ac15b1a963056a1f90cdefb716f5a9f904cb2222cbcd561e9e58e","Transactions.gs":"a837477bd9745fffcbea6016d0764e1a7f7b0ae961ffe856603b721a1ee6c01b","Bridge.html":"ff2067f09bdb3459a4089e108d34e5f12555d649b86649fca438f1e7f67e04a4","appsscript.json":"6d9e30fcdbf21cec70850bceb611d2c88dc7d79139f0bd1ffe19f91a6b1d50f8"},"3.9.4":{"Code.gs":"9ffe7cdef6cb4f3f4189fe9ab064ca11c3014851476212a0ca38ce25ba0f763e","Configuration.gs":"eebd9655072baca95d9cb8c10ea33d24df412d4f2b273a29a818da02330163ad","AccessAndUtilities.gs":"ee4a4abcc5f5a963178f65f4591a068c222fc79041e1a9c0bc6b600448107333","BackendAndReporting.gs":"f8d3cf3d70536e2afbf7b3ae2a3d413bcc4e9d4af8af5f7f229e31d3bdebc405","DailyHistory.gs":"58cd749c210b0a9f16bf5fffb60e9f40bbd608f7890a42af280a4a92fcab6f6a","DailyPriceAutomation.gs":"347e4ff8f0c0f207d02076a0a4964650f0458b5954396f44c1759d80b374c7a9","OperatorChecks.gs":"7066876c821b99b83527ddaa92c749024c30e899152611178bb866c6f75c347e","PriceHistory.gs":"24900e2ae46f43faf843c0e9f5bf728540f260c132ad24ed1c87feb382b099cd","PriceProvidersAndRefresh.gs":"936c8fbb8b7b0b8fdf00e7a12df7de0154b9b134983004ea1a252237cd8988ed","StateAndValidation.gs":"1eb75be16e737a96a7f123ab8b1d8d9786c27c9a787407f7363a5303d7e2dbc6","Operations.gs":"9597cbfd971a074def13da1c74fa613a7d4a0d5df467a8b01154cdd8062dcd11","SupportAndCapacity.gs":"6781747c2f0ac15b1a963056a1f90cdefb716f5a9f904cb2222cbcd561e9e58e","Transactions.gs":"a837477bd9745fffcbea6016d0764e1a7f7b0ae961ffe856603b721a1ee6c01b","Bridge.html":"8b311443805628c7bc6ccf65fb630f8f4cb62f6668666591095780c88080350e","appsscript.json":"6d9e30fcdbf21cec70850bceb611d2c88dc7d79139f0bd1ffe19f91a6b1d50f8"},"3.10.0":{"Code.gs":"9ffe7cdef6cb4f3f4189fe9ab064ca11c3014851476212a0ca38ce25ba0f763e","Configuration.gs":"7e1a7049c00ed86009b4830352d1ddc121041c69fc35f3e478562c2267a56db9","AccessAndUtilities.gs":"ee4a4abcc5f5a963178f65f4591a068c222fc79041e1a9c0bc6b600448107333","BackendAndReporting.gs":"53f187848f5504e23a709095d1508a2490af08864857ccf476646bd01dbe2f30","DailyHistory.gs":"58cd749c210b0a9f16bf5fffb60e9f40bbd608f7890a42af280a4a92fcab6f6a","DailyPriceAutomation.gs":"347e4ff8f0c0f207d02076a0a4964650f0458b5954396f44c1759d80b374c7a9","OperatorChecks.gs":"7066876c821b99b83527ddaa92c749024c30e899152611178bb866c6f75c347e","PriceHistory.gs":"24900e2ae46f43faf843c0e9f5bf728540f260c132ad24ed1c87feb382b099cd","PriceProvidersAndRefresh.gs":"936c8fbb8b7b0b8fdf00e7a12df7de0154b9b134983004ea1a252237cd8988ed","StateAndValidation.gs":"61b46933838cd6d4d5f51faa6de94b4759ee9c218c7685a898744e4acb0c46b6","Operations.gs":"a24162d086d161f79bd45901d8a4e2270ea8c3cb1351c4754d863d022feca7ea","SupportAndCapacity.gs":"6781747c2f0ac15b1a963056a1f90cdefb716f5a9f904cb2222cbcd561e9e58e","Transactions.gs":"d9e1f386c49fab43ed1e73c34fba945e0d620163b98fd7554a06da715e17ba06","Bridge.html":"bbe3f25de7e577333d4ff09326ba326c8fbb6738e8909a81666b33270b96f928","appsscript.json":"6d9e30fcdbf21cec70850bceb611d2c88dc7d79139f0bd1ffe19f91a6b1d50f8"},"3.10.1":{"Code.gs":"9ffe7cdef6cb4f3f4189fe9ab064ca11c3014851476212a0ca38ce25ba0f763e","Configuration.gs":"00b636f4daeb167452a01704b560e39d9913d29573edd75575258d02038ce5e4","AccessAndUtilities.gs":"ee4a4abcc5f5a963178f65f4591a068c222fc79041e1a9c0bc6b600448107333","BackendAndReporting.gs":"0434ad4b9a48a628cc7284e7fa10d9373ce8c0687e795d6f3dfaccba1b11f980","DailyHistory.gs":"58cd749c210b0a9f16bf5fffb60e9f40bbd608f7890a42af280a4a92fcab6f6a","DailyPriceAutomation.gs":"347e4ff8f0c0f207d02076a0a4964650f0458b5954396f44c1759d80b374c7a9","OperatorChecks.gs":"7066876c821b99b83527ddaa92c749024c30e899152611178bb866c6f75c347e","PriceHistory.gs":"24900e2ae46f43faf843c0e9f5bf728540f260c132ad24ed1c87feb382b099cd","PriceProvidersAndRefresh.gs":"936c8fbb8b7b0b8fdf00e7a12df7de0154b9b134983004ea1a252237cd8988ed","StateAndValidation.gs":"61b46933838cd6d4d5f51faa6de94b4759ee9c218c7685a898744e4acb0c46b6","Operations.gs":"a24162d086d161f79bd45901d8a4e2270ea8c3cb1351c4754d863d022feca7ea","SupportAndCapacity.gs":"d9c027f626ffad644a4621a738df8d0ab5c89a59deb6a49837b51ef80a14fc6a","Transactions.gs":"d9e1f386c49fab43ed1e73c34fba945e0d620163b98fd7554a06da715e17ba06","Bridge.html":"f0bbaa1901019a3da46cb145fb6c38140b3f656c6ee3b7e35d590250e3d1fbfb","appsscript.json":"6d9e30fcdbf21cec70850bceb611d2c88dc7d79139f0bd1ffe19f91a6b1d50f8"},"3.10.2":{"Code.gs":"24c6714ffd4a0f06c409e5f4900b1473eec7c1daf5ebb91ae07035839c0eb15d","Configuration.gs":"02287da38c5508a9ac5cba58b31e653ac7259de0c12ff295c9c7cca6e7123542","AccessAndUtilities.gs":"d8185f0d8c3fb23303094c558a8d1abe73f7d7aed2663c1acd091d85d38abcb9","BackendAndReporting.gs":"48ced1736bd4a58ef8bc381d14b0cf2810c2c02b01e524e2f329dc572cdeaadd","DailyHistory.gs":"58cd749c210b0a9f16bf5fffb60e9f40bbd608f7890a42af280a4a92fcab6f6a","DailyPriceAutomation.gs":"347e4ff8f0c0f207d02076a0a4964650f0458b5954396f44c1759d80b374c7a9","OperatorChecks.gs":"7066876c821b99b83527ddaa92c749024c30e899152611178bb866c6f75c347e","PriceHistory.gs":"24900e2ae46f43faf843c0e9f5bf728540f260c132ad24ed1c87feb382b099cd","PriceProvidersAndRefresh.gs":"936c8fbb8b7b0b8fdf00e7a12df7de0154b9b134983004ea1a252237cd8988ed","StateAndValidation.gs":"61b46933838cd6d4d5f51faa6de94b4759ee9c218c7685a898744e4acb0c46b6","Operations.gs":"a24162d086d161f79bd45901d8a4e2270ea8c3cb1351c4754d863d022feca7ea","SupportAndCapacity.gs":"d9c027f626ffad644a4621a738df8d0ab5c89a59deb6a49837b51ef80a14fc6a","Transactions.gs":"d9e1f386c49fab43ed1e73c34fba945e0d620163b98fd7554a06da715e17ba06","Bridge.html":"464fc8077bdade5b35cb49a2a4f1c197f1ee8f6df75d97851ba82c341e99c620","appsscript.json":"6d9e30fcdbf21cec70850bceb611d2c88dc7d79139f0bd1ffe19f91a6b1d50f8"}}</template
+      <template id="install-releases" data-current-version="3.10.3"
+        >{"3.9.3":{"Code.gs":"9ffe7cdef6cb4f3f4189fe9ab064ca11c3014851476212a0ca38ce25ba0f763e","Configuration.gs":"4748f6ee5e214687e22531f0bf5056dc380e8c3ebcf348755813bbeb2e06f4c4","AccessAndUtilities.gs":"ee4a4abcc5f5a963178f65f4591a068c222fc79041e1a9c0bc6b600448107333","BackendAndReporting.gs":"f8d3cf3d70536e2afbf7b3ae2a3d413bcc4e9d4af8af5f7f229e31d3bdebc405","DailyHistory.gs":"58cd749c210b0a9f16bf5fffb60e9f40bbd608f7890a42af280a4a92fcab6f6a","DailyPriceAutomation.gs":"347e4ff8f0c0f207d02076a0a4964650f0458b5954396f44c1759d80b374c7a9","OperatorChecks.gs":"7066876c821b99b83527ddaa92c749024c30e899152611178bb866c6f75c347e","PriceHistory.gs":"24900e2ae46f43faf843c0e9f5bf728540f260c132ad24ed1c87feb382b099cd","PriceProvidersAndRefresh.gs":"936c8fbb8b7b0b8fdf00e7a12df7de0154b9b134983004ea1a252237cd8988ed","StateAndValidation.gs":"1eb75be16e737a96a7f123ab8b1d8d9786c27c9a787407f7363a5303d7e2dbc6","Operations.gs":"9597cbfd971a074def13da1c74fa613a7d4a0d5df467a8b01154cdd8062dcd11","SupportAndCapacity.gs":"6781747c2f0ac15b1a963056a1f90cdefb716f5a9f904cb2222cbcd561e9e58e","Transactions.gs":"a837477bd9745fffcbea6016d0764e1a7f7b0ae961ffe856603b721a1ee6c01b","Bridge.html":"ff2067f09bdb3459a4089e108d34e5f12555d649b86649fca438f1e7f67e04a4","appsscript.json":"6d9e30fcdbf21cec70850bceb611d2c88dc7d79139f0bd1ffe19f91a6b1d50f8"},"3.9.4":{"Code.gs":"9ffe7cdef6cb4f3f4189fe9ab064ca11c3014851476212a0ca38ce25ba0f763e","Configuration.gs":"eebd9655072baca95d9cb8c10ea33d24df412d4f2b273a29a818da02330163ad","AccessAndUtilities.gs":"ee4a4abcc5f5a963178f65f4591a068c222fc79041e1a9c0bc6b600448107333","BackendAndReporting.gs":"f8d3cf3d70536e2afbf7b3ae2a3d413bcc4e9d4af8af5f7f229e31d3bdebc405","DailyHistory.gs":"58cd749c210b0a9f16bf5fffb60e9f40bbd608f7890a42af280a4a92fcab6f6a","DailyPriceAutomation.gs":"347e4ff8f0c0f207d02076a0a4964650f0458b5954396f44c1759d80b374c7a9","OperatorChecks.gs":"7066876c821b99b83527ddaa92c749024c30e899152611178bb866c6f75c347e","PriceHistory.gs":"24900e2ae46f43faf843c0e9f5bf728540f260c132ad24ed1c87feb382b099cd","PriceProvidersAndRefresh.gs":"936c8fbb8b7b0b8fdf00e7a12df7de0154b9b134983004ea1a252237cd8988ed","StateAndValidation.gs":"1eb75be16e737a96a7f123ab8b1d8d9786c27c9a787407f7363a5303d7e2dbc6","Operations.gs":"9597cbfd971a074def13da1c74fa613a7d4a0d5df467a8b01154cdd8062dcd11","SupportAndCapacity.gs":"6781747c2f0ac15b1a963056a1f90cdefb716f5a9f904cb2222cbcd561e9e58e","Transactions.gs":"a837477bd9745fffcbea6016d0764e1a7f7b0ae961ffe856603b721a1ee6c01b","Bridge.html":"8b311443805628c7bc6ccf65fb630f8f4cb62f6668666591095780c88080350e","appsscript.json":"6d9e30fcdbf21cec70850bceb611d2c88dc7d79139f0bd1ffe19f91a6b1d50f8"},"3.10.0":{"Code.gs":"9ffe7cdef6cb4f3f4189fe9ab064ca11c3014851476212a0ca38ce25ba0f763e","Configuration.gs":"7e1a7049c00ed86009b4830352d1ddc121041c69fc35f3e478562c2267a56db9","AccessAndUtilities.gs":"ee4a4abcc5f5a963178f65f4591a068c222fc79041e1a9c0bc6b600448107333","BackendAndReporting.gs":"53f187848f5504e23a709095d1508a2490af08864857ccf476646bd01dbe2f30","DailyHistory.gs":"58cd749c210b0a9f16bf5fffb60e9f40bbd608f7890a42af280a4a92fcab6f6a","DailyPriceAutomation.gs":"347e4ff8f0c0f207d02076a0a4964650f0458b5954396f44c1759d80b374c7a9","OperatorChecks.gs":"7066876c821b99b83527ddaa92c749024c30e899152611178bb866c6f75c347e","PriceHistory.gs":"24900e2ae46f43faf843c0e9f5bf728540f260c132ad24ed1c87feb382b099cd","PriceProvidersAndRefresh.gs":"936c8fbb8b7b0b8fdf00e7a12df7de0154b9b134983004ea1a252237cd8988ed","StateAndValidation.gs":"61b46933838cd6d4d5f51faa6de94b4759ee9c218c7685a898744e4acb0c46b6","Operations.gs":"a24162d086d161f79bd45901d8a4e2270ea8c3cb1351c4754d863d022feca7ea","SupportAndCapacity.gs":"6781747c2f0ac15b1a963056a1f90cdefb716f5a9f904cb2222cbcd561e9e58e","Transactions.gs":"d9e1f386c49fab43ed1e73c34fba945e0d620163b98fd7554a06da715e17ba06","Bridge.html":"bbe3f25de7e577333d4ff09326ba326c8fbb6738e8909a81666b33270b96f928","appsscript.json":"6d9e30fcdbf21cec70850bceb611d2c88dc7d79139f0bd1ffe19f91a6b1d50f8"},"3.10.1":{"Code.gs":"9ffe7cdef6cb4f3f4189fe9ab064ca11c3014851476212a0ca38ce25ba0f763e","Configuration.gs":"00b636f4daeb167452a01704b560e39d9913d29573edd75575258d02038ce5e4","AccessAndUtilities.gs":"ee4a4abcc5f5a963178f65f4591a068c222fc79041e1a9c0bc6b600448107333","BackendAndReporting.gs":"0434ad4b9a48a628cc7284e7fa10d9373ce8c0687e795d6f3dfaccba1b11f980","DailyHistory.gs":"58cd749c210b0a9f16bf5fffb60e9f40bbd608f7890a42af280a4a92fcab6f6a","DailyPriceAutomation.gs":"347e4ff8f0c0f207d02076a0a4964650f0458b5954396f44c1759d80b374c7a9","OperatorChecks.gs":"7066876c821b99b83527ddaa92c749024c30e899152611178bb866c6f75c347e","PriceHistory.gs":"24900e2ae46f43faf843c0e9f5bf728540f260c132ad24ed1c87feb382b099cd","PriceProvidersAndRefresh.gs":"936c8fbb8b7b0b8fdf00e7a12df7de0154b9b134983004ea1a252237cd8988ed","StateAndValidation.gs":"61b46933838cd6d4d5f51faa6de94b4759ee9c218c7685a898744e4acb0c46b6","Operations.gs":"a24162d086d161f79bd45901d8a4e2270ea8c3cb1351c4754d863d022feca7ea","SupportAndCapacity.gs":"d9c027f626ffad644a4621a738df8d0ab5c89a59deb6a49837b51ef80a14fc6a","Transactions.gs":"d9e1f386c49fab43ed1e73c34fba945e0d620163b98fd7554a06da715e17ba06","Bridge.html":"f0bbaa1901019a3da46cb145fb6c38140b3f656c6ee3b7e35d590250e3d1fbfb","appsscript.json":"6d9e30fcdbf21cec70850bceb611d2c88dc7d79139f0bd1ffe19f91a6b1d50f8"},"3.10.2":{"Code.gs":"24c6714ffd4a0f06c409e5f4900b1473eec7c1daf5ebb91ae07035839c0eb15d","Configuration.gs":"02287da38c5508a9ac5cba58b31e653ac7259de0c12ff295c9c7cca6e7123542","AccessAndUtilities.gs":"d8185f0d8c3fb23303094c558a8d1abe73f7d7aed2663c1acd091d85d38abcb9","BackendAndReporting.gs":"48ced1736bd4a58ef8bc381d14b0cf2810c2c02b01e524e2f329dc572cdeaadd","DailyHistory.gs":"58cd749c210b0a9f16bf5fffb60e9f40bbd608f7890a42af280a4a92fcab6f6a","DailyPriceAutomation.gs":"347e4ff8f0c0f207d02076a0a4964650f0458b5954396f44c1759d80b374c7a9","OperatorChecks.gs":"7066876c821b99b83527ddaa92c749024c30e899152611178bb866c6f75c347e","PriceHistory.gs":"24900e2ae46f43faf843c0e9f5bf728540f260c132ad24ed1c87feb382b099cd","PriceProvidersAndRefresh.gs":"936c8fbb8b7b0b8fdf00e7a12df7de0154b9b134983004ea1a252237cd8988ed","StateAndValidation.gs":"61b46933838cd6d4d5f51faa6de94b4759ee9c218c7685a898744e4acb0c46b6","Operations.gs":"a24162d086d161f79bd45901d8a4e2270ea8c3cb1351c4754d863d022feca7ea","SupportAndCapacity.gs":"d9c027f626ffad644a4621a738df8d0ab5c89a59deb6a49837b51ef80a14fc6a","Transactions.gs":"d9e1f386c49fab43ed1e73c34fba945e0d620163b98fd7554a06da715e17ba06","Bridge.html":"464fc8077bdade5b35cb49a2a4f1c197f1ee8f6df75d97851ba82c341e99c620","appsscript.json":"6d9e30fcdbf21cec70850bceb611d2c88dc7d79139f0bd1ffe19f91a6b1d50f8"},"3.10.3":{"Code.gs":"19aa99c1453253773b582c6c4a8cc07ff7e251f883cdd0a7dc32dbb5eeb31e5c","Bridge.html":"54407a4779ded2a03d0d3a6e2a4b779cbd35746d6ba7368141ef4111d50599c7","appsscript.json":"6d9e30fcdbf21cec70850bceb611d2c88dc7d79139f0bd1ffe19f91a6b1d50f8"}}</template
       >
       <p id="copy-status" role="status" aria-live="polite"></p>
       <section class="code-section" aria-labelledby="file-1" data-file-name="Code.gs">
   <header>
     <div>
-      <p class="eyebrow">ARCHIVO 1 DE 15</p>
+      <p class="eyebrow">ARCHIVO 1 DE 3</p>
       <h2 id="file-1">Code.gs</h2>
     </div>
     <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
@@ -324,11 +325,18 @@
   <p>Añade o sustituye el archivo indicado en el proyecto de Apps Script.</p>
   <details>
     <summary>Ver código completo</summary>
-    <pre id="code-1" tabindex="0">// Operator facade for the authorized production or test book.
+    <pre id="code-1" tabindex="0">// Generated backend. Replace Code.gs only; helpers are isolated.
+var FINANCE_RUNTIME_V1_ = (function () {
+&#x27;use strict&#x27;;
+// Source: Code.gs
+// Source facade. Install the complete generated Code.gs from install.html.
+// Operator facade for the authorized production or test book.
 function reportOperator_(callback) {
   let result;
   try {
     result = callback();
+    if (result &amp;&amp; typeof result === &#x27;object&#x27;)
+      result.runtimeDelivery = RUNTIME_DELIVERY_;
   } catch (error) {
     result = apiError_(error);
   }
@@ -385,22 +393,10 @@ function doGet(e) {
 function financialApiJson(requestJson) {
   return financialApiJson_(requestJson);
 }
-</pre>
-  </details>
-</section>
-<section class="code-section" aria-labelledby="file-2" data-file-name="Configuration.gs">
-  <header>
-    <div>
-      <p class="eyebrow">ARCHIVO 2 DE 15</p>
-      <h2 id="file-2">Configuration.gs</h2>
-    </div>
-    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
-    <button type="button" data-copy="code-2">Copiar Configuration.gs</button>
-  </header>
-  <p>Añade o sustituye el archivo indicado en el proyecto de Apps Script.</p>
-  <details>
-    <summary>Ver código completo</summary>
-    <pre id="code-2" tabindex="0">// All top-level configuration constants, in original declaration order.
+
+// Source: Configuration.gs
+const RUNTIME_DELIVERY_ = &#x27;single-file&#x27;;
+// All top-level configuration constants, in original declaration order.
 const CONNECTION_TYPE_ = &#x27;finances.connection.v1&#x27;;
 const APP_ORIGIN_ = &#x27;https://manuuelmarin.github.io&#x27;;
 const MODEL_VERSION_ = 3;
@@ -514,7 +510,7 @@ const TABLE_SCHEMA_ = [
 ];
 
 const API_VERSION_ = &#x27;3.3.0&#x27;;
-const BUILD_VERSION_ = &#x27;3.10.2&#x27;;
+const BUILD_VERSION_ = &#x27;3.10.3&#x27;;
 const DAILY_HISTORY_MARKER_ = &#x27;Finanzas · Histórico generado&#x27;;
 const DAILY_HISTORY_MAX_DAYS_ = 36525;
 const API_TRANSPORT_ = &#x27;finances.rpc.json.v1&#x27;;
@@ -950,22 +946,9 @@ const PRICE_LIMIT_ = 20;
 const PRICE_PROVIDER_ = &#x27;VDOS / Quefondos&#x27;;
 const PRICE_BASE_ =
   &#x27;https://www.quefondos.com/es/fondos/ficha/index.html?isin=&#x27;;
-</pre>
-  </details>
-</section>
-<section class="code-section" aria-labelledby="file-3" data-file-name="AccessAndUtilities.gs">
-  <header>
-    <div>
-      <p class="eyebrow">ARCHIVO 3 DE 15</p>
-      <h2 id="file-3">AccessAndUtilities.gs</h2>
-    </div>
-    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
-    <button type="button" data-copy="code-3">Copiar AccessAndUtilities.gs</button>
-  </header>
-  <p>Añade o sustituye el archivo indicado en el proyecto de Apps Script.</p>
-  <details>
-    <summary>Ver código completo</summary>
-    <pre id="code-3" tabindex="0">function bridgeTemplate_() {
+
+// Source: AccessAndUtilities.gs
+function bridgeTemplate_() {
   const template = HtmlService.createTemplateFromFile(&#x27;Bridge&#x27;);
   const raw = template.getRawContent();
   if (
@@ -1594,22 +1577,9 @@ function serveApplication_(e) {
     );
   }
 }
-</pre>
-  </details>
-</section>
-<section class="code-section" aria-labelledby="file-4" data-file-name="BackendAndReporting.gs">
-  <header>
-    <div>
-      <p class="eyebrow">ARCHIVO 4 DE 15</p>
-      <h2 id="file-4">BackendAndReporting.gs</h2>
-    </div>
-    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
-    <button type="button" data-copy="code-4">Copiar BackendAndReporting.gs</button>
-  </header>
-  <p>Añade o sustituye el archivo indicado en el proyecto de Apps Script.</p>
-  <details>
-    <summary>Ver código completo</summary>
-    <pre id="code-4" tabindex="0">function initializeBackendUnlocked_(config) {
+
+// Source: BackendAndReporting.gs
+function initializeBackendUnlocked_(config) {
   const state = readState_(config),
     missing = Object.keys(TECH_SCHEMA_).filter((k) =&gt; !state.tech[k]);
   if (!missing.length) return state;
@@ -2498,22 +2468,9 @@ function financialApiJson_(requestJson) {
     return JSON.stringify(apiError_(error));
   }
 }
-</pre>
-  </details>
-</section>
-<section class="code-section" aria-labelledby="file-5" data-file-name="DailyHistory.gs">
-  <header>
-    <div>
-      <p class="eyebrow">ARCHIVO 5 DE 15</p>
-      <h2 id="file-5">DailyHistory.gs</h2>
-    </div>
-    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
-    <button type="button" data-copy="code-5">Copiar DailyHistory.gs</button>
-  </header>
-  <p>Añade o sustituye el archivo indicado en el proyecto de Apps Script.</p>
-  <details>
-    <summary>Ver código completo</summary>
-    <pre id="code-5" tabindex="0">function dailyHistoryProductKey_(id) {
+
+// Source: DailyHistory.gs
+function dailyHistoryProductKey_(id) {
   return validIsin_(id) ? normalizeIsin_(id) : id;
 }
 function dailyHistoryHeader_(s, product) {
@@ -2721,30 +2678,19 @@ function refreshDailyHistorySafely_(config) {
 }
 
 // Paso 4. La resolución depende del ISIN, nunca de una lista de fondos conocidos.
-</pre>
-  </details>
-</section>
-<section class="code-section" aria-labelledby="file-6" data-file-name="DailyPriceAutomation.gs">
-  <header>
-    <div>
-      <p class="eyebrow">ARCHIVO 6 DE 15</p>
-      <h2 id="file-6">DailyPriceAutomation.gs</h2>
-    </div>
-    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
-    <button type="button" data-copy="code-6">Copiar DailyPriceAutomation.gs</button>
-  </header>
-  <p>Añade o sustituye el archivo indicado en el proyecto de Apps Script.</p>
-  <details>
-    <summary>Ver código completo</summary>
-    <pre id="code-6" tabindex="0">function deactivateDailyPricesTest_() {
+
+// Source: DailyPriceAutomation.gs
+function deactivateDailyPricesTest_() {
   authorizedConfig_();
   return locked_(() =&gt; {
     const properties = PropertiesService.getScriptProperties();
     // Desvincular primero hace que cualquier ejecución pendiente se detenga.
     properties.deleteProperty(&#x27;DAILY_PRICE_TEST_BOOK&#x27;);
     ScriptApp.getProjectTriggers()
-      .filter(
-        (t) =&gt; t.getHandlerFunction() === &#x27;actualizacionDiariaPreciosTest_&#x27;,
+      .filter((t) =&gt;
+        [&#x27;financeDailyPricesTest_&#x27;, &#x27;actualizacionDiariaPreciosTest_&#x27;].includes(
+          t.getHandlerFunction(),
+        ),
       )
       .forEach((t) =&gt; ScriptApp.deleteTrigger(t));
     [
@@ -2761,7 +2707,7 @@ function refreshDailyHistorySafely_(config) {
   });
 }
 // El sufijo _ impide llamadas desde google.script.run.
-function actualizacionDiariaPreciosTest_(event) {
+function financeDailyPricesTest_(event) {
   const config = dailyPriceTriggerConfig_(event),
     hour = Number(Utilities.formatDate(new Date(), &#x27;Europe/Madrid&#x27;, &#x27;HH&#x27;));
   if (hour &lt; 20 || hour &gt; 22)
@@ -2791,7 +2737,7 @@ function dailyPriceTriggerConfig_(event) {
     String(event.triggerUid) !== String(triggerId) ||
     !ScriptApp.getProjectTriggers().some(
       (t) =&gt;
-        t.getHandlerFunction() === &#x27;actualizacionDiariaPreciosTest_&#x27; &amp;&amp;
+        t.getHandlerFunction() === &#x27;financeDailyPricesTest_&#x27; &amp;&amp;
         String(t.getUniqueId()) === String(triggerId),
     )
   )
@@ -2824,9 +2770,11 @@ function activateDailyPricesProduction_() {
   return locked_(() =&gt; {
     assertDailyPriceActivationReady_(config);
     const properties = PropertiesService.getScriptProperties(),
-      existing = ScriptApp.getProjectTriggers().filter(
-        (t) =&gt;
-          t.getHandlerFunction() === &#x27;actualizacionDiariaPreciosProduction_&#x27;,
+      existing = ScriptApp.getProjectTriggers().filter((t) =&gt;
+        [
+          &#x27;financeDailyPricesProduction_&#x27;,
+          &#x27;actualizacionDiariaPreciosProduction_&#x27;,
+        ].includes(t.getHandlerFunction()),
       ),
       currentId = properties.getProperty(&#x27;DAILY_PRICE_PRODUCTION_TRIGGER&#x27;),
       current = existing.find(
@@ -2834,6 +2782,7 @@ function activateDailyPricesProduction_() {
       ),
       reusable =
         current &amp;&amp;
+        current.getHandlerFunction() === &#x27;financeDailyPricesProduction_&#x27; &amp;&amp;
         properties.getProperty(&#x27;DAILY_PRICE_PRODUCTION_SCHEDULE&#x27;) ===
           &#x27;hourly-20-22-v1&#x27; &amp;&amp;
         properties.getProperty(&#x27;DAILY_PRICE_PRODUCTION_BOOK&#x27;) === config.id &amp;&amp;
@@ -2844,7 +2793,7 @@ function activateDailyPricesProduction_() {
             ScriptApp.getScriptId());
     const trigger = reusable
       ? current
-      : ScriptApp.newTrigger(&#x27;actualizacionDiariaPreciosProduction_&#x27;)
+      : ScriptApp.newTrigger(&#x27;financeDailyPricesProduction_&#x27;)
           .timeBased()
           .everyHours(1)
           .create();
@@ -2890,9 +2839,11 @@ function deactivateDailyPricesProduction_() {
     // Desvincular primero hace que cualquier ejecución pendiente se detenga.
     properties.deleteProperty(&#x27;DAILY_PRICE_PRODUCTION_BOOK&#x27;);
     ScriptApp.getProjectTriggers()
-      .filter(
-        (t) =&gt;
-          t.getHandlerFunction() === &#x27;actualizacionDiariaPreciosProduction_&#x27;,
+      .filter((t) =&gt;
+        [
+          &#x27;financeDailyPricesProduction_&#x27;,
+          &#x27;actualizacionDiariaPreciosProduction_&#x27;,
+        ].includes(t.getHandlerFunction()),
       )
       .forEach((t) =&gt; ScriptApp.deleteTrigger(t));
     [
@@ -2909,7 +2860,7 @@ function deactivateDailyPricesProduction_() {
   });
 }
 // El sufijo _ impide llamadas desde google.script.run.
-function actualizacionDiariaPreciosProduction_(event) {
+function financeDailyPricesProduction_(event) {
   const config = dailyPriceProductionTriggerConfig_(event),
     hour = Number(Utilities.formatDate(new Date(), &#x27;Europe/Madrid&#x27;, &#x27;HH&#x27;));
   if (hour &lt; 20 || hour &gt; 22)
@@ -2939,7 +2890,7 @@ function dailyPriceProductionTriggerConfig_(event) {
     String(event.triggerUid) !== String(triggerId) ||
     !ScriptApp.getProjectTriggers().some(
       (t) =&gt;
-        t.getHandlerFunction() === &#x27;actualizacionDiariaPreciosProduction_&#x27; &amp;&amp;
+        t.getHandlerFunction() === &#x27;financeDailyPricesProduction_&#x27; &amp;&amp;
         String(t.getUniqueId()) === String(triggerId),
     )
   )
@@ -3240,8 +3191,8 @@ function dailyPriceStatus_(s) {
         (t) =&gt;
           t.getHandlerFunction() ===
             (s.environment === &#x27;production&#x27;
-              ? &#x27;actualizacionDiariaPreciosProduction_&#x27;
-              : &#x27;actualizacionDiariaPreciosTest_&#x27;) &amp;&amp;
+              ? &#x27;financeDailyPricesProduction_&#x27;
+              : &#x27;financeDailyPricesTest_&#x27;) &amp;&amp;
           String(t.getUniqueId()) === String(triggerId),
       );
   } catch (ignored) {
@@ -3302,8 +3253,10 @@ function activateDailyPricesTest_() {
   return locked_(() =&gt; {
     assertDailyPriceActivationReady_(config);
     const properties = PropertiesService.getScriptProperties(),
-      existing = ScriptApp.getProjectTriggers().filter(
-        (t) =&gt; t.getHandlerFunction() === &#x27;actualizacionDiariaPreciosTest_&#x27;,
+      existing = ScriptApp.getProjectTriggers().filter((t) =&gt;
+        [&#x27;financeDailyPricesTest_&#x27;, &#x27;actualizacionDiariaPreciosTest_&#x27;].includes(
+          t.getHandlerFunction(),
+        ),
       ),
       currentId = properties.getProperty(&#x27;DAILY_PRICE_TEST_TRIGGER&#x27;),
       current = existing.find(
@@ -3311,6 +3264,7 @@ function activateDailyPricesTest_() {
       ),
       reusable =
         current &amp;&amp;
+        current.getHandlerFunction() === &#x27;financeDailyPricesTest_&#x27; &amp;&amp;
         properties.getProperty(&#x27;DAILY_PRICE_TEST_SCHEDULE&#x27;) ===
           &#x27;hourly-20-22-v1&#x27; &amp;&amp;
         properties.getProperty(&#x27;DAILY_PRICE_TEST_BOOK&#x27;) === config.id &amp;&amp;
@@ -3320,7 +3274,7 @@ function activateDailyPricesTest_() {
             ScriptApp.getScriptId());
     const trigger = reusable
       ? current
-      : ScriptApp.newTrigger(&#x27;actualizacionDiariaPreciosTest_&#x27;)
+      : ScriptApp.newTrigger(&#x27;financeDailyPricesTest_&#x27;)
           .timeBased()
           .everyHours(1)
           .create();
@@ -3353,22 +3307,9 @@ function activateDailyPricesTest_() {
     };
   });
 }
-</pre>
-  </details>
-</section>
-<section class="code-section" aria-labelledby="file-7" data-file-name="OperatorChecks.gs">
-  <header>
-    <div>
-      <p class="eyebrow">ARCHIVO 7 DE 15</p>
-      <h2 id="file-7">OperatorChecks.gs</h2>
-    </div>
-    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
-    <button type="button" data-copy="code-7">Copiar OperatorChecks.gs</button>
-  </header>
-  <p>Añade o sustituye el archivo indicado en el proyecto de Apps Script.</p>
-  <details>
-    <summary>Ver código completo</summary>
-    <pre id="code-7" tabindex="0">function probePriceSources_() {
+
+// Source: OperatorChecks.gs
+function probePriceSources_() {
   let result;
   try {
     const config = authorizedConfig_(),
@@ -3539,22 +3480,9 @@ function prepareApplication_() {
   }
   return result;
 }
-</pre>
-  </details>
-</section>
-<section class="code-section" aria-labelledby="file-8" data-file-name="PriceHistory.gs">
-  <header>
-    <div>
-      <p class="eyebrow">ARCHIVO 8 DE 15</p>
-      <h2 id="file-8">PriceHistory.gs</h2>
-    </div>
-    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
-    <button type="button" data-copy="code-8">Copiar PriceHistory.gs</button>
-  </header>
-  <p>Añade o sustituye el archivo indicado en el proyecto de Apps Script.</p>
-  <details>
-    <summary>Ver código completo</summary>
-    <pre id="code-8" tabindex="0">function priceHistory_(config, request) {
+
+// Source: PriceHistory.gs
+function priceHistory_(config, request) {
   const writing = request.action === &#x27;importPriceHistory&#x27;;
   if (
     Object.keys(request).some(
@@ -3710,22 +3638,9 @@ function prepareApplication_() {
 
 // Explicit owner activation; isolated test and production bindings.
 /* global ScriptApp */
-</pre>
-  </details>
-</section>
-<section class="code-section" aria-labelledby="file-9" data-file-name="PriceProvidersAndRefresh.gs">
-  <header>
-    <div>
-      <p class="eyebrow">ARCHIVO 9 DE 15</p>
-      <h2 id="file-9">PriceProvidersAndRefresh.gs</h2>
-    </div>
-    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
-    <button type="button" data-copy="code-9">Copiar PriceProvidersAndRefresh.gs</button>
-  </header>
-  <p>Añade o sustituye el archivo indicado en el proyecto de Apps Script.</p>
-  <details>
-    <summary>Ver código completo</summary>
-    <pre id="code-9" tabindex="0">function validIsin_(value) {
+
+// Source: PriceProvidersAndRefresh.gs
+function validIsin_(value) {
   if (typeof value !== &#x27;string&#x27;) return false;
   const isin = value.trim().toUpperCase();
   if (!/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(isin)) return false;
@@ -4639,22 +4554,9 @@ function historyRows_(state, request) {
     });
   });
 }
-</pre>
-  </details>
-</section>
-<section class="code-section" aria-labelledby="file-10" data-file-name="StateAndValidation.gs">
-  <header>
-    <div>
-      <p class="eyebrow">ARCHIVO 10 DE 15</p>
-      <h2 id="file-10">StateAndValidation.gs</h2>
-    </div>
-    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
-    <button type="button" data-copy="code-10">Copiar StateAndValidation.gs</button>
-  </header>
-  <p>Añade o sustituye el archivo indicado en el proyecto de Apps Script.</p>
-  <details>
-    <summary>Ver código completo</summary>
-    <pre id="code-10" tabindex="0">function revision_(s) {
+
+// Source: StateAndValidation.gs
+function revision_(s) {
   const tables = {};
   Object.keys(s.tables).forEach(
     (name) =&gt;
@@ -5573,22 +5475,9 @@ function synchronizeTradeCash_(s) {
     cash.Importe = money_(trades.reduce((sum, r) =&gt; sum + tradeAmount_(r), 0));
   });
 }
-</pre>
-  </details>
-</section>
-<section class="code-section" aria-labelledby="file-11" data-file-name="Operations.gs">
-  <header>
-    <div>
-      <p class="eyebrow">ARCHIVO 11 DE 15</p>
-      <h2 id="file-11">Operations.gs</h2>
-    </div>
-    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
-    <button type="button" data-copy="code-11">Copiar Operations.gs</button>
-  </header>
-  <p>Añade o sustituye el archivo indicado en el proyecto de Apps Script.</p>
-  <details>
-    <summary>Ver código completo</summary>
-    <pre id="code-11" tabindex="0">function applyOperations_(
+
+// Source: Operations.gs
+function applyOperations_(
   initial,
   operations,
   requestId,
@@ -6620,22 +6509,9 @@ function synchronizeTradeCash_(s) {
   s.revision = revision_(s);
   return { state: s, results };
 }
-</pre>
-  </details>
-</section>
-<section class="code-section" aria-labelledby="file-12" data-file-name="SupportAndCapacity.gs">
-  <header>
-    <div>
-      <p class="eyebrow">ARCHIVO 12 DE 15</p>
-      <h2 id="file-12">SupportAndCapacity.gs</h2>
-    </div>
-    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
-    <button type="button" data-copy="code-12">Copiar SupportAndCapacity.gs</button>
-  </header>
-  <p>Añade o sustituye el archivo indicado en el proyecto de Apps Script.</p>
-  <details>
-    <summary>Ver código completo</summary>
-    <pre id="code-12" tabindex="0">function supportRanges_(state) {
+
+// Source: SupportAndCapacity.gs
+function supportRanges_(state) {
   const named = state.book.namedRanges || [],
     out = {};
   Object.keys(SUPPORT_NAMES_).forEach((k) =&gt; {
@@ -7610,22 +7486,9 @@ function dailyHistoryRows_(s, firstHeldOverrides) {
   }
   return rows;
 }
-</pre>
-  </details>
-</section>
-<section class="code-section" aria-labelledby="file-13" data-file-name="Transactions.gs">
-  <header>
-    <div>
-      <p class="eyebrow">ARCHIVO 13 DE 15</p>
-      <h2 id="file-13">Transactions.gs</h2>
-    </div>
-    <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
-    <button type="button" data-copy="code-13">Copiar Transactions.gs</button>
-  </header>
-  <p>Añade o sustituye el archivo indicado en el proyecto de Apps Script.</p>
-  <details>
-    <summary>Ver código completo</summary>
-    <pre id="code-13" tabindex="0">function cellValue_(v) {
+
+// Source: Transactions.gs
+function cellValue_(v) {
   if (blank_(v)) return {};
   return {
     userEnteredValue:
@@ -7982,22 +7845,35 @@ function mutationRequests_(before, after, requestId, now, result) {
 function initializeBackend_(config) {
   return locked_(() =&gt; initializeBackendUnlocked_(config));
 }
+
+return { prepareApplication, checkApplication, checkSending, enableDailyPrices, updatePrices, disableDailyPrices, doGet, financialApiJson, financeDailyPricesTest_, financeDailyPricesProduction_ };
+})();
+function prepareApplication() { return FINANCE_RUNTIME_V1_.prepareApplication(); }
+function checkApplication() { return FINANCE_RUNTIME_V1_.checkApplication(); }
+function checkSending() { return FINANCE_RUNTIME_V1_.checkSending(); }
+function enableDailyPrices() { return FINANCE_RUNTIME_V1_.enableDailyPrices(); }
+function updatePrices() { return FINANCE_RUNTIME_V1_.updatePrices(); }
+function disableDailyPrices() { return FINANCE_RUNTIME_V1_.disableDailyPrices(); }
+function doGet(e) { return FINANCE_RUNTIME_V1_.doGet(e); }
+function financialApiJson(requestJson) { return FINANCE_RUNTIME_V1_.financialApiJson(requestJson); }
+function financeDailyPricesTest_(event) { return FINANCE_RUNTIME_V1_.financeDailyPricesTest_(event); }
+function financeDailyPricesProduction_(event) { return FINANCE_RUNTIME_V1_.financeDailyPricesProduction_(event); }
 </pre>
   </details>
 </section>
-<section class="code-section" aria-labelledby="file-14" data-file-name="Bridge.html">
+<section class="code-section" aria-labelledby="file-2" data-file-name="Bridge.html">
   <header>
     <div>
-      <p class="eyebrow">ARCHIVO 14 DE 15</p>
-      <h2 id="file-14">Bridge.html</h2>
+      <p class="eyebrow">ARCHIVO 2 DE 3</p>
+      <h2 id="file-2">Bridge.html</h2>
     </div>
     <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
-    <button type="button" data-copy="code-14">Copiar Bridge.html</button>
+    <button type="button" data-copy="code-2">Copiar Bridge.html</button>
   </header>
   <p>Sustituye el contenido del archivo indicado por este código.</p>
   <details>
     <summary>Ver código completo</summary>
-    <pre id="code-14" tabindex="0">&lt;!doctype html&gt;
+    <pre id="code-2" tabindex="0">&lt;!doctype html&gt;
 &lt;html lang=&quot;es&quot;&gt;
   &lt;head&gt;
     &lt;meta charset=&quot;utf-8&quot; /&gt;
@@ -8047,7 +7923,7 @@ function initializeBackend_(config) {
       const appOrigin = document.getElementById(&#x27;origin&#x27;).textContent;
       const status = document.getElementById(&#x27;status&#x27;);
       const detail = document.getElementById(&#x27;detail&#x27;);
-      const BRIDGE_VERSION = &#x27;3.10.2&#x27;;
+      const BRIDGE_VERSION = &#x27;3.10.3&#x27;;
       const API_TRANSPORT = &#x27;finances.rpc.json.v1&#x27;;
       const errors = {
         INVALID_REQUEST:
@@ -8266,19 +8142,19 @@ function initializeBackend_(config) {
 </pre>
   </details>
 </section>
-<section class="code-section" aria-labelledby="file-15" data-file-name="appsscript.json">
+<section class="code-section" aria-labelledby="file-3" data-file-name="appsscript.json">
   <header>
     <div>
-      <p class="eyebrow">ARCHIVO 15 DE 15</p>
-      <h2 id="file-15">appsscript.json</h2>
+      <p class="eyebrow">ARCHIVO 3 DE 3</p>
+      <h2 id="file-3">appsscript.json</h2>
     </div>
     <span class="file-status" data-file-status aria-live="polite">SIN REFERENCIA</span>
-    <button type="button" data-copy="code-15">Copiar appsscript.json</button>
+    <button type="button" data-copy="code-3">Copiar appsscript.json</button>
   </header>
   <p>Sustituye el contenido del archivo indicado por este código.</p>
   <details>
     <summary>Ver código completo</summary>
-    <pre id="code-15" tabindex="0">{
+    <pre id="code-3" tabindex="0">{
   &quot;timeZone&quot;: &quot;Europe/Madrid&quot;,
   &quot;runtimeVersion&quot;: &quot;V8&quot;,
   &quot;dependencies&quot;: {
@@ -8305,7 +8181,7 @@ function initializeBackend_(config) {
   </details>
 </section>
       <section class="configuration">
-        <p class="eyebrow">INSTALACIÓN · ENTREGA 3.10.2</p>
+        <p class="eyebrow">INSTALACIÓN · ENTREGA 3.10.3</p>
         <h2>Actualizar el proyecto conectado</h2>
         <ol>
           <li>
@@ -8314,18 +8190,21 @@ function initializeBackend_(config) {
           </li>
           <li>
             Sustituye el contenido del archivo inicial
-            <code>Code.gs</code> (puede llamarse <code>Código.gs</code>) por la
-            fachada corta. Añade cada uno de los demás archivos
-            <code>.gs</code> listados arriba; no conserves el monolito anterior
-            como otro archivo. Sustituye <code>Bridge.html</code> y el
-            manifiesto <code>appsscript.json</code>.
+            <code>Code.gs</code> (puede llamarse <code>Código.gs</code>) por el
+            backend completo generado de esta página. Los módulos antiguos
+            pueden permanecer: este backend funciona de forma aislada. Sustituye
+            <code>Bridge.html</code>. En una instalación nueva, añade también
+            <code>appsscript.json</code>; el manifiesto no cambia desde 3.10.2.
+            No copies la fachada corta del directorio de fuentes.
           </li>
           <li>
             Guarda todos los archivos. En Apps Script ejecuta
             <code>prepareApplication</code> y luego
             <code>checkApplication</code> para preparar y comprobar el backend.
             Si falla un envío, ejecuta <code>checkSending</code>: comprueba su
-            preparación sin registrar movimientos.
+            preparación sin registrar movimientos. Debe indicar
+            <code>runtimeDelivery: single-file</code> y
+            <code>prepared: true</code>.
           </li>
           <li>
             Cuando las comprobaciones estén listas, abre
@@ -8343,8 +8222,9 @@ function initializeBackend_(config) {
           </li>
           <li>
             Para guardar cotizaciones verificadas, ejecuta
-            <code>enableDailyPrices</code> una vez y después
-            <code>updatePrices</code>. Ejecuta <code>checkApplication</code>
+            <code>enableDailyPrices</code> una vez tras esta actualización para
+            renovar su activador y después <code>updatePrices</code>. Ejecuta
+            <code>checkApplication</code>
             para revisar el estado. Para detener la rutina diaria, ejecuta
             <code>disableDailyPrices</code>.
           </li>
