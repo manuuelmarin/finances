@@ -5,8 +5,8 @@ const titles = {
   book: 'Movimientos',
   investments: 'Inversiones',
   accounts: 'Cuentas',
-  budgets: 'Planificación',
   salary: 'Salario',
+  budgets: 'Planificación',
   tools: 'Calculadoras',
   connection: 'Configuración',
 };
@@ -36,7 +36,7 @@ function navigate(view, focus = false) {
     .getElementById('mobile-menu')
     .toggleAttribute(
       'data-active',
-      !['home', 'book', 'investments', 'budgets'].includes(view),
+      !['home', 'book', 'investments', 'accounts'].includes(view),
     );
   document.title = 'Finanzas · ' + titles[view];
   window.dispatchEvent(
