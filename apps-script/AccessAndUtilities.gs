@@ -271,7 +271,7 @@ function locked_(callback) {
     lock.releaseLock();
   }
 }
-function apiError_(error) {
+function apiError_(error, context) {
   const codes = [
     'NOT_CONFIGURED',
     'ACCESS_DENIED',
@@ -291,16 +291,32 @@ function apiError_(error) {
     'READ_REQUIRED',
     'BOOK_CHANGED',
     'TEST_ONLY',
+    'UPDATE_REQUIRED',
   ];
   const code =
     codes.indexOf(error.code || error.message) >= 0
       ? error.code || error.message
       : 'API_FAILED';
-  return {
+  const result = {
     ok: false,
     error: code,
     message: error.code && code !== 'API_FAILED' ? error.message : code,
   };
+  if (code === 'API_FAILED' && context) {
+    result.diagnosticId = Utilities.getUuid();
+    result.phase = context.phase;
+    // Execution logs stay in the owner's private project. Never return native
+    // exceptions: Google errors can contain book IDs, ranges or financial data.
+    console.log(
+      JSON.stringify({
+        diagnosticId: result.diagnosticId,
+        phase: context.phase,
+        requestId: context.requestId || null,
+        error: String(error && (error.stack || error.message || error)),
+      }),
+    );
+  }
+  return result;
 }
 function rangeA1_(title, r) {
   return (
@@ -337,7 +353,7 @@ function normalizeRow_(name, row) {
   return out;
 }
 
-function readState_(config) {
+function readState_(config, options) {
   const book = Sheets.Spreadsheets.get(config.id, {
     fields:
       'namedRanges,sheets(properties(sheetId,title,gridProperties),tables(tableId,name,range,columnProperties(columnIndex,columnName)))',
@@ -360,18 +376,20 @@ function readState_(config) {
     (s) => s.properties.title === 'Cálculos',
   );
   specs.push({ support: true, range: "'Cálculos'!T8:T8" });
-  specs.push({ summary: true, range: "'Resumen financiero'!B2:U80" });
-  (book.namedRanges || [])
-    .filter((n) => Object.values(SUPPORT_NAMES_).indexOf(n.name) >= 0)
-    .forEach((n) => {
-      const sheet = book.sheets.find(
-        (s) => s.properties.sheetId === n.range.sheetId,
-      );
-      specs.push({
-        calculation: n.name,
-        range: rangeA1_(sheet.properties.title, n.range),
+  if (options?.calculations !== false) {
+    specs.push({ summary: true, range: "'Resumen financiero'!B2:U80" });
+    (book.namedRanges || [])
+      .filter((n) => Object.values(SUPPORT_NAMES_).indexOf(n.name) >= 0)
+      .forEach((n) => {
+        const sheet = book.sheets.find(
+          (s) => s.properties.sheetId === n.range.sheetId,
+        );
+        specs.push({
+          calculation: n.name,
+          range: rangeA1_(sheet.properties.title, n.range),
+        });
       });
-    });
+  }
   Object.keys(TECH_SCHEMA_).forEach((kind) => {
     const [title, headers] = TECH_SCHEMA_[kind],
       sheet = book.sheets.find((s) => s.properties.title === title);

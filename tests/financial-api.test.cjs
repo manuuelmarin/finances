@@ -32,6 +32,144 @@ const trade = (changes = {}) => ({
   ...changes,
 });
 
+test('unexpected failures identify the failing stage without exposing private exception text', () => {
+  for (const [name, phase] of [
+    ['readState_', 'read'],
+    ['applyOperations_', 'validation'],
+    ['prepareCapacity_', 'capacity'],
+    ['prepareFundFormulaMigration_', 'formulas'],
+    ['mutationRequests_', 'batch'],
+  ]) {
+    const r = runtime();
+    r.init();
+    const requestId = crypto.randomUUID(),
+      envelope = {
+        action: 'transact',
+        requestId,
+        expectedRevision: r.state().revision,
+        operations: [expense()],
+      },
+      writes = r.writes.length;
+    r.ctx[name] = () => {
+      throw Error('PRIVATE_NATIVE_DETAIL');
+    };
+    const response = r.api(envelope);
+    assert.equal(response.error, 'API_FAILED');
+    assert.equal(response.phase, phase);
+    assert.match(response.diagnosticId, /^[0-9a-f-]{36}$/);
+    assert.doesNotMatch(JSON.stringify(response), /PRIVATE_NATIVE_DETAIL/);
+    const log = JSON.parse(r.logs.at(-1));
+    assert.equal(log.diagnosticId, response.diagnosticId);
+    assert.equal(log.requestId, requestId);
+    assert.match(log.error, /PRIVATE_NATIVE_DETAIL/);
+    assert.equal(r.writes.length, writes);
+  }
+});
+
+test('production writes retain financial validation while omitting reporting calculation ranges', () => {
+  const r = runtime({
+    bookId: 'production-fixture',
+    properties: {
+      ENVIRONMENT: 'production',
+      PRODUCTION_SPREADSHEET_ID: 'production-fixture',
+    },
+  });
+  r.init();
+  const state = r.state(),
+    readRanges = [],
+    batchGet = r.ctx.Sheets.Spreadsheets.Values.batchGet;
+  r.ctx.Sheets.Spreadsheets.Values.batchGet = (id, request) => {
+    readRanges.push(...request.ranges);
+    return batchGet(id, request);
+  };
+  const response = r.api({
+    action: 'transact',
+    requestId: crypto.randomUUID(),
+    expectedRevision: state.revision,
+    bookKey: state.bookKey,
+    operations: [expense({ date: '2026-01-03' })],
+  });
+  assert.equal(response.ok, true);
+  assert.equal(
+    readRanges.some((range) => /Resumen financiero/.test(range)),
+    false,
+  );
+  assert.deepEqual(
+    readRanges.filter((range) => /Cálculos/.test(range)),
+    ["'Cálculos'!T8:T8"],
+  );
+  assert.equal(r.state().tables.tMovimientos.length, 1);
+  assert.equal(
+    r.api({
+      action: 'transact',
+      requestId: crypto.randomUUID(),
+      expectedRevision: r.state().revision,
+      bookKey: state.bookKey,
+      operations: [expense({ amount: -1 })],
+    }).error,
+    'INVALID_DATA',
+  );
+});
+
+test('receipt recovery reads only its journal, even when unrelated financial data needs repair', () => {
+  const r = runtime();
+  r.init();
+  const envelope = {
+    action: 'transact',
+    requestId: crypto.randomUUID(),
+    expectedRevision: r.state().revision,
+    operations: [expense()],
+  };
+  const committed = r.api(envelope);
+  assert.equal(committed.ok, true);
+  r.setInput('tMovimientos', 0, 'Subcategoría', 'Missing category');
+  assert.equal(r.api({ action: 'read' }).error, 'INVALID_DATA');
+  const ranges = [],
+    batchGet = r.ctx.Sheets.Spreadsheets.Values.batchGet;
+  r.ctx.Sheets.Spreadsheets.Values.batchGet = (id, request) => {
+    ranges.push(...request.ranges);
+    return batchGet(id, request);
+  };
+  const receipt = r.api({
+    action: 'requestStatus',
+    requestId: envelope.requestId.toUpperCase(),
+  });
+  assert.equal(receipt.replayed, true);
+  assert.equal(receipt.requestId, envelope.requestId);
+  assert.deepEqual(ranges, ["'_Finanzas_Solicitudes'!A1:D1000"]);
+  assert.equal(
+    r.api({
+      action: 'requestStatus',
+      requestId: envelope.requestId,
+      bookKey: 'wrong-book',
+    }).error,
+    'BOOK_CHANGED',
+  );
+});
+
+test('checkSending exercises expense validation and batch construction with zero writes', () => {
+  const r = runtime();
+  r.init();
+  const state = r.state(),
+    writes = r.writes.length,
+    result = JSON.parse(JSON.stringify(r.ctx.checkSending()));
+  assert.equal(result.ok, true);
+  assert.equal(result.readOnly, true);
+  assert.equal(result.prepared, true);
+  assert.equal(result.writeVerified, false);
+  assert.ok(result.requestCount > 1);
+  assert.equal(r.writes.length, writes);
+  assert.equal(r.state().revision, state.revision);
+  assert.equal(r.state().technical.requests.length, 0);
+  r.ctx.mutationRequests_ = () => {
+    throw Error('PRIVATE_FAILURE');
+  };
+  const failed = r.ctx.checkSending();
+  assert.equal(failed.prepared, false);
+  assert.equal(failed.phase, 'batch');
+  assert.equal(r.writes.length, writes);
+});
+
 test('autoriza antes de cualquier lectura o escritura y mantiene el libro solo en configuración del servidor', () => {
   for (const visitor of ['', 'other@example.test']) {
     const r = runtime({ visitor });

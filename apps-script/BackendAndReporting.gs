@@ -384,9 +384,52 @@ function nativeSummary_(s, data) {
   };
 }
 
+// Receipt recovery must not depend on recalculating unrelated financial tables.
+function requestReceipt_(config, request) {
+  checkRequestBook_(request, {
+    bookKey: hash_(config.id),
+    environment: config.environment,
+  });
+  const book = Sheets.Spreadsheets.get(config.id, {
+      fields: 'sheets(properties(sheetId,title,gridProperties))',
+    }),
+    sheet = book.sheets.find(
+      (s) => s.properties.title === TECH_SCHEMA_.requests[0],
+    );
+  if (!sheet) fail_('NOT_INITIALIZED');
+  const rows =
+    Sheets.Spreadsheets.Values.batchGet(config.id, {
+      ranges: [
+        rangeA1_(sheet.properties.title, {
+          startRowIndex: 0,
+          endRowIndex: sheet.properties.gridProperties.rowCount,
+          startColumnIndex: 0,
+          endColumnIndex: TECH_SCHEMA_.requests[1].length,
+        }),
+      ],
+      valueRenderOption: 'UNFORMATTED_VALUE',
+    }).valueRanges[0]?.values || [];
+  if (canonical_(rows[0] || []) !== canonical_(TECH_SCHEMA_.requests[1]))
+    fail_('SCHEMA_CONFLICT', 'Cabecera técnica incompatible.');
+  const matches = rows.slice(1).filter((r) => r[0] === request.requestId);
+  if (matches.length > 1) fail_('SCHEMA_CONFLICT', 'Solicitud duplicada.');
+  if (!matches.length) return { ok: true, found: false };
+  let response;
+  try {
+    response = JSON.parse(matches[0][3]);
+  } catch (error) {
+    fail_('SCHEMA_CONFLICT', 'Recibo incompatible.');
+  }
+  if (!response?.ok || response.requestId !== request.requestId)
+    fail_('SCHEMA_CONFLICT', 'Recibo incompatible.');
+  return Object.assign(response, { replayed: true });
+}
+
 function financialApi_(request) {
+  const context = { phase: 'authorization' };
   try {
     const config = authorizedConfig_();
+    context.phase = 'request';
     if (
       !object_(request) ||
       JSON.stringify(request).length > 60000 ||
@@ -442,14 +485,11 @@ function financialApi_(request) {
     if (request.action === 'acceptance') return closureReport_(config);
     if (request.action === 'requestStatus') {
       if (!uuid_(request.requestId)) fail_('INVALID_REQUEST');
-      const s = readState_(config);
-      checkRequestBook_(request, s);
-      const row = s.technical.requests.find(
-        (r) => r[0] === request.requestId.toLowerCase(),
-      );
-      return row
-        ? Object.assign(JSON.parse(row[3]), { replayed: true })
-        : { ok: true, found: false };
+      context.phase = 'receipt';
+      return requestReceipt_(config, {
+        ...request,
+        requestId: request.requestId.toLowerCase(),
+      });
     }
     if (
       request.action !== 'transact' ||
@@ -462,8 +502,10 @@ function financialApi_(request) {
       fail_('INVALID_REQUEST');
     const requestId = request.requestId.toLowerCase(),
       fingerprint = hash_(request.operations);
+    context.requestId = requestId;
     return locked_(() => {
-      let before = readState_(config);
+      context.phase = 'read';
+      let before = readState_(config, { calculations: false });
       checkRequestBook_(request, before);
       if (!['requests', 'audit', 'observations'].every((k) => before.tech[k]))
         fail_('NOT_INITIALIZED', 'Ejecuta prepareApplication desde el editor.');
@@ -483,6 +525,7 @@ function financialApi_(request) {
           'El libro cambió. Vuelve a leer antes de preparar una nueva operación.',
         );
       const now = new Date().toISOString();
+      context.phase = 'validation';
       let applied = applyOperations_(
         before,
         request.operations,
@@ -502,13 +545,16 @@ function financialApi_(request) {
         before = initializeBackendUnlocked_(config);
       // La preparación de estructura no registra operaciones: las entradas, caja y solicitud
       // siguen en un único lote. Un fallo aquí permite reintentar el mismo sobre sin duplicar.
+      context.phase = 'capacity';
       before = prepareCapacity_(config, before, applied.state);
       if (before.revision !== request.expectedRevision)
         fail_(
           'CONFLICT',
           'El libro cambió durante la preparación. Vuelve a leer.',
         );
+      context.phase = 'validation';
       applied = applyOperations_(before, request.operations, requestId, now);
+      context.phase = 'formulas';
       const formulaRequests = prepareFundFormulaMigration_(
         config,
         before,
@@ -516,6 +562,7 @@ function financialApi_(request) {
         requestId,
         now,
       );
+      context.phase = 'batch';
       const response = {
         ok: true,
         apiVersion: API_VERSION_,
@@ -535,16 +582,19 @@ function financialApi_(request) {
         { operations: request.operations, response },
       );
       requests.push(...formulaRequests);
+      context.phase = 'write';
       try {
         Sheets.Spreadsheets.batchUpdate({ requests }, config.id);
       } catch (error) {
         // Puede haberse aplicado el lote aunque se perdiera la respuesta. No generar otra solicitud.
         try {
-          const state = readState_(config),
-            saved = state.technical.requests.find((r) => r[0] === requestId);
-          if (saved && saved[1] === fingerprint)
-            return Object.assign(JSON.parse(saved[3]), { replayed: true });
+          const receipt = requestReceipt_(config, {
+            requestId,
+            bookKey: before.bookKey,
+          });
+          if (receipt.ok && receipt.found !== false) return receipt;
         } catch (ignored) {}
+        apiError_(error, context);
         fail_(
           'WRITE_UNCERTAIN',
           'No se pudo confirmar el lote. Consulta o reintenta exactamente la misma solicitud.',
@@ -553,7 +603,94 @@ function financialApi_(request) {
       return response;
     });
   } catch (error) {
-    return apiError_(error);
+    return apiError_(error, context);
+  }
+}
+
+function checkSending_() {
+  const context = { phase: 'read' };
+  try {
+    const config = authorizedConfig_(),
+      before = readState_(config, { calculations: false }),
+      archived = (kind, key) =>
+        (before.technical.archives || []).some(
+          (r) => r[1] === kind && r[2] === key && r[3],
+        ),
+      account = before.tables.tCuentas.find(
+        (r) => !archived('account', r.Cuenta),
+      ),
+      category = before.tables.tCategorias.find(
+        (r) => r.Grupo === 'Gastos' && !archived('category', r.Subcategoría),
+      );
+    if (!['requests', 'audit', 'observations'].every((k) => before.tech[k]))
+      fail_('NOT_INITIALIZED', 'Ejecuta prepareApplication desde el editor.');
+    check_(
+      account && category,
+      'Se necesita una cuenta y una categoría de gastos activas.',
+    );
+    context.phase = 'validation';
+    const requestId = Utilities.getUuid(),
+      now = new Date().toISOString(),
+      operations = [
+        {
+          process: 'gasto',
+          date: isoDate_(before.settings.asof),
+          concept: 'Read-only sending check',
+          account: account.Cuenta,
+          category: category.Subcategoría,
+          amount: 0.01,
+          recurring: false,
+        },
+      ],
+      applied = applyOperations_(before, operations, requestId, now);
+    context.phase = 'capacity';
+    const preparationRequired =
+      !capacityReady_(before) ||
+      growBusinessRequests_(before, applied.state, 0).length > 0 ||
+      growSupportRequests_(before, applied.state).length > 0;
+    if (preparationRequired)
+      return {
+        ok: true,
+        readOnly: true,
+        prepared: false,
+        preparationRequired: true,
+        buildVersion: BUILD_VERSION_,
+        environment: config.environment,
+      };
+    context.phase = 'formulas';
+    const formulas = prepareFundFormulaMigration_(
+      config,
+      before,
+      applied.state,
+      requestId,
+      now,
+    );
+    context.phase = 'batch';
+    const response = {
+        ok: true,
+        requestId,
+        revision: applied.state.revision,
+        results: applied.results,
+      },
+      requests = mutationRequests_(before, applied.state, requestId, now, {
+        operations,
+        response,
+      });
+    requests.push(...formulas);
+    // Exercise the same JSON boundary as the native Sheets service, without executing it.
+    JSON.parse(JSON.stringify({ requests }));
+    return {
+      ok: true,
+      readOnly: true,
+      prepared: true,
+      preparationRequired: false,
+      buildVersion: BUILD_VERSION_,
+      environment: config.environment,
+      requestCount: requests.length,
+      writeVerified: false,
+    };
+  } catch (error) {
+    return { ...apiError_(error, context), readOnly: true, prepared: false };
   }
 }
 

@@ -2,7 +2,7 @@ const fs = require('node:fs');
 console.log('### Quality evidence for this run');
 console.log('Commit: `' + (process.env.GITHUB_SHA || 'local') + '`');
 console.log(
-  '\nFormatting: Prettier. Analysis: ESLint. Dependencies: npm audit (high/critical vulnerabilities block the run). Actions pinned by SHA. Business rules/API/queue: node:test. Browsers: the full desktop suite and selected @responsive mobile workflows, including CSP and embedded-access restrictions.',
+  '\nFormatting: Prettier. Analysis: ESLint. Dependencies: npm audit (high/critical vulnerabilities block the run). Actions pinned by SHA. Business rules/API/queue: node:test. Browsers: the full desktop suite, selected @responsive mobile workflows and @safari WebKit sending/recovery checks, including CSP and embedded-access restrictions.',
 );
 const unitReport = 'quality-results/unit-tests.tap';
 if (fs.existsSync(unitReport)) {

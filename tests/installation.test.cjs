@@ -70,7 +70,9 @@ test('la actualización conserva la implementación privada y exige publicar nue
   assert.match(page, /Gestionar implementaciones[\s\S]*?Nueva versión/);
   assert.match(page, /Conserva esa implementación y su[\s\S]*?URL/);
   assert.match(page, /ejecuta como <strong>Yo<\/strong>[\s\S]*?Solo yo/);
-  assert.match(page, /ENVIRONMENT=test/);
+  assert.match(page, /Mantén el libro y el entorno ya configurados/);
+  assert.doesNotMatch(page, /Mantén <code>ENVIRONMENT=test<\/code>/);
+  assert.match(page, /checkSending[\s\S]*?sin registrar movimientos/);
   assert.match(page, /recarga Finanzas[\s\S]*?API y el bridge vigentes/);
 });
 

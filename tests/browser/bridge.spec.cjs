@@ -170,7 +170,60 @@ async function open(page) {
   return google;
 }
 
-test('Bridge real con dos iframes carga tres KPI, cuentas, gráficos y registra un gasto una sola vez', async ({
+test('internal server failure recovers through the full bridge with one original expense @responsive @safari', async ({
+  page,
+  context,
+}) => {
+  const { r, calls } = await channel(context);
+  await open(page);
+  const apply = r.ctx.applyOperations_;
+  let failOnce = true;
+  r.ctx.applyOperations_ = (...args) => {
+    if (failOnce) {
+      failOnce = false;
+      throw Error('Fictional native failure');
+    }
+    return apply(...args);
+  };
+  await require('./helpers/finalization-runtime.cjs').expense(
+    page,
+    'Fictional recoverable expense',
+  );
+  await page.locator('#operation-review').click();
+  await page.locator('#review-confirm').click();
+  await navigate(page, 'activity');
+  await expect(page.locator('#finance-queue')).toContainText(
+    'Se consultará su recibo',
+  );
+  await expect(page.locator('#finance-queue')).toContainText('Diagnóstico:');
+  await expect(
+    page
+      .locator('#finance-queue')
+      .getByRole('button', { name: 'Descartar', exact: true }),
+  ).toHaveCount(0);
+  expect(r.state().tables.tMovimientos).toHaveLength(0);
+  const original = calls.find((c) => c.action === 'transact');
+  await page.locator('#finance-sync').click();
+  await expect(page.locator('#finance-history')).toContainText(
+    'Confirmada por Google',
+  );
+  const submissions = calls.filter((c) => c.action === 'transact');
+  expect(submissions).toHaveLength(2);
+  expect(submissions[1]).toEqual(original);
+  const retryIndex = calls.lastIndexOf(submissions[1]);
+  expect(
+    calls
+      .slice(0, retryIndex)
+      .some(
+        (c) =>
+          c.action === 'requestStatus' && c.requestId === original.requestId,
+      ),
+  ).toBe(true);
+  expect(r.state().tables.tMovimientos).toHaveLength(1);
+  expect(r.state().technical.requests).toHaveLength(1);
+});
+
+test('Bridge real con dos iframes carga tres KPI, cuentas, gráficos y registra un gasto una sola vez @safari', async ({
   page,
   context,
 }) => {

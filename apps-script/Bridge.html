@@ -48,7 +48,7 @@
       const appOrigin = document.getElementById('origin').textContent;
       const status = document.getElementById('status');
       const detail = document.getElementById('detail');
-      const BRIDGE_VERSION = '3.10.1';
+      const BRIDGE_VERSION = '3.10.2';
       const API_TRANSPORT = 'finances.rpc.json.v1';
       const errors = {
         INVALID_REQUEST:
@@ -163,9 +163,11 @@
             reply({ ok: false, error: 'NOT_READY' });
             return;
           }
-          const writing = ['transact', 'refreshPrices'].includes(
-            message.request.action,
-          );
+          const writing = [
+            'transact',
+            'refreshPrices',
+            'importPriceHistory',
+          ].includes(message.request.action);
           const fail = () =>
             reply({
               ok: false,

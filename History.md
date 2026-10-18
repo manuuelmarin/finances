@@ -103,7 +103,7 @@ Changes in repository order, from the first recorded build to the current app. V
 - Added simultaneous XIRR, drawdown/recovery, profit contributions, weekly volatility, correlations and calendar return averages; monthly green/red bars exclude deposits from gains ([#31](https://github.com/manuuelmarin/finances/pull/31), [#32](https://github.com/manuuelmarin/finances/pull/32)).
 - Preferred complete TWR, removed duplicate return charts and consolidated current documentation ([#33](https://github.com/manuuelmarin/finances/pull/33), [#34](https://github.com/manuuelmarin/finances/pull/34)).
 
-## 3.10.1 · current
+## 3.10.1
 
 - Repaired period/monthly aggregates left on old row bounds, bound movement totals to managed ranges and withheld stale totals until capacity preparation ([#35](https://github.com/manuuelmarin/finances/pull/35)).
 - Added the end-to-end architecture diagram, shortened the English README and consolidated price documentation.
@@ -117,3 +117,16 @@ Changes in repository order, from the first recorded build to the current app. V
 
 - Replace `Configuration.gs`, `BackendAndReporting.gs`, `SupportAndCapacity.gs` and `Bridge.html` with their complete 3.10.1 installer versions. The other 11 installer files are unchanged.
 - Run `prepareApplication`, then `checkApplication`; review all checks, then publish **New version** of the existing private deployment. Preserve its URL and script properties.
+
+## 3.10.2 · current
+
+- Recover internal server failures through the original request receipt, including pending records stored by older clients; preserve UUIDs and block unsafe discard or recreation.
+- Read only the receipt journal during recovery and omit reporting calculations while preparing transactions. Keep financial validation, workbook binding and atomic writes.
+- Preserve uncertainty for interrupted historical imports and record unexpected failures with a diagnostic ID in private Apps Script execution logs.
+- Add `checkSending`, which validates and builds a fictional expense entirely in memory. It never writes a transaction and does not claim to verify native write permissions.
+- Preserve the configured production/test book in installer instructions and run sending/recovery checks through WebKit with an iPhone profile.
+
+### Private Google update from 3.10.1
+
+- Replace `Code.gs`, `Configuration.gs`, `AccessAndUtilities.gs`, `BackendAndReporting.gs` and `Bridge.html` with the installer versions. Preserve the current deployment URL and script properties.
+- Run `checkSending` and `checkApplication`, then publish **New version** of the existing deployment. Update the app and use **Send pending** to recover the original requests; do not recreate them.

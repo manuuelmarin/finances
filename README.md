@@ -6,7 +6,7 @@ Personal finance PWA for cash, investments, budgets and goals. GitHub Pages serv
 
 [Open app](https://manuuelmarin.github.io/finances/) · [Install / update](https://manuuelmarin.github.io/finances/install.html) · [TODOs](TODO.md) · [History](History.md)
 
-**App 3.10.1 · API 3.3.0 · workbook model 3.**
+**App 3.10.2 · API 3.3.0 · workbook model 3.**
 
 ## End to end
 
@@ -58,7 +58,7 @@ Node.js 24+:
 
 ```sh
 npm ci --ignore-scripts
-npx playwright install --with-deps chromium
+npx playwright install --with-deps chromium webkit
 npm run build
 node tools/serve.cjs
 ```

@@ -149,7 +149,11 @@ class FinanceApiClient {
       );
     const callId = this.runtime.crypto.randomUUID(),
       session = this.session;
-    const writing = ['transact', 'refreshPrices'].includes(body?.action);
+    const writing = [
+      'transact',
+      'refreshPrices',
+      'importPriceHistory',
+    ].includes(body?.action);
     return new Promise((resolve, reject) => {
       let timer,
         poll,

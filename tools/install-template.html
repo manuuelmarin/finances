@@ -315,7 +315,7 @@
         <ol>
           <li>
             Conserva el mismo proyecto, URL de implementación y propiedades
-            privadas del script. Mantén el entorno de pruebas seleccionado.
+            privadas del script. Mantén el libro y el entorno ya configurados.
           </li>
           <li>
             Sustituye el contenido del archivo inicial
@@ -329,6 +329,8 @@
             Guarda todos los archivos. En Apps Script ejecuta
             <code>prepareApplication</code> y luego
             <code>checkApplication</code> para preparar y comprobar el backend.
+            Si falla un envío, ejecuta <code>checkSending</code>: comprueba su
+            preparación sin registrar movimientos.
           </li>
           <li>
             Cuando las comprobaciones estén listas, abre
@@ -336,8 +338,8 @@
             lápiz de la implementación web existente y elige
             <strong>Nueva versión</strong>. Conserva esa implementación y su
             URL; ejecuta como <strong>Yo</strong> y limita el acceso a
-            <strong>Solo yo</strong>. Mantén <code>ENVIRONMENT=test</code> y
-            confirma que las propiedades privadas no hayan cambiado.
+            <strong>Solo yo</strong>. No cambies el libro ni el entorno
+            seleccionado; confirma que las propiedades privadas se conservan.
           </li>
           <li>
             Tras implementar, recarga Finanzas y comprueba que la conexión
