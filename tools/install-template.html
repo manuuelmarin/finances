@@ -296,7 +296,7 @@
           {{INSTALL_RELEASE_OPTIONS}}
         </select>
         <p id="release-summary" role="status" aria-live="polite">
-          Sin una versión de referencia, instala y revisa los 15 archivos.
+          Sin una versión de referencia, instala y revisa los 3 archivos.
         </p>
         <label class="filter"
           ><input id="changed-only" type="checkbox" disabled /> Mostrar solo
@@ -319,18 +319,21 @@
           </li>
           <li>
             Sustituye el contenido del archivo inicial
-            <code>Code.gs</code> (puede llamarse <code>Código.gs</code>) por la
-            fachada corta. Añade cada uno de los demás archivos
-            <code>.gs</code> listados arriba; no conserves el monolito anterior
-            como otro archivo. Sustituye <code>Bridge.html</code> y el
-            manifiesto <code>appsscript.json</code>.
+            <code>Code.gs</code> (puede llamarse <code>Código.gs</code>) por el
+            backend completo generado de esta página. Los módulos antiguos
+            pueden permanecer: este backend funciona de forma aislada. Sustituye
+            <code>Bridge.html</code>. En una instalación nueva, añade también
+            <code>appsscript.json</code>; el manifiesto no cambia desde 3.10.2.
+            No copies la fachada corta del directorio de fuentes.
           </li>
           <li>
             Guarda todos los archivos. En Apps Script ejecuta
             <code>prepareApplication</code> y luego
             <code>checkApplication</code> para preparar y comprobar el backend.
             Si falla un envío, ejecuta <code>checkSending</code>: comprueba su
-            preparación sin registrar movimientos.
+            preparación sin registrar movimientos. Debe indicar
+            <code>runtimeDelivery: single-file</code> y
+            <code>prepared: true</code>.
           </li>
           <li>
             Cuando las comprobaciones estén listas, abre
@@ -348,8 +351,9 @@
           </li>
           <li>
             Para guardar cotizaciones verificadas, ejecuta
-            <code>enableDailyPrices</code> una vez y después
-            <code>updatePrices</code>. Ejecuta <code>checkApplication</code>
+            <code>enableDailyPrices</code> una vez tras esta actualización para
+            renovar su activador y después <code>updatePrices</code>. Ejecuta
+            <code>checkApplication</code>
             para revisar el estado. Para detener la rutina diaria, ejecuta
             <code>disableDailyPrices</code>.
           </li>

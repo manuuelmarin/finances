@@ -10,7 +10,12 @@ const root = path.resolve(__dirname, '..');
 const manifest = JSON.parse(
   fs.readFileSync(path.join(root, 'apps-script/modules.json'), 'utf8'),
 );
-const installedFiles = [...manifest.scripts, 'Bridge.html', 'appsscript.json'];
+const { buildRuntime } = require('../tools/build-runtime.cjs');
+const installedFiles = ['Code.gs', 'Bridge.html', 'appsscript.json'];
+const installedSource = (name) =>
+  name === 'Code.gs'
+    ? buildRuntime()
+    : fs.readFileSync(path.join(root, 'apps-script', name), 'utf8');
 
 test('los bloques copiables contienen exactamente cada archivo vigente en el orden del manifiesto', () => {
   const page = fs.readFileSync(path.join(root, 'web/install.html'), 'utf8');
@@ -40,10 +45,7 @@ test('los bloques copiables contienen exactamente cada archivo vigente en el ord
       .replace(/&gt;/g, '>')
       .replace(/&lt;/g, '<')
       .replace(/&amp;/g, '&');
-    assert.equal(
-      decoded,
-      fs.readFileSync(path.join(root, 'apps-script', name), 'utf8'),
-    );
+    assert.equal(decoded, installedSource(name));
   }
 });
 
@@ -113,10 +115,7 @@ const packageVersion = JSON.parse(
   fs.readFileSync(path.join(root, 'package.json'), 'utf8'),
 ).version;
 const hash = (name) =>
-  crypto
-    .createHash('sha256')
-    .update(fs.readFileSync(path.join(root, 'apps-script', name)))
-    .digest('hex');
+  crypto.createHash('sha256').update(installedSource(name)).digest('hex');
 
 test('the current release hash manifest exactly covers the shipped source files', () => {
   assert.ok(
@@ -171,6 +170,10 @@ test('a rejected new release does not modify the frozen release catalogue', () =
     fs.mkdirSync(path.join(fixture, 'tools'));
     fs.mkdirSync(path.join(fixture, 'web'));
     fs.copyFileSync(
+      path.join(root, 'tools/build-runtime.cjs'),
+      path.join(fixture, 'tools/build-runtime.cjs'),
+    );
+    fs.copyFileSync(
       path.join(root, 'tools/build-install.cjs'),
       path.join(fixture, 'tools/build-install.cjs'),
     );
@@ -202,4 +205,14 @@ test('a rejected new release does not modify the frozen release catalogue', () =
   } finally {
     fs.rmSync(fixture, { recursive: true, force: true });
   }
+});
+
+test('upgrading from 3.10.2 replaces only Code.gs and Bridge.html', () => {
+  const previous = releases['3.10.2'];
+  assert.deepEqual(
+    installedFiles.filter(
+      (name) => previous[name] !== releases[packageVersion][name],
+    ),
+    ['Code.gs', 'Bridge.html'],
+  );
 });

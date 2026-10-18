@@ -5,8 +5,10 @@ function deactivateDailyPricesTest_() {
     // Desvincular primero hace que cualquier ejecución pendiente se detenga.
     properties.deleteProperty('DAILY_PRICE_TEST_BOOK');
     ScriptApp.getProjectTriggers()
-      .filter(
-        (t) => t.getHandlerFunction() === 'actualizacionDiariaPreciosTest_',
+      .filter((t) =>
+        ['financeDailyPricesTest_', 'actualizacionDiariaPreciosTest_'].includes(
+          t.getHandlerFunction(),
+        ),
       )
       .forEach((t) => ScriptApp.deleteTrigger(t));
     [
@@ -23,7 +25,7 @@ function deactivateDailyPricesTest_() {
   });
 }
 // El sufijo _ impide llamadas desde google.script.run.
-function actualizacionDiariaPreciosTest_(event) {
+function financeDailyPricesTest_(event) {
   const config = dailyPriceTriggerConfig_(event),
     hour = Number(Utilities.formatDate(new Date(), 'Europe/Madrid', 'HH'));
   if (hour < 20 || hour > 22)
@@ -53,7 +55,7 @@ function dailyPriceTriggerConfig_(event) {
     String(event.triggerUid) !== String(triggerId) ||
     !ScriptApp.getProjectTriggers().some(
       (t) =>
-        t.getHandlerFunction() === 'actualizacionDiariaPreciosTest_' &&
+        t.getHandlerFunction() === 'financeDailyPricesTest_' &&
         String(t.getUniqueId()) === String(triggerId),
     )
   )
@@ -86,9 +88,11 @@ function activateDailyPricesProduction_() {
   return locked_(() => {
     assertDailyPriceActivationReady_(config);
     const properties = PropertiesService.getScriptProperties(),
-      existing = ScriptApp.getProjectTriggers().filter(
-        (t) =>
-          t.getHandlerFunction() === 'actualizacionDiariaPreciosProduction_',
+      existing = ScriptApp.getProjectTriggers().filter((t) =>
+        [
+          'financeDailyPricesProduction_',
+          'actualizacionDiariaPreciosProduction_',
+        ].includes(t.getHandlerFunction()),
       ),
       currentId = properties.getProperty('DAILY_PRICE_PRODUCTION_TRIGGER'),
       current = existing.find(
@@ -96,6 +100,7 @@ function activateDailyPricesProduction_() {
       ),
       reusable =
         current &&
+        current.getHandlerFunction() === 'financeDailyPricesProduction_' &&
         properties.getProperty('DAILY_PRICE_PRODUCTION_SCHEDULE') ===
           'hourly-20-22-v1' &&
         properties.getProperty('DAILY_PRICE_PRODUCTION_BOOK') === config.id &&
@@ -106,7 +111,7 @@ function activateDailyPricesProduction_() {
             ScriptApp.getScriptId());
     const trigger = reusable
       ? current
-      : ScriptApp.newTrigger('actualizacionDiariaPreciosProduction_')
+      : ScriptApp.newTrigger('financeDailyPricesProduction_')
           .timeBased()
           .everyHours(1)
           .create();
@@ -152,9 +157,11 @@ function deactivateDailyPricesProduction_() {
     // Desvincular primero hace que cualquier ejecución pendiente se detenga.
     properties.deleteProperty('DAILY_PRICE_PRODUCTION_BOOK');
     ScriptApp.getProjectTriggers()
-      .filter(
-        (t) =>
-          t.getHandlerFunction() === 'actualizacionDiariaPreciosProduction_',
+      .filter((t) =>
+        [
+          'financeDailyPricesProduction_',
+          'actualizacionDiariaPreciosProduction_',
+        ].includes(t.getHandlerFunction()),
       )
       .forEach((t) => ScriptApp.deleteTrigger(t));
     [
@@ -171,7 +178,7 @@ function deactivateDailyPricesProduction_() {
   });
 }
 // El sufijo _ impide llamadas desde google.script.run.
-function actualizacionDiariaPreciosProduction_(event) {
+function financeDailyPricesProduction_(event) {
   const config = dailyPriceProductionTriggerConfig_(event),
     hour = Number(Utilities.formatDate(new Date(), 'Europe/Madrid', 'HH'));
   if (hour < 20 || hour > 22)
@@ -201,7 +208,7 @@ function dailyPriceProductionTriggerConfig_(event) {
     String(event.triggerUid) !== String(triggerId) ||
     !ScriptApp.getProjectTriggers().some(
       (t) =>
-        t.getHandlerFunction() === 'actualizacionDiariaPreciosProduction_' &&
+        t.getHandlerFunction() === 'financeDailyPricesProduction_' &&
         String(t.getUniqueId()) === String(triggerId),
     )
   )
@@ -502,8 +509,8 @@ function dailyPriceStatus_(s) {
         (t) =>
           t.getHandlerFunction() ===
             (s.environment === 'production'
-              ? 'actualizacionDiariaPreciosProduction_'
-              : 'actualizacionDiariaPreciosTest_') &&
+              ? 'financeDailyPricesProduction_'
+              : 'financeDailyPricesTest_') &&
           String(t.getUniqueId()) === String(triggerId),
       );
   } catch (ignored) {
@@ -564,8 +571,10 @@ function activateDailyPricesTest_() {
   return locked_(() => {
     assertDailyPriceActivationReady_(config);
     const properties = PropertiesService.getScriptProperties(),
-      existing = ScriptApp.getProjectTriggers().filter(
-        (t) => t.getHandlerFunction() === 'actualizacionDiariaPreciosTest_',
+      existing = ScriptApp.getProjectTriggers().filter((t) =>
+        ['financeDailyPricesTest_', 'actualizacionDiariaPreciosTest_'].includes(
+          t.getHandlerFunction(),
+        ),
       ),
       currentId = properties.getProperty('DAILY_PRICE_TEST_TRIGGER'),
       current = existing.find(
@@ -573,6 +582,7 @@ function activateDailyPricesTest_() {
       ),
       reusable =
         current &&
+        current.getHandlerFunction() === 'financeDailyPricesTest_' &&
         properties.getProperty('DAILY_PRICE_TEST_SCHEDULE') ===
           'hourly-20-22-v1' &&
         properties.getProperty('DAILY_PRICE_TEST_BOOK') === config.id &&
@@ -582,7 +592,7 @@ function activateDailyPricesTest_() {
             ScriptApp.getScriptId());
     const trigger = reusable
       ? current
-      : ScriptApp.newTrigger('actualizacionDiariaPreciosTest_')
+      : ScriptApp.newTrigger('financeDailyPricesTest_')
           .timeBased()
           .everyHours(1)
           .create();

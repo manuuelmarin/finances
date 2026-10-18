@@ -769,8 +769,7 @@ test('la fachada pública prepara, activa, actualiza y desactiva precios vincula
   assert.equal(properties.get('DAILY_PRICE_TEST_BOOK'), 'fixture-book');
   assert.equal(
     triggers.filter(
-      (trigger) =>
-        trigger.getHandlerFunction() === 'actualizacionDiariaPreciosTest_',
+      (trigger) => trigger.getHandlerFunction() === 'financeDailyPricesTest_',
     ).length,
     1,
   );
@@ -926,26 +925,26 @@ test('handler privado de trigger valida dueño efectivo, UID instalado y libro; 
     () => r.ctx.activateDailyPricesTest_(),
     /ACCESS_DENIED|Acceso|acceso/i,
   );
-  assert.throws(() => r.ctx.actualizacionDiariaPreciosTest_(), /trigger/);
+  assert.throws(() => r.ctx.financeDailyPricesTest_(), /trigger/);
   assert.throws(
-    () => r.ctx.actualizacionDiariaPreciosTest_({ triggerUid: 'fake' }),
+    () => r.ctx.financeDailyPricesTest_({ triggerUid: 'fake' }),
     /trigger/,
   );
   r.ctx.Session.getEffectiveUser = () => ({
     getEmail: () => 'other@example.test',
   });
-  assert.throws(() => r.ctx.actualizacionDiariaPreciosTest_(event));
+  assert.throws(() => r.ctx.financeDailyPricesTest_(event));
   r.ctx.Session.getEffectiveUser = () => ({
     getEmail: () => 'owner@example.test',
   });
   properties.set('ENVIRONMENT', 'production');
-  assert.throws(() => r.ctx.actualizacionDiariaPreciosTest_(event), /trigger/);
+  assert.throws(() => r.ctx.financeDailyPricesTest_(event), /trigger/);
   properties.set('ENVIRONMENT', 'test');
   properties.set('TEST_SPREADSHEET_ID', 'other-test');
-  assert.throws(() => r.ctx.actualizacionDiariaPreciosTest_(event), /trigger/);
+  assert.throws(() => r.ctx.financeDailyPricesTest_(event), /trigger/);
   properties.set('TEST_SPREADSHEET_ID', 'fixture-book');
   triggers.pop();
-  assert.throws(() => r.ctx.actualizacionDiariaPreciosTest_(event), /trigger/);
+  assert.throws(() => r.ctx.financeDailyPricesTest_(event), /trigger/);
   assert.equal(r.fetches.length, 0);
   assert.equal(r.api({ action: 'read' }).error, 'ACCESS_DENIED');
 });
@@ -954,7 +953,7 @@ test('trigger instalado usa dueño efectivo con usuario activo vacío y conserva
   const { r } = dailyRuntime();
   r.ctx.activateDailyPricesTest_();
   r.options.visitor = '';
-  const result = r.ctx.actualizacionDiariaPreciosTest_({
+  const result = r.ctx.financeDailyPricesTest_({
     triggerUid: 'test-trigger-uid',
   });
   assert.equal(result.complete, true);
@@ -964,7 +963,7 @@ test('trigger instalado usa dueño efectivo con usuario activo vacío y conserva
 test('trigger horario permite reintentos automáticos en ventana Madrid y omite las demás horas sin red', () => {
   const { r } = dailyRuntime({ hour: 19 });
   r.ctx.activateDailyPricesTest_();
-  const result = r.ctx.actualizacionDiariaPreciosTest_({
+  const result = r.ctx.financeDailyPricesTest_({
     triggerUid: 'test-trigger-uid',
   });
   assert.equal(result.reason, 'OUTSIDE_SCHEDULE');
@@ -995,7 +994,7 @@ test('reactivación conserva día e intento, elimina duplicados y desactivación
   r.ctx.updatePricesTest_();
   const ledger = properties.get('DAILY_PRICE_TEST_STATE');
   triggers.push({
-    getHandlerFunction: () => 'actualizacionDiariaPreciosTest_',
+    getHandlerFunction: () => 'financeDailyPricesTest_',
     getUniqueId: () => 'duplicate',
   });
   r.ctx.activateDailyPricesTest_();
@@ -1253,17 +1252,16 @@ test('production activation is independent and test environment never installs i
   assert.equal(properties.get('DAILY_PRICE_PRODUCTION_BOOK'), 'fixture-book');
   r.options.visitor = '';
   const production = triggers.find(
-    (t) => t.getHandlerFunction() === 'actualizacionDiariaPreciosProduction_',
+    (t) => t.getHandlerFunction() === 'financeDailyPricesProduction_',
   );
   assert.equal(
-    r.ctx.actualizacionDiariaPreciosProduction_({
+    r.ctx.financeDailyPricesProduction_({
       triggerUid: production.getUniqueId(),
     }).complete,
     true,
   );
   assert.throws(
-    () =>
-      r.ctx.actualizacionDiariaPreciosTest_({ triggerUid: 'test-trigger-uid' }),
+    () => r.ctx.financeDailyPricesTest_({ triggerUid: 'test-trigger-uid' }),
     /trigger/,
   );
 });
@@ -1286,8 +1284,7 @@ test('installed daily binding rejects project and owner changes before requests'
   r.ctx.activateDailyPricesTest_();
   project = 'copied-project';
   assert.throws(
-    () =>
-      r.ctx.actualizacionDiariaPreciosTest_({ triggerUid: 'test-trigger-uid' }),
+    () => r.ctx.financeDailyPricesTest_({ triggerUid: 'test-trigger-uid' }),
     /trigger/,
   );
   project = 'synthetic-test-project';
@@ -1296,8 +1293,7 @@ test('installed daily binding rejects project and owner changes before requests'
     getEmail: () => 'new-owner@example.test',
   });
   assert.throws(
-    () =>
-      r.ctx.actualizacionDiariaPreciosTest_({ triggerUid: 'test-trigger-uid' }),
+    () => r.ctx.financeDailyPricesTest_({ triggerUid: 'test-trigger-uid' }),
     /trigger/,
   );
   assert.equal(r.fetches.length, 0);
@@ -1436,8 +1432,7 @@ test('private daily handlers reject identical environment book IDs after activat
   properties.set('PRODUCTION_SPREADSHEET_ID', 'fixture-book');
   r.options.visitor = '';
   assert.throws(
-    () =>
-      r.ctx.actualizacionDiariaPreciosTest_({ triggerUid: 'test-trigger-uid' }),
+    () => r.ctx.financeDailyPricesTest_({ triggerUid: 'test-trigger-uid' }),
     /trigger/,
   );
   assert.equal(r.fetches.length, 0);
@@ -1459,7 +1454,7 @@ test('private daily handlers reject identical environment book IDs after activat
   production.properties.set('TEST_SPREADSHEET_ID', ' fixture-book ');
   assert.throws(
     () =>
-      production.r.ctx.actualizacionDiariaPreciosProduction_({
+      production.r.ctx.financeDailyPricesProduction_({
         triggerUid: 'test-trigger-uid',
       }),
     /trigger/,
@@ -1479,4 +1474,39 @@ test('history import requires initialized price receipt metadata before capacity
   };
   assert.equal(r.api(req).error, 'NOT_INITIALIZED');
   assert.equal(r.writes.length, before);
+});
+
+test('bundled activation migrates legacy daily triggers and preserves unrelated triggers', () => {
+  const { r, properties, triggers } = dailyRuntime();
+  r.ctx.activateDailyPricesTest_();
+  const old = triggers[0];
+  old.getHandlerFunction = () => 'actualizacionDiariaPreciosTest_';
+  const unrelated = {
+    getHandlerFunction: () => 'unrelated',
+    getUniqueId: () => 'other',
+  };
+  triggers.push(unrelated);
+  require('node:vm').runInContext(
+    require('../tools/build-runtime.cjs').buildRuntime(),
+    r.ctx,
+  );
+  r.ctx.capacityReady_ = undefined;
+  const enabled = r.ctx.enableDailyPrices();
+  assert.equal(enabled.enabled, true);
+  assert.equal(enabled.runtimeDelivery, 'single-file');
+  assert.equal(triggers.includes(old), false);
+  assert.equal(triggers.includes(unrelated), true);
+  assert.equal(
+    triggers.filter((t) => t.getHandlerFunction() === 'financeDailyPricesTest_')
+      .length,
+    1,
+  );
+  assert.equal(properties.get('DAILY_PRICE_TEST_BOOK'), 'fixture-book');
+  assert.equal(r.ctx.checkApplication().dailyPrices.enabled, true);
+  assert.equal(
+    r.ctx.financeDailyPricesTest_({ triggerUid: 'test-trigger-uid' }).complete,
+    true,
+  );
+  r.ctx.enableDailyPrices();
+  assert.equal(triggers.length, 2);
 });
