@@ -239,6 +239,71 @@ test('respuesta ambigua heredada como revisión se recupera sin permitir descart
   assert.equal(r.state().tables.tMovimientos.length, 1);
 });
 
+test('API_FAILED before or after commit recovers the original UUID, including legacy review entries', async () => {
+  for (const committed of [false, true]) {
+    const { q, store, client, r, calls } = setup();
+    await q.saveSnapshot(await client.read());
+    await q.enqueue([expense(7)], 'Fictional expense');
+    const original = (await q.get()).queue[0].envelope;
+    if (committed) await client.submit(original);
+    await store.update('fixture', (data) => {
+      data.queue[0].status = 'review';
+      data.queue[0].result = { ok: false, error: 'API_FAILED' };
+      return data;
+    });
+    const reopened = new Queue(store, 'fixture', { locks: null });
+    assert.equal((await reopened.get()).queue[0].status, 'uncertain');
+    await assert.rejects(
+      reopened.discard(original.requestId),
+      /CANNOT_DISCARD/,
+    );
+    let checked = false;
+    const lookup = client.requestStatus;
+    client.requestStatus = async (envelope) => {
+      assert.deepEqual(envelope, original);
+      checked = true;
+      return lookup(envelope);
+    };
+    const submit = client.submit;
+    client.submit = async (envelope) => {
+      assert.equal(checked, true);
+      return submit(envelope);
+    };
+    await reopened.run(client);
+    assert.equal((await reopened.get()).queue[0].status, 'confirmed');
+    assert.deepEqual((await reopened.get()).queue[0].envelope, original);
+    assert.equal(calls.length, 1);
+    assert.equal(r.state().tables.tMovimientos.length, 1);
+  }
+});
+
+test('a repeated internal server failure stays recoverable and never creates another envelope', async () => {
+  const { q, client, r } = setup();
+  await q.saveSnapshot(await client.read());
+  await q.enqueue([expense(3)], 'Fictional failure');
+  const original = (await q.get()).queue[0].envelope;
+  let receipts = 0,
+    sends = 0;
+  client.requestStatus = async () => {
+    receipts++;
+    return { ok: true, found: false };
+  };
+  client.submit = async (envelope) => {
+    assert.deepEqual(envelope, original);
+    sends++;
+    return { ok: false, error: 'API_FAILED' };
+  };
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const outcome = await q.run(client);
+    assert.equal(outcome.status, 'unconfirmed');
+    assert.equal((await q.get()).queue[0].status, 'uncertain');
+    await assert.rejects(q.discard(original.requestId), /CANNOT_DISCARD/);
+  }
+  assert.equal(receipts, 1);
+  assert.equal(sends, 2);
+  assert.equal(r.state().tables.tMovimientos.length, 0);
+});
+
 test('explicit outcomes preserve confirmation and transport causes', async () => {
   const { q, client } = setup();
   await q.saveSnapshot(await client.read());

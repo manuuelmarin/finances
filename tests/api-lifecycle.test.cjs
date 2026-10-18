@@ -91,7 +91,12 @@ test('un puente antiguo se rechaza al saludar, sin intentar llamadas financieras
   assert.equal(c.sent.length, 0);
 });
 test('el tiempo de espera y cierre distinguen lectura fallida de envío incierto', async () => {
-  for (const action of ['read', 'transact']) {
+  for (const action of [
+    'read',
+    'transact',
+    'refreshPrices',
+    'importPriceHistory',
+  ]) {
     const c = channel();
     await connected(c);
     const request = c.client.request({ action });

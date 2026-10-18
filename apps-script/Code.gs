@@ -25,6 +25,10 @@ function checkApplication() {
     return result;
   });
 }
+// Builds a fictional expense in memory; never writes it to the workbook.
+function checkSending() {
+  return reportOperator_(() => checkSending_());
+}
 function enableDailyPrices() {
   return reportOperator_(() => {
     const config = authorizedConfig_();

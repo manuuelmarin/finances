@@ -59,7 +59,7 @@
       EMBEDDED_CONTEXT:
         'Abre Finanzas en su propia ventana para acceder a tu libro.',
       UPDATE_REQUIRED:
-        'Actualiza Apps Script con el instalador 3.10.1 y publica una nueva versión.',
+        'Actualiza Apps Script con el instalador 3.10.2 y publica una nueva versión.',
       POPUP_BLOCKED:
         'Permite abrir la ventana de Google y vuelve a pulsar Abrir mi libro.',
       NOT_CONNECTED: 'Abre Google para leer o enviar los pendientes.',
@@ -90,6 +90,8 @@
       REVIEW_REQUIRED: 'Hay solicitudes que requieren revisión en Actividad.',
       RESPONSE_UNCERTAIN:
         'Envío sin confirmar. La solicitud se conserva para consultar el recibo antes de reintentar.',
+      API_FAILED:
+        'Google no ha completado la solicitud. Se consultará su recibo antes de reintentar, conservando los mismos datos.',
       STORAGE_UNAVAILABLE:
         'Este navegador no permite guardar cambios. No se enviará ninguna operación hasta disponer de almacenamiento local.',
       BOOK_CHANGED:
@@ -1349,7 +1351,12 @@
         ),
       );
       card.append(el('small', 'Solicitud: ' + item.envelope.requestId));
-      if (item.result?.message) card.append(el('p', item.result.message));
+      if (item.result?.error === 'API_FAILED') {
+        card.append(el('p', errorText(Error('API_FAILED'))));
+        if (item.result.diagnosticId)
+          card.append(el('small', 'Diagnóstico: ' + item.result.diagnosticId));
+      } else if (item.result?.message)
+        card.append(el('p', item.result.message));
       else if (item.result?.error)
         card.append(el('p', errorText(Error(item.result.error))));
       if (item.status === 'confirmed')

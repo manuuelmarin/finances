@@ -48,8 +48,8 @@ jobs:
         run: npm run lint
       - name: Test business rules, channel, and recovery
         run: npm test
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install Chromium and WebKit
+        run: npx playwright install --with-deps chromium webkit
       - name: Test desktop and mobile browsers
         run: npm run test:browser
       - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4

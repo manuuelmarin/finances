@@ -5,6 +5,7 @@ const { runtime } = require('./helpers/runtime.cjs');
 const operators = [
   'prepareApplication',
   'checkApplication',
+  'checkSending',
   'enableDailyPrices',
   'updatePrices',
   'disableDailyPrices',

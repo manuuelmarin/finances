@@ -3,7 +3,9 @@
 const FinanceSync = (() => {
   const clone = (value) => JSON.parse(JSON.stringify(value));
   const uncertainResult = (result) =>
-    ['WRITE_UNCERTAIN', 'RESPONSE_UNCERTAIN', 'BUSY'].includes(result?.error);
+    ['WRITE_UNCERTAIN', 'RESPONSE_UNCERTAIN', 'BUSY', 'API_FAILED'].includes(
+      result?.error,
+    );
   class BrowserStore {
     constructor(indexedDB = globalThis.indexedDB) {
       this.indexedDB = indexedDB;

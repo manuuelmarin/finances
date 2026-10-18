@@ -66,5 +66,22 @@
     "Transactions.gs": "d9e1f386c49fab43ed1e73c34fba945e0d620163b98fd7554a06da715e17ba06",
     "Bridge.html": "f0bbaa1901019a3da46cb145fb6c38140b3f656c6ee3b7e35d590250e3d1fbfb",
     "appsscript.json": "6d9e30fcdbf21cec70850bceb611d2c88dc7d79139f0bd1ffe19f91a6b1d50f8"
+  },
+  "3.10.2": {
+    "Code.gs": "24c6714ffd4a0f06c409e5f4900b1473eec7c1daf5ebb91ae07035839c0eb15d",
+    "Configuration.gs": "02287da38c5508a9ac5cba58b31e653ac7259de0c12ff295c9c7cca6e7123542",
+    "AccessAndUtilities.gs": "6ca8ef2c353969e1fde542f12b4ee976535444e98e574542b339ab0f3ed77106",
+    "BackendAndReporting.gs": "48ced1736bd4a58ef8bc381d14b0cf2810c2c02b01e524e2f329dc572cdeaadd",
+    "DailyHistory.gs": "58cd749c210b0a9f16bf5fffb60e9f40bbd608f7890a42af280a4a92fcab6f6a",
+    "DailyPriceAutomation.gs": "347e4ff8f0c0f207d02076a0a4964650f0458b5954396f44c1759d80b374c7a9",
+    "OperatorChecks.gs": "7066876c821b99b83527ddaa92c749024c30e899152611178bb866c6f75c347e",
+    "PriceHistory.gs": "24900e2ae46f43faf843c0e9f5bf728540f260c132ad24ed1c87feb382b099cd",
+    "PriceProvidersAndRefresh.gs": "936c8fbb8b7b0b8fdf00e7a12df7de0154b9b134983004ea1a252237cd8988ed",
+    "StateAndValidation.gs": "61b46933838cd6d4d5f51faa6de94b4759ee9c218c7685a898744e4acb0c46b6",
+    "Operations.gs": "a24162d086d161f79bd45901d8a4e2270ea8c3cb1351c4754d863d022feca7ea",
+    "SupportAndCapacity.gs": "d9c027f626ffad644a4621a738df8d0ab5c89a59deb6a49837b51ef80a14fc6a",
+    "Transactions.gs": "d9e1f386c49fab43ed1e73c34fba945e0d620163b98fd7554a06da715e17ba06",
+    "Bridge.html": "464fc8077bdade5b35cb49a2a4f1c197f1ee8f6df75d97851ba82c341e99c620",
+    "appsscript.json": "6d9e30fcdbf21cec70850bceb611d2c88dc7d79139f0bd1ffe19f91a6b1d50f8"
   }
 }
