@@ -137,7 +137,7 @@ Changes in repository order, from the first recorded build to the current app. V
 - Test the shipped artifact through the complete sending and receipt recovery flow, including legacy helpers left in the project.
 - Renew scheduled price handlers with enableDailyPrices after upgrading.
 
-## 3.10.4 · current
+## 3.10.4
 
 - Check receipt UUID, operation results, action and book before confirming queued writes; keep mismatched responses uncertain with their original envelope. New receipts identify their action and book; compatible old receipts remain recoverable.
 - Distinguish price updates from movement confirmations in Activity, show movement references and whether they appear in the latest snapshot, and offer a filtered movement view.
@@ -148,3 +148,15 @@ Changes in repository order, from the first recorded build to the current app. V
 - Replace only generated `Code.gs` (or `Código.gs`) and `Bridge.html` from the installer. The manifest, properties, deployment URL and daily triggers are unchanged.
 - Run `checkSending` and `checkApplication`, publish **New version** on the existing deployment, reopen Google from the app and check the deployed backend/bridge versions. Diagnostics do not write movements.
 - Recover the original expense from Activity in its original browser/profile and deployment. Query its receipt before retrying the same UUID; never recreate an uncertain expense. The app cannot inspect another device's queue.
+
+## 3.10.5 · current
+
+- Persist the distinction between a confirmed write and its refreshed snapshot. Retry failed, stale or inconsistent post-write reads automatically, with three bounded recovery attempts; keep the receipt and UUID and never resubmit a confirmed write. Reloading retains unfinished readback.
+- Publish one coherent snapshot to all views. Cross-check known native account balances against the existing cash-chart projection before accepting a post-write read; preserve unknown values and never overwrite Sheets results.
+- Follow the reporting month by default in summary, expenses, accounts and planning when a movement advances the report. Preserve explicitly selected periods and filters.
+- Add form-to-backend browser regressions for automatic refresh, read failures, stale corrections, delayed calculations, reload, month rollover and explicit filters. Tests use fictional services and do not establish private-device acceptance.
+
+### Update from 3.10.4
+
+- Update the PWA when its **Actualizar app** button appears. This correction runs entirely in the browser and works with the installed Google backend/Bridge 3.10.4; no private files, deployment, properties or triggers need changing. The installer also carries matching 3.10.5 version labels for new installations.
+- After connecting Google, confirmed movements automatically refresh all views. If Google remains unavailable, preserve the saved request and reopen the connection; no duplicate movement is needed.

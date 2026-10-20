@@ -354,6 +354,34 @@ const FinanceAnalytics = (() => {
       };
     });
   }
+  // Cross-check known native balances against the existing read-only chart
+  // projection. Never replace Sheets results or turn unknown values into zero.
+  function cashBalancesMatch(snapshot) {
+    const month = snapshot?.settings?.asof?.slice(0, 7);
+    const last = cashTimeline(snapshot, month).at(-1);
+    const accounts = snapshot?.tables?.tCuentas || [];
+    if (
+      !accounts.every((account) => {
+        const native = account['Saldo calculado'];
+        const projected = last?.accounts[account.Cuenta];
+        return (
+          !finite(native) ||
+          !finite(projected) ||
+          cents(native) === cents(projected)
+        );
+      })
+    )
+      return false;
+    const cash = snapshot?.summary?.metrics?.find(
+      (m) => m.label === 'Efectivo',
+    )?.value;
+    return (
+      !finite(cash) ||
+      !accounts.every((a) => finite(a['Saldo calculado'])) ||
+      cents(cash) ===
+        cents(accounts.reduce((sum, a) => sum + a['Saldo calculado'], 0))
+    );
+  }
   function freeBudget(snapshot, month) {
     const records = (snapshot?.budgets || []).filter(
       (r) => r.month === month && !r.category,
@@ -1005,6 +1033,7 @@ const FinanceAnalytics = (() => {
     budgetEvolution,
     groups,
     cashTimeline,
+    cashBalancesMatch,
     investmentTimeline,
     investmentMetrics,
     salarySavings,

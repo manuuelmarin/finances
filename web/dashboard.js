@@ -45,6 +45,7 @@ const FinanceDashboard = (() => {
     product = '',
     range = 'all';
   const emergencySelection = new Map();
+  const selectedPeriods = new Set();
   let planEditing = null,
     selectedPlans = null;
   const metric = (name) =>
@@ -1552,6 +1553,7 @@ const FinanceDashboard = (() => {
   }
   function render(snapshot, handlers) {
     if (current?.bookKey !== snapshot?.bookKey) {
+      selectedPeriods.clear();
       month = null;
       cashMonth = null;
       cashEndMonth = null;
@@ -1572,16 +1574,29 @@ const FinanceDashboard = (() => {
       for (const id of ['goal-assign-dialog', 'plan-dialog', 'budget-dialog'])
         if ($(id).open) $(id).close();
     }
+    if (
+      current?.settings.asof.slice(0, 7) !== snapshot?.settings.asof.slice(0, 7)
+    ) {
+      if (!selectedPeriods.has('summary')) {
+        cashMonth = cashEndMonth = cashFrom = cashTo = null;
+      }
+      if (!selectedPeriods.has('spending')) {
+        spendMonth = spendFrom = spendTo = null;
+      }
+      if (!selectedPeriods.has('accounts')) accountMonth = null;
+      if (!selectedPeriods.has('budgets')) month = null;
+    }
     current = snapshot;
     api = handlers;
     if (current) {
-      month ||= current.settings.asof.slice(0, 7);
-      cashMonth ||= month;
+      const reportMonth = current.settings.asof.slice(0, 7);
+      month ||= reportMonth;
+      cashMonth ||= reportMonth;
       cashEndMonth ||= cashMonth;
       cashFrom ||= monthPeriod(cashMonth).from;
       cashTo ||= monthPeriod(cashMonth).to;
-      accountMonth ||= current.settings.asof.slice(0, 7);
-      spendMonth ||= month;
+      accountMonth ||= reportMonth;
+      spendMonth ||= reportMonth;
       $('budget-month').value = month;
     }
     renderSummary();
@@ -1682,6 +1697,12 @@ const FinanceDashboard = (() => {
         !/^\d{4}-(0[1-9]|1[0-2])$/.test(event.target.value)
       )
         return;
+      const section = {
+        'cash-month': 'summary',
+        'account-month': 'accounts',
+        'spending-month': 'spending',
+      }[id];
+      if (section) selectedPeriods.add(section);
       update(event.target.value);
     });
   for (const id of ['spending-from', 'spending-to'])
@@ -1697,6 +1718,7 @@ const FinanceDashboard = (() => {
       for (const key of ['spending-from', 'spending-to'])
         $(key).setAttribute('aria-invalid', String(invalid));
       if (invalid) return;
+      selectedPeriods.add('spending');
       spendFrom = from;
       spendTo = to;
       spendMonth = from.slice(0, 7);
@@ -1714,10 +1736,12 @@ const FinanceDashboard = (() => {
     }
     spendFrom = from;
     spendTo = to;
+    selectedPeriods.add('spending');
     renderSpending();
   });
   $('cash-period-mode').addEventListener('change', (event) => {
     if (!current) return;
+    selectedPeriods.add('summary');
     const previousPeriod = summaryPeriod();
     cashMode = event.target.value;
     cashFrom = previousPeriod.from;
@@ -1734,6 +1758,7 @@ const FinanceDashboard = (() => {
       return;
     }
     cashEndMonth = event.target.value;
+    selectedPeriods.add('summary');
     $('cash-range-error').hidden = true;
     renderSummary();
   });
@@ -1748,6 +1773,7 @@ const FinanceDashboard = (() => {
         ? 'Indica un inicio anterior o igual al final.'
         : '';
       if (invalid) return;
+      selectedPeriods.add('summary');
       cashFrom = from;
       cashTo = to;
       renderSummary();
@@ -2406,7 +2432,10 @@ const FinanceDashboard = (() => {
   }
   $('budget-month').addEventListener('change', (event) => {
     month = event.target.value;
-    if (/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) renderBudgets();
+    if (/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+      selectedPeriods.add('budgets');
+      renderBudgets();
+    }
   });
   $('budget-new').addEventListener('click', () => editBudget());
   $('budget-cancel').addEventListener('click', () =>

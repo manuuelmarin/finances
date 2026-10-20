@@ -2,6 +2,37 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const A = require('../web/analytics.js');
 
+test('readback checks known balances using full cash amounts while leaving unknown native balances unchanged', () => {
+  const s = {
+    settings: { start: '2026-01-01', asof: '2026-01-02' },
+    tables: {
+      tCuentas: [
+        { Cuenta: 'Fictional', 'Saldo inicial': 100, 'Saldo calculado': 100 },
+      ],
+      tMovimientos: [
+        {
+          Fecha: '2026-01-02',
+          Tipo: 'Gasto',
+          Origen: 'Fictional',
+          Importe: 20,
+          Recuperable: 10,
+        },
+      ],
+    },
+  };
+  assert.equal(A.cashBalancesMatch(s), false);
+  assert.equal(s.tables.tCuentas[0]['Saldo calculado'], 100);
+  s.tables.tCuentas[0]['Saldo calculado'] = 80;
+  assert.equal(A.cashBalancesMatch(s), true);
+  s.summary = { metrics: [{ label: 'Efectivo', value: 100 }] };
+  assert.equal(A.cashBalancesMatch(s), false);
+  s.summary.metrics[0].value = 80;
+  assert.equal(A.cashBalancesMatch(s), true);
+  s.tables.tCuentas[0]['Saldo calculado'] = null;
+  assert.equal(A.cashBalancesMatch(s), true);
+  assert.equal(s.tables.tCuentas[0]['Saldo calculado'], null);
+});
+
 test('linked Modified Dietz reproduces the GIPS cash-flow example without inserting quotes', () => {
   const s = {
     settings: {

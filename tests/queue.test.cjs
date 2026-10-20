@@ -321,6 +321,89 @@ test('explicit outcomes preserve confirmation and transport causes', async () =>
   assert.equal(result.readError, 'READ_TIMEOUT');
   assert.deepEqual((await q.get()).queue[0].envelope, envelope);
   assert.equal((await q.get()).queue[0].status, 'confirmed');
+  assert.equal((await q.get()).queue[0].awaitingRead, true);
+  client.read = read;
+  await q.run(client);
+  assert.equal((await q.get()).queue[0].awaitingRead, undefined);
+});
+
+test('a confirmed correction cannot accept the old snapshot just because its movement already exists', async () => {
+  const { q, client, calls } = setup();
+  await q.saveSnapshot(await client.read());
+  await q.enqueue([expense(2)], 'Original');
+  await q.run(client);
+  const before = (await q.get()).snapshot;
+  const movement = before.tables.tMovimientos[0];
+  await q.enqueue(
+    [
+      {
+        ...expense(7),
+        process: 'editar_movimiento',
+        kind: 'gasto',
+        movement: movement.ID,
+      },
+    ],
+    'Correction',
+  );
+  const read = client.read;
+  client.read = async () => before;
+  const outcome = await q.run(client);
+  assert.equal(outcome.reason, 'POST_CONFIRM_SNAPSHOT_STALE');
+  assert.equal((await q.get()).queue[1].awaitingRead, true);
+  const reopened = new Queue(q.store, q.key, { locks: null });
+  assert.equal(
+    (await reopened.run(client)).reason,
+    'POST_CONFIRM_SNAPSHOT_STALE',
+  );
+  assert.equal(calls.length, 2);
+  client.read = read;
+  await reopened.run(client);
+  assert.equal((await reopened.get()).queue[1].awaitingRead, undefined);
+  assert.equal(
+    (await reopened.get()).snapshot.tables.tMovimientos[0].Importe,
+    7,
+  );
+  assert.equal(calls.length, 2);
+});
+
+test('delayed native calculations retain the last coherent snapshot and retry only the read', async () => {
+  const { q, client, calls } = setup();
+  await q.saveSnapshot(await client.read());
+  let ready = false;
+  q.readbackReady = () => ready;
+  await q.enqueue([expense(5)], 'Delayed calculations');
+  assert.equal((await q.run(client)).reason, 'POST_CONFIRM_CALCULATIONS_STALE');
+  assert.equal((await q.get()).snapshot.tables.tMovimientos.length, 0);
+  assert.equal((await q.get()).queue[0].awaitingRead, true);
+  await assert.rejects(q.clear(), /PENDING_OPERATIONS/);
+  ready = true;
+  assert.equal((await q.run(client)).reason, null);
+  assert.equal((await q.get()).snapshot.tables.tMovimientos.length, 1);
+  assert.equal((await q.get()).queue[0].awaitingRead, undefined);
+  assert.equal(calls.length, 1);
+});
+
+test('recovered readback advances never-sent batches only from its own exact receipt revision', async () => {
+  const { q, client, calls } = setup();
+  await q.saveSnapshot(await client.read());
+  await q.enqueue([expense(2)], 'First');
+  await q.enqueue([expense(3)], 'Second');
+  const read = client.read;
+  let fail = true;
+  client.read = async () => {
+    if (calls.length === 1 && fail) {
+      fail = false;
+      throw Error('READ_TIMEOUT');
+    }
+    return read();
+  };
+  assert.equal((await q.run(client)).reason, 'POST_CONFIRM_READ_FAILED');
+  assert.equal((await q.run(client)).reason, null);
+  assert.deepEqual(
+    (await q.get()).queue.map((q) => q.status),
+    ['confirmed', 'confirmed'],
+  );
+  assert.equal(calls.length, 2);
 });
 
 test('missing and discarded items cannot be claimed and failures remain recoverable', async () => {
