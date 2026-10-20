@@ -4,6 +4,31 @@ const fs = require('node:fs'),
   path = require('node:path');
 const buildVersion = require('../../package.json').version;
 const deployment = 'https://script.google.com/macros/s/fixture-deployment/exec';
+function refreshCashFixture(snapshot) {
+  const movements = snapshot.tables.tMovimientos.filter(
+    (m) =>
+      m.Fecha >= snapshot.settings.start && m.Fecha <= snapshot.settings.asof,
+  );
+  for (const account of snapshot.tables.tCuentas)
+    account['Saldo calculado'] =
+      account['Saldo inicial'] +
+      movements.reduce(
+        (sum, m) =>
+          sum +
+          (m.Destino === account.Cuenta ? m.Importe : 0) -
+          (m.Origen === account.Cuenta ? m.Importe : 0),
+        0,
+      );
+  const cash = snapshot.tables.tCuentas.reduce(
+    (sum, a) => sum + a['Saldo calculado'],
+    0,
+  );
+  snapshot.summary.metrics.find((m) => m.label === 'Efectivo').value = cash;
+  const net = snapshot.summary.metrics.find(
+    (m) => m.label === 'Patrimonio neto',
+  );
+  if (typeof net.value === 'number') net.value = cash + 12.34;
+}
 test('CSP bloquea código inyectado y conexiones a terceros manteniendo la app funcional', async ({
   page,
 }) => {
@@ -243,7 +268,7 @@ async function setup(
     },
     { deployment, seed, lost, bridgeFailure },
   );
-  const mock = `\nFinanceApiClient = class {constructor(url){this.url=url;this.session=null;}connect(){this.session={rpcReady:true};return Promise.resolve({ok:true,apiVersion:'3.3.0'});}close(){this.session=null;}diagnostics(){const s=JSON.parse(localStorage.getItem('fixture.server')).snapshot;return Promise.resolve({ok:true,backendReady:true,calculationReady:true,apiVersion:'3.3.0',tableCount:10,environment:s.environment});}acceptance(){const s=JSON.parse(localStorage.getItem('fixture.server')).snapshot;return Promise.resolve({ok:true,readOnly:true,environment:s.environment,buildVersion:'${buildVersion}',technicalReady:true,checks:{backend:true,calculations:true,summary:true,bridge:true,sources:true,stable:true},results:[]});}read(){return Promise.resolve(JSON.parse(localStorage.getItem('fixture.server')).snapshot);}async submit(envelope){const s=JSON.parse(localStorage.getItem('fixture.server'));s.calls.push(envelope);if(!s.journal[envelope.requestId]){s.snapshot.revision='r'+(s.calls.length+1);for(const op of envelope.operations||[]){if(op.process==='presupuesto'){const b=s.snapshot.budgets.find(b=>b.month===op.month&&b.category===op.category);if(b)b.amount=op.amount;else s.snapshot.budgets.push({month:op.month,category:op.category,amount:op.amount});}if(op.process==='quitar_presupuesto')s.snapshot.budgets=s.snapshot.budgets.filter(b=>b.month!==op.month||b.category!==op.category);if(op.process==='gasto')s.snapshot.tables.tMovimientos.push({ID:'MOV-'+envelope.requestId+'-'+((envelope.operations||[]).indexOf(op)+1),Fecha:op.date,Tipo:'Gasto',Concepto:op.concept,Origen:op.account,Subcategoría:op.category,Importe:op.amount,Recuperable:op.recoverable,Localización:op.location,Recurrente:op.recurring});}s.journal[envelope.requestId]={ok:true,requestId:envelope.requestId,action:envelope.action,bookKey:s.snapshot.bookKey,revision:s.snapshot.revision,results:(envelope.operations||[]).map((op,i)=>({process:op.process,...(op.process==='gasto'?{id:'MOV-'+envelope.requestId+'-'+(i+1)}:{})})),complete:envelope.action!=='refreshPrices'};if(envelope.action==='refreshPrices')s.journal[envelope.requestId].results=[{ok:false,product:'INTERNAL-PRODUCT',status:'failed',referenceName:'Fondo ficticio',message:'Fuente sin identidad verificable'}];}const result=s.journal[envelope.requestId];const lost=s.lost;s.lost=false;localStorage.setItem('fixture.server',JSON.stringify(s));if(lost)throw Error('RESPONSE_UNCERTAIN');if(s.bridgeFailure){s.bridgeFailure=false;localStorage.setItem('fixture.server',JSON.stringify(s));return {ok:false,error:'RESPONSE_UNCERTAIN',message:'Respuesta de Google no confirmada'};}return result;}requestStatus(envelope){return Promise.resolve(JSON.parse(localStorage.getItem('fixture.server')).journal[envelope.requestId]||{ok:true,found:false});}};`;
+  const mock = `\n${refreshCashFixture.toString()}\nFinanceApiClient = class {constructor(url){this.url=url;this.session=null;}connect(){this.session={rpcReady:true};return Promise.resolve({ok:true,apiVersion:'3.3.0'});}close(){this.session=null;}diagnostics(){const s=JSON.parse(localStorage.getItem('fixture.server')).snapshot;return Promise.resolve({ok:true,backendReady:true,calculationReady:true,apiVersion:'3.3.0',tableCount:10,environment:s.environment});}acceptance(){const s=JSON.parse(localStorage.getItem('fixture.server')).snapshot;return Promise.resolve({ok:true,readOnly:true,environment:s.environment,buildVersion:'${buildVersion}',technicalReady:true,checks:{backend:true,calculations:true,summary:true,bridge:true,sources:true,stable:true},results:[]});}read(){const snapshot=JSON.parse(localStorage.getItem('fixture.server')).snapshot;refreshCashFixture(snapshot);return Promise.resolve(snapshot);}async submit(envelope){const s=JSON.parse(localStorage.getItem('fixture.server'));s.calls.push(envelope);if(!s.journal[envelope.requestId]){s.snapshot.revision='r'+(s.calls.length+1);for(const op of envelope.operations||[]){if(op.process==='presupuesto'){const b=s.snapshot.budgets.find(b=>b.month===op.month&&b.category===op.category);if(b)b.amount=op.amount;else s.snapshot.budgets.push({month:op.month,category:op.category,amount:op.amount});}if(op.process==='quitar_presupuesto')s.snapshot.budgets=s.snapshot.budgets.filter(b=>b.month!==op.month||b.category!==op.category);if(op.process==='gasto')s.snapshot.tables.tMovimientos.push({ID:'MOV-'+envelope.requestId+'-'+((envelope.operations||[]).indexOf(op)+1),Fecha:op.date,Tipo:'Gasto',Concepto:op.concept,Origen:op.account,Subcategoría:op.category,Importe:op.amount,Recuperable:op.recoverable,Localización:op.location,Recurrente:op.recurring});}s.journal[envelope.requestId]={ok:true,requestId:envelope.requestId,action:envelope.action,bookKey:s.snapshot.bookKey,revision:s.snapshot.revision,results:(envelope.operations||[]).map((op,i)=>({process:op.process,...(op.process==='gasto'?{id:'MOV-'+envelope.requestId+'-'+(i+1)}:{})})),complete:envelope.action!=='refreshPrices'};if(envelope.action==='refreshPrices')s.journal[envelope.requestId].results=[{ok:false,product:'INTERNAL-PRODUCT',status:'failed',referenceName:'Fondo ficticio',message:'Fuente sin identidad verificable'}];}const result=s.journal[envelope.requestId];const lost=s.lost;s.lost=false;localStorage.setItem('fixture.server',JSON.stringify(s));if(lost)throw Error('RESPONSE_UNCERTAIN');if(s.bridgeFailure){s.bridgeFailure=false;localStorage.setItem('fixture.server',JSON.stringify(s));return {ok:false,error:'RESPONSE_UNCERTAIN',message:'Respuesta de Google no confirmada'};}return result;}requestStatus(envelope){return Promise.resolve(JSON.parse(localStorage.getItem('fixture.server')).journal[envelope.requestId]||{ok:true,found:false});}};`;
   await page.route('**/api.js', (route) =>
     route.fulfill({
       contentType: 'text/javascript',
@@ -293,6 +318,7 @@ async function setupChannel(page, { delayed = false } = {}) {
     route.fulfill({
       contentType: 'text/html; charset=utf-8',
       body: `<!doctype html><meta charset="utf-8"><title>Google ficticio</title><script>
+        ${refreshCashFixture.toString()}
         const snapshot = ${JSON.stringify(snapshot)};
         const state = new URL(location.href).searchParams.get('state');
         window.fixtureCalls = [];
@@ -303,6 +329,7 @@ async function setupChannel(page, { delayed = false } = {}) {
           window.fixtureCalls.push(m.request);
           const reply = result => opener.postMessage({type:'finances.api.response.v1', state, callId:m.callId, result}, event.origin);
           if (m.request.action === 'read') {
+            refreshCashFixture(snapshot);
             if (delay) { delay = false; window.replyRead = () => reply(snapshot); }
             else reply(snapshot);
           } else if (m.request.action === 'transact') {
@@ -322,7 +349,7 @@ test('@responsive lectura nativa, filtros y móvil conservan nombres, desconocid
   page,
 }) => {
   await setup(page);
-  await expect(page.locator('#finance-kpis')).toContainText(/1[.]?012,34/);
+  await expect(page.locator('#finance-kpis')).toContainText(/1[.]?009,84/);
   await expect(page.locator('#finance-warning')).toContainText(
     'La última consulta de precios falló',
   );

@@ -28,6 +28,7 @@
     review = null,
     editing = null,
     loading = false,
+    awaitingRead = false,
     configurationEpoch = 0,
     limit = 50,
     activityLimit = 50,
@@ -59,7 +60,7 @@
       EMBEDDED_CONTEXT:
         'Abre Finanzas en su propia ventana para acceder a tu libro.',
       UPDATE_REQUIRED:
-        'Actualiza Apps Script con el instalador 3.10.4 y publica una nueva versión.',
+        'Actualiza Apps Script con el instalador 3.10.5 y publica una nueva versión.',
       POPUP_BLOCKED:
         'Permite abrir la ventana de Google y vuelve a pulsar Abrir mi libro.',
       NOT_CONNECTED: 'Abre Google para leer o enviar los pendientes.',
@@ -138,15 +139,15 @@
   }
   function enabled() {
     document.documentElement.dataset.bookBusy = String(loading);
-    $('finance-new').disabled = loading;
-    $('finance-prices').disabled = !snapshot || loading;
-    const channelBlocked = client?.session?.rpcReady === false;
+    $('finance-new').disabled = loading || awaitingRead;
+    $('finance-prices').disabled = !snapshot || loading || awaitingRead;
+    const channelBlocked = client?.session?.rpcReady === false || awaitingRead;
     $('operation-connection').hidden = Boolean(snapshot) && !channelBlocked;
     $('operation-load').disabled = loading;
     $('operation-review').disabled = !snapshot || loading || channelBlocked;
-    for (const target of document.querySelectorAll(
-      '[data-operation], [data-open-book]',
-    ))
+    for (const target of document.querySelectorAll('[data-operation]'))
+      target.disabled = loading || awaitingRead;
+    for (const target of document.querySelectorAll('[data-open-book]'))
       target.disabled = loading;
     for (const id of ['finance-refresh', 'finance-sync'])
       $(id).disabled = !client?.session || loading;
@@ -177,7 +178,9 @@
     if (url) {
       const key = await FinanceSync.namespace(next);
       if (epoch !== configurationEpoch) return;
-      const configuredQueue = new FinanceSync.Queue(store, key);
+      const configuredQueue = new FinanceSync.Queue(store, key, {
+        readbackReady: FinanceAnalytics.cashBalancesMatch,
+      });
       const data = await configuredQueue.get();
       if (epoch !== configurationEpoch) return;
       queue = configuredQueue;
@@ -204,23 +207,32 @@
     )
       throw Error('CONFIGURATION_CHANGED');
     if (!result.ok) throw Error(result.message || result.error);
-    await readingQueue.saveSnapshot(result);
+    const data = await readingQueue.saveSnapshot(result);
     if (
       epoch !== configurationEpoch ||
       client !== readingClient ||
       queue !== readingQueue
     )
       throw Error('CONFIGURATION_CHANGED');
-    snapshot = result;
-    status(
-      (readingClient.session?.rpcReady === false
-        ? 'Datos leídos · solo lectura. Actualiza la implementación desde el instalador para habilitar las operaciones. '
-        : 'Lectura confirmada · ') +
-        new Date(result.checkedAt).toLocaleString('es-ES', {
-          timeZone: 'Europe/Madrid',
-        }),
-      readingClient.session?.rpcReady === false ? 'readonly' : 'loaded',
-    );
+    snapshot = data.snapshot;
+    const readPending = data.queue.some((item) => item.awaitingRead);
+    if (readPending) {
+      recoveryAttempts = 0;
+      recoveryRequested = true;
+      status(
+        'Guardado en Google. Actualizando automáticamente todas las pestañas…',
+        'loading',
+      );
+    } else
+      status(
+        (readingClient.session?.rpcReady === false
+          ? 'Datos leídos · solo lectura. Actualiza la implementación desde el instalador para habilitar las operaciones. '
+          : 'Lectura confirmada · ') +
+          new Date(result.checkedAt).toLocaleString('es-ES', {
+            timeZone: 'Europe/Madrid',
+          }),
+        readingClient.session?.rpcReady === false ? 'readonly' : 'loaded',
+      );
     await render();
     if (
       epoch !== configurationEpoch ||
@@ -398,29 +410,30 @@
         void render();
       });
       snapshot = (await saved()).snapshot;
+      if (outcome.confirmed > 0) recoveryAttempts = 0;
+      const needsRead = outcome.reason?.startsWith('POST_CONFIRM_');
       if (
-        recoveryAttempts > 0 &&
         recoveryAttempts < 3 &&
-        ['unconfirmed', 'busy'].includes(outcome.status)
+        (needsRead ||
+          (recoveryAttempts > 0 &&
+            ['unconfirmed', 'busy'].includes(outcome.status)))
       )
         recoveryRequested = true;
       status(
         outcome.status === 'busy'
           ? 'Otra ventana está comprobando o enviando los pendientes.'
-          : outcome.reason === 'POST_CONFIRM_READ_FAILED'
-            ? 'Google confirmó la operación. La lectura posterior falló; el recibo se conserva. Actualiza los datos.'
-            : outcome.reason === 'POST_CONFIRM_MOVEMENT_MISSING'
-              ? 'Google confirmó el movimiento, pero no aparece en la última lectura. El recibo se conserva; actualiza los datos sin volver a enviarlo.'
-              : outcome.status === 'unconfirmed'
-                ? 'Quedan envíos sin confirmar. ' +
-                  errorText(Error(outcome.reason))
-                : outcome.status === 'review'
-                  ? 'Hay operaciones que requieren revisión. Consulta Actividad.'
-                  : 'Sincronización confirmada. Revisa el estado de cada operación.',
-        snapshot ? 'loaded' : 'unread',
+          : needsRead
+            ? 'Guardado en Google. Actualizando automáticamente todas las pestañas…'
+            : outcome.status === 'unconfirmed'
+              ? 'Quedan envíos sin confirmar. ' +
+                errorText(Error(outcome.reason))
+              : outcome.status === 'review'
+                ? 'Hay operaciones que requieren revisión. Consulta Actividad.'
+                : 'Datos actualizados en todas las pestañas.',
+        needsRead ? 'loading' : snapshot ? 'loaded' : 'unread',
       );
     } catch (error) {
-      if (recoveryAttempts > 0 && recoveryAttempts < 3)
+      if ((awaitingRead || recoveryAttempts > 0) && recoveryAttempts < 3)
         recoveryRequested = true;
       status(errorText(error), 'error');
     } finally {
@@ -1184,6 +1197,7 @@
     const data = await saved();
     if (epoch !== configurationEpoch || renderingQueue !== queue) return;
     snapshot = data.snapshot;
+    awaitingRead = data.queue.some((item) => item.awaitingRead);
     priceHistory?.refresh(snapshot);
     enabled();
     for (const label of document.querySelectorAll('[data-finance-environment]'))
@@ -1218,6 +1232,10 @@
           .join(' · ')
       : '';
     const warnings = [];
+    if (awaitingRead)
+      warnings.push(
+        'Google guardó cambios. Falta actualizar las pestañas con la lectura de Google; no vuelvas a registrar la operación.',
+      );
     if (snapshot?.calculationState === 'needs_review')
       warnings.push(
         'Hay errores de fórmulas en Sheets. Revisa el libro antes de registrar.',
@@ -2594,8 +2612,10 @@
       ),
     );
     for (const [index, copy] of copies.entries()) {
-      const unresolved = copy.queue.filter((item) =>
-        ['pending', 'uncertain', 'review'].includes(item.status),
+      const unresolved = copy.queue.filter(
+        (item) =>
+          item.awaitingRead ||
+          ['pending', 'uncertain', 'review'].includes(item.status),
       ).length;
       const row = el(
         'p',

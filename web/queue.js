@@ -76,6 +76,16 @@ const FinanceSync = (() => {
         ids.every((id) => rows.some((row) => row.ID === id)),
     };
   }
+  function readbackIssue(item, snapshot) {
+    if (movementReadback(item, snapshot)?.present === false)
+      return 'POST_CONFIRM_MOVEMENT_MISSING';
+    if (
+      item.result?.revision !== item.envelope.expectedRevision &&
+      snapshot.revision === item.envelope.expectedRevision
+    )
+      return 'POST_CONFIRM_SNAPSHOT_STALE';
+    return null;
+  }
   class BrowserStore {
     constructor(indexedDB = globalThis.indexedDB) {
       this.indexedDB = indexedDB;
@@ -161,6 +171,7 @@ const FinanceSync = (() => {
       {
         uuid = () => globalThis.crypto.randomUUID(),
         now = () => new Date().toISOString(),
+        readbackReady = () => true,
         locks = globalThis.navigator?.locks,
       } = {},
     ) {
@@ -168,6 +179,7 @@ const FinanceSync = (() => {
       this.key = key;
       this.uuid = uuid;
       this.now = now;
+      this.readbackReady = readbackReady;
       this.locks = locks;
       this.running = false;
       this.owner = uuid();
@@ -185,6 +197,21 @@ const FinanceSync = (() => {
       return this.store.update(this.key, (data) => {
         if (data.bookKey && data.bookKey !== snapshot.bookKey)
           throw Error('BOOK_CHANGED');
+        for (const item of data.queue)
+          if (item.awaitingRead && !this.readbackIssue(item, snapshot)) {
+            delete item.awaitingRead;
+            // Only advance never-sent envelopes when this read matches our
+            // receipt exactly, including recovery after a failed first read.
+            if (snapshot.revision === item.result.revision)
+              for (const pending of data.queue)
+                if (
+                  pending.status === 'pending' &&
+                  pending.envelope.expectedRevision ===
+                    item.envelope.expectedRevision
+                )
+                  pending.envelope.expectedRevision = snapshot.revision;
+          }
+        if (data.queue.some((item) => item.awaitingRead)) return data;
         return {
           ...data,
           bookKey: snapshot.bookKey,
@@ -195,6 +222,14 @@ const FinanceSync = (() => {
               : 'Copia de pruebas',
         };
       });
+    }
+    readbackIssue(item, snapshot) {
+      return (
+        readbackIssue(item, snapshot) ||
+        (this.readbackReady(snapshot)
+          ? null
+          : 'POST_CONFIRM_CALCULATIONS_STALE')
+      );
     }
     async enqueue(operations, label, action = 'transact', products) {
       return this.store.update(this.key, (data) => {
@@ -268,6 +303,9 @@ const FinanceSync = (() => {
           item.status = status;
           item.result = result ? clone(result) : null;
           item.updatedAt = this.now();
+          // Confirmation and the following read are separate durable steps.
+          // A failed read must survive reopening without resubmitting the write.
+          if (status === 'confirmed') item.awaitingRead = true;
           if (
             ['confirmed', 'review'].includes(status) ||
             (status === 'uncertain' &&
@@ -300,7 +338,10 @@ const FinanceSync = (() => {
     async clear() {
       return this.store.update(this.key, (data) => {
         if (
-          data.queue.some((q) => !['confirmed', 'discarded'].includes(q.status))
+          data.queue.some(
+            (q) =>
+              q.awaitingRead || !['confirmed', 'discarded'].includes(q.status),
+          )
         )
           throw Error('PENDING_OPERATIONS');
         return { queue: [], snapshot: null, bookKey: null };
@@ -318,6 +359,11 @@ const FinanceSync = (() => {
           await this.saveSnapshot(fresh);
           notify();
           const stored = await this.get();
+          const unread = stored.queue.find((item) => item.awaitingRead);
+          if (unread) {
+            outcome.reason = this.readbackIssue(unread, fresh);
+            return outcome;
+          }
           if (stored.queue.some((item) => item.status === 'review')) {
             outcome.status = 'review';
             outcome.reason = 'REVIEW_REQUIRED';
@@ -426,26 +472,12 @@ const FinanceSync = (() => {
               outcome.readError = error.message;
               return outcome;
             }
-            await this.saveSnapshot(after);
-            if (movementReadback({ result }, after)?.present === false) {
-              outcome.reason = 'POST_CONFIRM_MOVEMENT_MISSING';
+            const saved = await this.saveSnapshot(after);
+            const unread = saved.queue.find((item) => item.awaitingRead);
+            if (unread) {
+              outcome.reason = this.readbackIssue(unread, after);
               return outcome;
             }
-            // Solo avanzar sobres NUNCA enviados si la revisión procede de nuestro propio lote.
-            if (after.revision === result.revision)
-              await this.store.update(this.key, (data) => {
-                data.queue
-                  .filter(
-                    (q) =>
-                      q.status === 'pending' &&
-                      q.envelope.expectedRevision ===
-                        item.envelope.expectedRevision,
-                  )
-                  .forEach(
-                    (q) => (q.envelope.expectedRevision = after.revision),
-                  );
-                return data;
-              });
             notify();
           }
           return outcome;

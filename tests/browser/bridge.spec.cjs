@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { runtime } = require('../helpers/runtime.cjs');
 const { buildRuntime } = require('../../tools/build-runtime.cjs');
+const { installCashFormulas } = require('./helpers/cash-formulas.cjs');
 const vm = require('node:vm');
 const buildVersion = require('../../package.json').version;
 const root = path.resolve(__dirname, '../..');
@@ -38,6 +39,7 @@ async function channel(context, options = {}) {
     });
     return result;
   };
+  installCashFormulas(r);
   const rawBridge = fs.readFileSync(
     path.join(root, 'apps-script/Bridge.html'),
     'utf8',

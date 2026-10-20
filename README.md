@@ -6,7 +6,7 @@ Personal finance PWA for cash, investments, budgets and goals. GitHub Pages serv
 
 [Open app](https://manuuelmarin.github.io/finances/) · [Install / update](https://manuuelmarin.github.io/finances/install.html) · [TODOs](TODO.md) · [History](History.md)
 
-**App 3.10.4 · API 3.3.0 · workbook model 3.**
+**App 3.10.5 · API 3.3.0 · workbook model 3.**
 
 ## End to end
 
@@ -32,6 +32,8 @@ flowchart TD
     Bridge <-->|"Authenticated JSON"| API
     API <-->|"Verified, dated NAVs"| Provider["External price provider"]
 ```
+
+After a confirmed write, the app automatically refreshes every view from one coherent snapshot. Failed or stale reads are retried without resending the confirmed operation; explicit reporting filters remain selected. PWA 3.10.5 remains compatible with backend/Bridge 3.10.4, so this browser correction needs no private Google update.
 
 The backend selects the workbook. The PWA caches public assets; financial snapshots and pending requests remain in the device profile. Missing values stay unknown.
 
