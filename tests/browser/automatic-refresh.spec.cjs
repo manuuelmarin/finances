@@ -6,6 +6,12 @@ const {
 } = require('./helpers/finalization-runtime.cjs');
 const { navigate } = require('./helpers/navigation.cjs');
 
+test.beforeEach(({ browserName }) => {
+  // Cold WebKit startup plus form, readback, four views and reload can exceed
+  // the default 30-second whole-test budget on CI. Keep every assertion intact.
+  if (browserName === 'webkit') test.setTimeout(60000);
+});
+
 // Simulated Sheets formula results, not another production calculation engine.
 // The test exercises form -> queue -> backend -> read -> every rendered view.
 function calculatedSnapshot(snapshot) {
