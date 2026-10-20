@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { runtime } = require('../../helpers/runtime.cjs');
 const { navigate } = require('./navigation.cjs');
+const { installCashFormulas } = require('./cash-formulas.cjs');
 const deployment =
   'https://script.google.com/macros/s/fictional-finalization/exec';
 const isin = 'ES0112611001';
@@ -12,6 +13,7 @@ const referenceName = 'AZVALOR INTERNACIONAL, FI';
 async function setup(page, options = {}) {
   const server = runtime(options.runtimeOptions || {});
   expect(server.init().ok).toBe(true);
+  installCashFormulas(server);
   if (options.history) {
     expect(
       server.transact([
