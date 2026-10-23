@@ -33,6 +33,7 @@
     limit = 50,
     activityLimit = 50,
     activityFilter = 'all',
+    historyFilter = 'all',
     recoveryRequested = false,
     recoveryAttempts = 0,
     recoveryTimer = null;
@@ -60,7 +61,7 @@
       EMBEDDED_CONTEXT:
         'Abre Finanzas en su propia ventana para acceder a tu libro.',
       UPDATE_REQUIRED:
-        'Actualiza Apps Script con el instalador 3.10.5 y publica una nueva versión.',
+        'Actualiza Apps Script con el instalador 3.10.6 y publica una nueva versión.',
       POPUP_BLOCKED:
         'Permite abrir la ventana de Google y vuelve a pulsar Abrir mi libro.',
       NOT_CONNECTED: 'Abre Google para leer o enviar los pendientes.',
@@ -1281,102 +1282,110 @@
       review: 'Requiere revisión',
       discarded: 'Descartada sin enviar',
     };
-    const filtered = items.filter(
+    // A confirmed write still awaiting its snapshot needs attention. Everything
+    // else terminal belongs only in the collapsed history, without deleting it.
+    const needsAttention = (item) =>
+      item.awaitingRead || !['confirmed', 'discarded'].includes(item.status);
+    const active = items.filter(needsAttention).slice().reverse();
+    const archived = items
+      .filter((item) => !needsAttention(item))
+      .slice()
+      .reverse();
+    const filtered = active.filter(
       (item) => activityFilter === 'all' || item.status === activityFilter,
+    );
+    const historyItems = archived.filter(
+      (item) => historyFilter === 'all' || item.status === historyFilter,
     );
     const filter = el('select');
     filter.setAttribute('aria-label', 'Filtrar actividad');
-    filter.append(new Option('Toda la actividad', 'all'));
-    for (const [value, label] of Object.entries(labels))
-      filter.append(new Option(label, value));
+    filter.append(new Option('Todas las pendientes', 'all'));
+    for (const value of ['pending', 'uncertain', 'review', 'confirmed'])
+      filter.append(new Option(labels[value], value));
     filter.value = activityFilter;
     filter.addEventListener('change', () => {
       activityFilter = filter.value;
       activityLimit = 50;
       void render();
     });
-    parent.append(
-      filter,
-      el(
-        'p',
-        filtered.length +
-          ' solicitudes del filtro · ' +
-          items.length +
-          ' en este navegador.',
-      ),
-    );
-    const active = filtered
-      .filter((q) => !['discarded', 'confirmed'].includes(q.status))
-      .slice()
-      .reverse();
-    const confirmed = filtered
-      .filter((q) => q.status === 'confirmed')
-      .slice()
-      .reverse();
+    if (active.length) parent.append(filter);
+    const historySelect = el('select');
+    historySelect.setAttribute('aria-label', 'Filtrar historial');
+    historySelect.append(new Option('Todo el historial', 'all'));
+    for (const value of ['confirmed', 'discarded'])
+      historySelect.append(new Option(labels[value], value));
+    historySelect.value = historyFilter;
+    historySelect.addEventListener('change', () => {
+      historyFilter = historySelect.value;
+      activityLimit = 50;
+      void render();
+    });
+    if (archived.length) history.append(historySelect);
+    const confirmed = archived.filter((item) => item.status === 'confirmed');
     const confirmedMovements = confirmed.filter(
       (item) =>
         item.envelope.action === 'transact' &&
         (item.result?.results || []).some((row) => row.id?.startsWith('MOV-')),
     ).length;
-    parent.append(
-      el(
-        'p',
-        confirmedMovements +
-          ' solicitudes con movimientos confirmados · ' +
-          confirmed.filter((item) => item.envelope.action === 'refreshPrices')
-            .length +
-          ' actualizaciones de precios.',
-      ),
-    );
-    const pendingCount = items.filter(
-      (item) => !['confirmed', 'discarded'].includes(item.status),
-    ).length;
+    if (archived.length)
+      history.append(
+        el(
+          'p',
+          confirmedMovements +
+            ' solicitudes con movimientos confirmados · ' +
+            confirmed.filter((item) => item.envelope.action === 'refreshPrices')
+              .length +
+            ' actualizaciones de precios.',
+        ),
+      );
+    const pendingCount = active.length;
     $('pending-total').textContent = String(pendingCount);
-    $('history-total').textContent = String(
-      items.filter((item) => item.status === 'confirmed').length,
-    );
+    $('history-total').textContent = String(archived.length);
+    $('finance-sync').hidden = !pendingCount;
     for (const badge of document.querySelectorAll('[data-pending-count]')) {
       badge.textContent = String(pendingCount);
       badge.hidden = !pendingCount;
     }
-    if (!active.length) {
-      parent.append(el('p', 'No hay operaciones pendientes.', 'empty-state'));
-    }
-    if (!confirmed.length)
-      history.append(
+    if (!filtered.length) {
+      parent.append(
         el(
           'p',
-          'Sin solicitudes confirmadas en este navegador.',
+          active.length
+            ? 'Sin pendientes para este filtro.'
+            : 'No hay operaciones pendientes.',
           'empty-state',
         ),
       );
-    if (
-      Math.max(
-        active.length,
-        confirmed.length,
-        filtered.filter((q) => q.status === 'discarded').length,
-      ) > activityLimit
-    )
-      parent.append(
-        button('Mostrar más actividad', () => {
-          activityLimit += 50;
-          void render();
-        }),
+    }
+    if (!historyItems.length)
+      history.append(
+        el('p', 'Sin solicitudes en este historial.', 'empty-state'),
       );
+    for (const [target, rows] of [
+      [parent, filtered],
+      [history, historyItems],
+    ])
+      if (rows.length > activityLimit)
+        target.append(
+          button('Mostrar más actividad', () => {
+            activityLimit += 50;
+            void render();
+          }),
+        );
     for (const item of [
-      ...active.slice(0, activityLimit),
-      ...confirmed.slice(0, activityLimit),
-      ...filtered
-        .filter((q) => q.status === 'discarded')
-        .slice()
-        .reverse()
-        .slice(0, activityLimit),
+      ...filtered.slice(0, activityLimit),
+      ...historyItems.slice(0, activityLimit),
     ]) {
       const card = el('article', undefined, 'queue-item');
       card.dataset.state = item.status;
       card.append(
         el('strong', item.label),
-        el('span', labels[item.status]),
+        el(
+          'span',
+          item.awaitingRead
+            ? 'Guardada · actualizando pestañas'
+            : labels[item.status],
+        ),
         ...(item.claim?.until > Date.now()
           ? [el('p', 'En curso en otra ventana; espera su confirmación.')]
           : []),
@@ -1501,7 +1510,7 @@
             'Se consultará la misma solicitud antes de reintentar. No la vuelvas a crear.',
           ),
         );
-      (item.status === 'confirmed' ? history : parent).append(card);
+      (needsAttention(item) ? parent : history).append(card);
     }
   }
   function fieldInput(f, value) {

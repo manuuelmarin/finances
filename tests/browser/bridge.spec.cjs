@@ -674,7 +674,7 @@ test('@responsive @safari confirmed prices create no movement; a later expense r
   await page.locator('#finance-prices').click();
   await page.locator('#review-confirm').click();
   await expect(page.locator('#history-total')).toHaveText('1');
-  await expect(page.locator('#finance-queue')).toContainText(
+  await expect(page.locator('#finance-history')).toContainText(
     '0 solicitudes con movimientos confirmados · 1 actualizaciones de precios',
   );
   expect(r.state().tables.tMovimientos).toHaveLength(0);

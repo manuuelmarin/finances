@@ -149,7 +149,7 @@ Changes in repository order, from the first recorded build to the current app. V
 - Run `checkSending` and `checkApplication`, publish **New version** on the existing deployment, reopen Google from the app and check the deployed backend/bridge versions. Diagnostics do not write movements.
 - Recover the original expense from Activity in its original browser/profile and deployment. Query its receipt before retrying the same UUID; never recreate an uncertain expense. The app cannot inspect another device's queue.
 
-## 3.10.5 · current
+## 3.10.5
 
 - Persist the distinction between a confirmed write and its refreshed snapshot. Retry failed, stale or inconsistent post-write reads automatically, with three bounded recovery attempts; keep the receipt and UUID and never resubmit a confirmed write. Reloading retains unfinished readback.
 - Publish one coherent snapshot to all views. Cross-check known native account balances against the existing cash-chart projection before accepting a post-write read; preserve unknown values and never overwrite Sheets results.
@@ -160,3 +160,10 @@ Changes in repository order, from the first recorded build to the current app. V
 
 - Update the PWA when its **Actualizar app** button appears. This correction runs entirely in the browser and works with the installed Google backend/Bridge 3.10.4; no private files, deployment, properties or triggers need changing. The installer also carries matching 3.10.5 version labels for new installations.
 - After connecting Google, confirmed movements automatically refresh all views. If Google remains unavailable, preserve the saved request and reopen the connection; no duplicate movement is needed.
+
+## 3.10.6 · current
+
+- Replace account moving-average differences with exact historical closing-balance changes: 1D is one day, 1S is seven days, 1M and 3M use calendar-month offsets from the report date, clamped at month-end. Preserve zero balances and missing history; use the existing cash timeline and full account cash flows.
+- Keep discarded and fully confirmed requests in the collapsed, filterable history. Leave pending, uncertain, review and confirmed-but-unread requests in the active list; hide the send button when nothing needs attention. Preserve stored UUIDs, receipts and cross-window recovery.
+- Add cash-expense, exact-boundary, leap-year, missing-history and browser regressions. Keep resolved activity out of the active area across reloads and retain all recovery checks.
+- Update the PWA only for existing backend/Bridge 3.10.4 or 3.10.5 installations. Private files, deployments, properties, triggers and workbook data do not need changing. Installer changes only synchronize version labels.

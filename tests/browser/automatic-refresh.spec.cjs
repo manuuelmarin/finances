@@ -103,6 +103,14 @@ for (const failure of [
     expect(saved.queue).toHaveLength(1);
     expect(saved.queue[0].status).toBe('confirmed');
     expect(saved.queue[0].awaitingRead).toBeUndefined();
+    await expect(page.locator('#pending-total')).toHaveText('0');
+    await expect(page.locator('#finance-queue .queue-item')).toHaveCount(0);
+    await expect(page.locator('#finance-sync')).toBeHidden();
+    await expect(page.locator('#confirmed-history')).not.toHaveAttribute(
+      'open',
+      '',
+    );
+    await expect(page.locator('#finance-history .queue-item')).toHaveCount(1);
     expect(calls.filter((c) => c.action === 'transact')).toHaveLength(1);
     expect(calls.filter((c) => c.action === 'read')).toHaveLength(
       failure === 'none' ? 3 : 4,
@@ -161,6 +169,11 @@ test('@responsive bounded rereads preserve the confirmation across reload and ne
   await page.locator('#review-confirm').click();
   await expect.poll(() => failedReads, { timeout: 15000 }).toBe(4);
   expect((await queueData(page)).queue[0].awaitingRead).toBe(true);
+  await expect(page.locator('#pending-total')).toHaveText('1');
+  await expect(page.locator('#finance-queue')).toContainText(
+    'Guardada · actualizando pestañas',
+  );
+  await expect(page.locator('#finance-history .queue-item')).toHaveCount(0);
   await expect(page.locator('#finance-warning')).toContainText(
     'Falta actualizar',
   );
