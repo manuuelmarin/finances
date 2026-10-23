@@ -199,7 +199,11 @@ test('@responsive configuration keeps appearance and nested activity accessible 
   await page.goto('/#activity');
   await expect(page.locator('#view-connection')).toBeVisible();
   await page.locator('#activity-panel > summary').click();
-  await expect(page.locator('#finance-sync')).toBeVisible();
+  await expect(page.locator('#finance-sync')).toBeHidden();
+  await expect(page.locator('#finance-queue')).toBeVisible();
+  await expect(page.locator('#finance-queue')).toContainText(
+    'No hay operaciones pendientes.',
+  );
 });
 
 test('visual privacy survives a snapshot refresh and restores real empty states when revealed', async ({
