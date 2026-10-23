@@ -161,9 +161,16 @@ Changes in repository order, from the first recorded build to the current app. V
 - Update the PWA when its **Actualizar app** button appears. This correction runs entirely in the browser and works with the installed Google backend/Bridge 3.10.4; no private files, deployment, properties or triggers need changing. The installer also carries matching 3.10.5 version labels for new installations.
 - After connecting Google, confirmed movements automatically refresh all views. If Google remains unavailable, preserve the saved request and reopen the connection; no duplicate movement is needed.
 
-## 3.10.6 · current
+## 3.10.6
 
 - Replace account moving-average differences with exact historical closing-balance changes: 1D is one day, 1S is seven days, 1M and 3M use calendar-month offsets from the report date, clamped at month-end. Preserve zero balances and missing history; use the existing cash timeline and full account cash flows.
 - Keep discarded and fully confirmed requests in the collapsed, filterable history. Leave pending, uncertain, review and confirmed-but-unread requests in the active list; hide the send button when nothing needs attention. Preserve stored UUIDs, receipts and cross-window recovery.
 - Add cash-expense, exact-boundary, leap-year, missing-history and browser regressions. Keep resolved activity out of the active area across reloads and retain all recovery checks.
 - Update the PWA only for existing backend/Bridge 3.10.4 or 3.10.5 installations. Private files, deployments, properties, triggers and workbook data do not need changing. Installer changes only synchronize version labels.
+
+## 3.10.7 · current
+
+- Expand account cards to Hoy, 1D, 7D, 15D, 1M, 3M, 6M and 1A. Compare the current report-date balance with each date's opening balance, including movements on that date. Hoy uses yesterday's close; 1D uses the opening of yesterday. Equal changes are valid when yesterday had no net change.
+- Use the initial balance for the opening of the first tracking day. Earlier unavailable openings remain unknown. Clamp month/year offsets before selecting the preceding close and preserve exact cash cents.
+- Verify yesterday-only, yesterday-and-today and today-only spending; all eight inclusive opening boundaries; leap/month-end dates; first-day coverage; zero/unknown balances; reload and the two-column mobile layout.
+- Existing backend/Bridge 3.10.4–3.10.6 installations need only the PWA update. Installer backend/Bridge edits synchronize version labels; API 3.3.0 and workbook model 3 are unchanged.
