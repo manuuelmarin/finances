@@ -794,6 +794,8 @@ const FinanceDashboard = (() => {
     $('investment-kpis').replaceChildren();
     $('investment-average-returns').replaceChildren();
     $('investment-health').replaceChildren();
+    $('investment-comparisons').replaceChildren();
+    $('investment-balance-date').textContent = '';
     $('prices-history-note').textContent = '';
     if (!current) {
       target.append(
@@ -802,6 +804,14 @@ const FinanceDashboard = (() => {
       $('investment-coverage').textContent = '';
       return;
     }
+    renderBalanceComparisons(
+      $('investment-comparisons'),
+      FinanceWealth.investmentComparisons(current),
+      'investment',
+    );
+    $('investment-balance-date').textContent =
+      'Valoración al ' +
+      displayDate(current.settings.valuation || current.settings.asof);
     product = selectOptions(
       'investment-product',
       [
@@ -1410,20 +1420,25 @@ const FinanceDashboard = (() => {
     }
   }
 
-  function renderAccounts() {
-    const target = $('account-charts');
-    FinanceCharts.clear(target);
-    $('account-summary').replaceChildren();
-    $('account-comparisons').replaceChildren();
-    $('account-cut').textContent = '';
-    if (!current) return;
-    $('account-month').value = accountMonth;
-    const accountCards = $('account-comparisons');
-    for (const row of FinanceWealth.accountComparisons(current)) {
-      const card = el('article', undefined, 'budget-card account-balance-card');
-      card.dataset.account = row.account;
+  function renderBalanceComparisons(target, rows, kind) {
+    for (const row of rows) {
+      const card = el(
+        'article',
+        undefined,
+        'budget-card ' + kind + '-balance-card',
+      );
+      card.dataset[kind === 'account' ? 'account' : 'product'] =
+        row.account || row.product;
+      if (row.total) card.classList.add('balance-total');
       card.append(
-        el('h3', labelAccount(row.account)),
+        el(
+          'h3',
+          row.total
+            ? 'Total'
+            : kind === 'account'
+              ? labelAccount(row.account)
+              : row.name,
+        ),
         el('strong', amount(row.current), 'account-balance'),
       );
       const grid = el('div', undefined, 'comparison-grid');
@@ -1434,17 +1449,37 @@ const FinanceDashboard = (() => {
             window.change,
             'EUR',
             window.reason ||
-              'Saldo al ' +
+              (kind === 'account' ? 'Saldo al ' : 'Valor al ') +
                 displayDate(window.to) +
-                ' − saldo al inicio del ' +
+                ' − ' +
+                (kind === 'account' ? 'saldo' : 'valor') +
+                ' al inicio del ' +
                 displayDate(window.from) +
                 ': ' +
-                amount(window.previous),
+                amount(window.previous) +
+                (window.priceDate
+                  ? ' · VL del ' + displayDate(window.priceDate)
+                  : ''),
           ),
         );
       card.append(grid);
-      accountCards.append(card);
+      target.append(card);
     }
+  }
+
+  function renderAccounts() {
+    const target = $('account-charts');
+    FinanceCharts.clear(target);
+    $('account-summary').replaceChildren();
+    $('account-comparisons').replaceChildren();
+    $('account-cut').textContent = '';
+    if (!current) return;
+    $('account-month').value = accountMonth;
+    renderBalanceComparisons(
+      $('account-comparisons'),
+      FinanceWealth.accountComparisons(current),
+      'account',
+    );
     $('account-balance-date').textContent =
       'Saldos al ' + displayDate(current.settings.asof);
     const latestObserved = new Map();
@@ -1513,20 +1548,11 @@ const FinanceDashboard = (() => {
     FinanceCharts.clear(target);
     $('salary-cut').textContent = '';
     if (!current) return;
-    $('salary-cut').textContent =
-      'Registros hasta ' +
-      new Date(current.settings.asof + 'T00:00:00Z').toLocaleDateString(
-        'es-ES',
-        { timeZone: 'UTC' },
-      );
     const rows = FinanceAnalytics.salarySavings(current).map((r) => ({
       ...r,
       date: r.month + '-01',
       value: r.payroll,
-      label:
-        r.month +
-        (r.coverage.status === 'partial' ? ' · parcial' : '') +
-        (!r.registered ? ' · sin nómina registrada' : ''),
+      label: r.month + (!r.registered ? ' · sin nómina registrada' : ''),
     }));
     FinanceCharts.plot(target, {
       title: 'Nóminas registradas por mes',

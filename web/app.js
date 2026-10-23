@@ -218,17 +218,9 @@ function savedTheme() {
 }
 function applyTheme(theme) {
   if (
-    ![
-      'system',
-      'light',
-      'dark',
-      'warm',
-      'ocean',
-      'forest',
-      'slate',
-      'lavender',
-      'solar',
-    ].includes(theme)
+    !Array.from(themeSelect?.options || []).some(
+      (option) => option.value === theme,
+    )
   )
     theme = 'system';
   document.documentElement.dataset.theme = theme;

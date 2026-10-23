@@ -19,6 +19,8 @@
     <link rel="stylesheet" href="chart-controls.css" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icon-192.png" />
+    <link rel="stylesheet" href="themes.css" />
     <script src="connection.js" defer></script>
     <script src="api.js" defer></script>
     <script src="calculators.js" defer></script>
@@ -43,6 +45,17 @@
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
+      <symbol id="icon-bank" viewBox="0 0 24 24">
+        <g
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="m4 8 8-4.5L20 8M6 16v-6l6 4.5 6-4.5v6M4.5 20h15" />
+        </g>
+      </symbol>
       <symbol id="icon-home" viewBox="0 0 24 24">
         <path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z" />
       </symbol>
@@ -101,8 +114,7 @@
         data-view="home"
         aria-label="Finanzas, ir al resumen"
       >
-        <span class="brand-mark" aria-hidden="true"
-          ><span></span><span></span><span></span></span
+        <svg class="bank-mark" aria-hidden="true"><use href="#icon-bank" /></svg
         ><span class="brand-type">Finanzas</span>
       </button>
       <nav class="desktop-nav">
@@ -158,8 +170,7 @@
         data-view="home"
         aria-label="Finanzas, ir al resumen"
       >
-        <span class="brand-mark" aria-hidden="true"
-          ><span></span><span></span><span></span></span
+        <svg class="bank-mark" aria-hidden="true"><use href="#icon-bank" /></svg
         ><span class="brand-type">Finanzas</span></button
       ><button class="mobile-connection" type="button" data-view="connection">
         <span
@@ -399,6 +410,34 @@
           </div>
         </div>
         <div id="investment-kpis" class="kpi-grid investment-kpis"></div>
+        <section
+          aria-labelledby="investment-evolution-title"
+          class="balance-evolution"
+        >
+          <h2 id="investment-evolution-title">Evolución del valor</h2>
+          <p id="investment-balance-date" class="calculator-note"></p>
+          <p class="calculator-note">
+            Cambio del valor total, incluidas tus aportaciones y retiradas.
+          </p>
+          <details class="comparison-help">
+            <summary>¿Cómo se calculan las comparativas?</summary>
+            <p>
+              Valor actual menos valor al inicio de cada fecha: hoy, hace 1, 7 o
+              15 días, 1, 3 o 6 meses y 1 año. Se incluyen compras, ventas y
+              cambios de precio; una aportación aumenta el valor aunque el fondo
+              no suba. Cada apertura usa las participaciones y el último valor
+              liquidativo conocido al cierre anterior. Sin histórico suficiente
+              se muestra —.
+            </p>
+            <p>
+              El total suma toda la cartera. Un traspaso entre fondos se refleja
+              en cada fondo y se compensa en el total, salvo diferencias de
+              valoración. Estas comparativas siempre muestran todos los fondos;
+              los filtros inferiores controlan los gráficos de rentabilidad.
+            </p>
+          </details>
+          <div id="investment-comparisons" class="budget-grid"></div>
+        </section>
         <div
           id="investment-average-returns"
           class="investment-average-returns"
@@ -1368,16 +1407,54 @@
           <label class="field theme-choice"
             >Tema<select id="theme-preference" aria-label="Tema de color">
               <option value="system">Según el dispositivo</option>
-              <option value="light">Claro</option>
-              <option value="dark">Oscuro</option>
-              <option value="warm">Cálido</option>
-              <option value="ocean">Océano</option>
-              <option value="forest">Bosque</option>
-              <option value="slate">Pizarra</option>
-              <option value="lavender">Lavanda</option>
-              <option value="solar">Solar</option>
+              <optgroup label="Esenciales">
+                <option value="light">Claro</option>
+                <option value="dark">Oscuro</option>
+                <option value="warm">Cálido</option>
+                <option value="slate">Pizarra</option>
+              </optgroup>
+              <optgroup label="Profesionales">
+                <option value="navy">Azul banca</option>
+                <option value="pearl">Marfil</option>
+                <option value="graphite">Grafito</option>
+                <option value="platinum">Platino</option>
+              </optgroup>
+              <optgroup label="Naturaleza">
+                <option value="ocean">Océano</option>
+                <option value="forest">Bosque</option>
+                <option value="matcha">Matcha</option>
+                <option value="sand">Arena</option>
+                <option value="arctic">Ártico</option>
+                <option value="olive">Oliva</option>
+              </optgroup>
+              <optgroup label="Clásicos">
+                <option value="burgundy">Burdeos</option>
+                <option value="parchment">Pergamino</option>
+                <option value="sepia">Sepia</option>
+                <option value="espresso">Espresso</option>
+                <option value="solar">Solar</option>
+              </optgroup>
+              <optgroup label="Contemporáneos">
+                <option value="lavender">Lavanda</option>
+                <option value="cobalt">Cobalto</option>
+                <option value="amethyst">Amatista</option>
+                <option value="rose">Rosa</option>
+                <option value="midnight">Medianoche</option>
+              </optgroup>
             </select></label
           >
+          <div class="appearance-preview" aria-label="Vista previa del tema">
+            <svg class="bank-mark" aria-hidden="true">
+              <use href="#icon-bank" />
+            </svg>
+            <div>
+              <strong>Tu dinero, a tu manera.</strong>
+              <p>24 temas para encontrar tu estilo.</p>
+            </div>
+            <div class="appearance-palette" aria-hidden="true">
+              <i></i><i></i><i></i><i></i><i></i>
+            </div>
+          </div>
         </section>
         <details id="activity-panel" class="section-details">
           <summary>
@@ -1513,7 +1590,7 @@
           </p>
           <p class="calculator-note">
             Para acumular precios cada día sin abrir la app, instala la entrega
-            de Google 3.10.7 y ejecuta
+            de Google 3.11.0 y ejecuta
             <code>enableDailyPrices</code> una vez desde el editor del proyecto
             conectado. Actúa sobre el entorno ya configurado. Para detenerla,
             ejecuta <code>disableDailyPrices</code>.
@@ -1549,7 +1626,7 @@
       </section>
       <footer class="workspace-footer">
         <p id="app-version" class="app-version">
-          App 3.10.7 · <span data-finance-environment>Sin conectar</span
+          App 3.11.0 · <span data-finance-environment>Sin conectar</span
           ><span id="pwa-status" hidden></span>
         </p>
       </footer>
