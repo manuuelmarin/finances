@@ -96,8 +96,12 @@ for (const failure of [
     await page.locator('#operation-date').fill('2026-01-03');
     await page.locator('#operation-form button[type=submit]').click();
     await page.locator('#review-confirm').click();
+    // Recovery includes a scheduled reread and simulated Sheets work. Under
+    // concurrent CI WebKit runs this can exceed the default 5-second assertion
+    // budget; keep the final snapshot, request-count and amount checks intact.
     await expect(page.locator('#finance-state')).toContainText(
       'Datos actualizados en todas las pestañas',
+      { timeout: 15000 },
     );
     const saved = await queueData(page);
     expect(saved.queue).toHaveLength(1);
