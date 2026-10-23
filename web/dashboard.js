@@ -1419,7 +1419,7 @@ const FinanceDashboard = (() => {
     if (!current) return;
     $('account-month').value = accountMonth;
     const accountCards = $('account-comparisons');
-    for (const row of FinanceWealth.accountAverages(current)) {
+    for (const row of FinanceWealth.accountComparisons(current)) {
       const card = el('article', undefined, 'budget-card account-balance-card');
       card.dataset.account = row.account;
       card.append(
@@ -1434,12 +1434,12 @@ const FinanceDashboard = (() => {
             window.change,
             'EUR',
             window.reason ||
-              'Saldo actual − media del ' +
-                displayDate(window.from) +
-                ' al ' +
+              'Saldo al ' +
                 displayDate(window.to) +
+                ' − saldo al ' +
+                displayDate(window.from) +
                 ': ' +
-                amount(window.average),
+                amount(window.previous),
           ),
         );
       card.append(grid);

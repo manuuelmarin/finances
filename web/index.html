@@ -519,12 +519,18 @@
           </div>
         </div>
         <p id="account-balance-date" class="heading-note"></p>
+        <p class="heading-note">
+          Variación respecto al saldo de hace 1 día, 7 días, 1 mes y 3 meses.
+        </p>
         <details class="inline-help">
           <summary>¿Cómo se calculan las comparativas?</summary>
           <p>
-            Saldo actual menos la media de los cierres diarios anteriores: 1
-            día, 7 días, 1 mes o 3 meses. El día del informe queda fuera de la
-            media. — indica que falta histórico; cero es un saldo válido.
+            Saldo al día del informe menos el saldo al cierre de la fecha
+            comparada. 1D retrocede 1 día; 1S, 7 días; 1M y 3M, 1 y 3 meses
+            hasta el mismo día del mes (o su último día si no existe). Por
+            ejemplo, un gasto de 15 € desde esa fecha, sin más entradas ni
+            salidas, muestra −15 €. — indica que falta histórico; cero es un
+            saldo válido.
           </p>
         </details>
         <div id="account-comparisons" class="budget-grid"></div>
@@ -1380,7 +1386,8 @@
               <div>
                 <h2 id="activity-title">Solicitudes a Google</h2>
                 <p class="page-description">
-                  Operaciones pendientes y registros confirmados.
+                  Resuelve las operaciones pendientes. Las resueltas se
+                  conservan en el historial.
                 </p>
               </div>
               <button
@@ -1401,7 +1408,7 @@
             </section>
             <details id="confirmed-history" class="section-details">
               <summary>
-                Historial confirmado
+                Historial de solicitudes
                 <span id="history-total" class="count-badge">0</span>
               </summary>
               <div id="finance-history"></div>
@@ -1503,7 +1510,7 @@
           </p>
           <p class="calculator-note">
             Para acumular precios cada día sin abrir la app, instala la entrega
-            de Google 3.10.5 y ejecuta
+            de Google 3.10.6 y ejecuta
             <code>enableDailyPrices</code> una vez desde el editor del proyecto
             conectado. Actúa sobre el entorno ya configurado. Para detenerla,
             ejecuta <code>disableDailyPrices</code>.
@@ -1539,7 +1546,7 @@
       </section>
       <footer class="workspace-footer">
         <p id="app-version" class="app-version">
-          App 3.10.5 · <span data-finance-environment>Sin conectar</span
+          App 3.10.6 · <span data-finance-environment>Sin conectar</span
           ><span id="pwa-status" hidden></span>
         </p>
       </footer>

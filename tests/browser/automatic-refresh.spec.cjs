@@ -96,13 +96,25 @@ for (const failure of [
     await page.locator('#operation-date').fill('2026-01-03');
     await page.locator('#operation-form button[type=submit]').click();
     await page.locator('#review-confirm').click();
+    // Recovery includes a scheduled reread and simulated Sheets work. Under
+    // concurrent CI WebKit runs this can exceed the default 5-second assertion
+    // budget; keep the final snapshot, request-count and amount checks intact.
     await expect(page.locator('#finance-state')).toContainText(
       'Datos actualizados en todas las pestañas',
+      { timeout: 15000 },
     );
     const saved = await queueData(page);
     expect(saved.queue).toHaveLength(1);
     expect(saved.queue[0].status).toBe('confirmed');
     expect(saved.queue[0].awaitingRead).toBeUndefined();
+    await expect(page.locator('#pending-total')).toHaveText('0');
+    await expect(page.locator('#finance-queue .queue-item')).toHaveCount(0);
+    await expect(page.locator('#finance-sync')).toBeHidden();
+    await expect(page.locator('#confirmed-history')).not.toHaveAttribute(
+      'open',
+      '',
+    );
+    await expect(page.locator('#finance-history .queue-item')).toHaveCount(1);
     expect(calls.filter((c) => c.action === 'transact')).toHaveLength(1);
     expect(calls.filter((c) => c.action === 'read')).toHaveLength(
       failure === 'none' ? 3 : 4,
@@ -161,6 +173,11 @@ test('@responsive bounded rereads preserve the confirmation across reload and ne
   await page.locator('#review-confirm').click();
   await expect.poll(() => failedReads, { timeout: 15000 }).toBe(4);
   expect((await queueData(page)).queue[0].awaitingRead).toBe(true);
+  await expect(page.locator('#pending-total')).toHaveText('1');
+  await expect(page.locator('#finance-queue')).toContainText(
+    'Guardada · actualizando pestañas',
+  );
+  await expect(page.locator('#finance-history .queue-item')).toHaveCount(0);
   await expect(page.locator('#finance-warning')).toContainText(
     'Falta actualizar',
   );

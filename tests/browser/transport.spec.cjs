@@ -288,7 +288,11 @@ test('activity reaches the oldest uncertainty and broadcasts discard to the othe
     .click();
   await page.locator('#review-confirm').click();
   await expect(other.locator('#pending-total')).toHaveText('50');
-  await expect(other.locator('#finance-queue')).toContainText(
+  await expect(other.locator('#finance-queue')).not.toContainText(
+    'Descartada sin enviar',
+  );
+  await other.locator('#confirmed-history summary').click();
+  await expect(other.locator('#finance-history')).toContainText(
     'Descartada sin enviar',
   );
 });

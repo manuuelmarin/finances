@@ -315,9 +315,8 @@ const FinanceWealth = (() => {
     }));
   }
 
-  // Current close minus the average of PRECEDING daily closes. The current
-  // date is excluded: a one-day average then means yesterday's closing balance.
-  function accountAverages(snapshot, analytics = FinanceAnalytics) {
+  // Compare closing balances at two exact dates, never a daily average.
+  function accountComparisons(snapshot, analytics = FinanceAnalytics) {
     const asof = snapshot?.settings?.asof;
     const start = snapshot?.settings?.start;
     if (!validDate(asof) || !validDate(start) || start > asof) return [];
@@ -333,50 +332,44 @@ const FinanceWealth = (() => {
       { label: '1M', from: subtractMonths(asof, 1) },
       { label: '3M', from: subtractMonths(asof, 3) },
     ];
-    const first = windows.at(-1).from;
-    const series = [];
-    let month = (first < start ? start : first).slice(0, 7);
-    while (month <= asof.slice(0, 7)) {
-      series.push(...analytics.cashTimeline(snapshot, month));
-      const d = new Date(month + '-01T00:00:00Z');
-      d.setUTCMonth(d.getUTCMonth() + 1);
-      month = d.toISOString().slice(0, 7);
-    }
+    const months = new Map();
+    for (const { from } of windows)
+      if (from >= start && !months.has(from.slice(0, 7)))
+        months.set(
+          from.slice(0, 7),
+          analytics.cashTimeline(snapshot, from.slice(0, 7)),
+        );
     return (snapshot.tables?.tCuentas || []).map((account) => ({
       account: account.Cuenta,
       current: finite(account['Saldo calculado'])
         ? account['Saldo calculado']
         : null,
       windows: windows.map(({ label, from }) => {
-        const rows = series.filter(
-          (row) => row.date >= from && row.date <= previousDay,
-        );
-        const expected = (Date.parse(asof) - Date.parse(from)) / 86400000;
-        const complete =
-          from >= start &&
-          rows.length === expected &&
-          rows.every((row) => finite(row.accounts[account.Cuenta]));
-        const average = complete
-          ? rows.reduce((sum, row) => sum + row.accounts[account.Cuenta], 0) /
-            expected
-          : null;
+        const row = months
+          .get(from.slice(0, 7))
+          ?.find((row) => row.date === from);
+        const previous = row?.accounts[account.Cuenta];
+        const complete = from >= start && finite(previous);
         const current = account['Saldo calculado'];
         return {
           label,
           from,
-          to: previousDay,
-          average,
-          change: complete && finite(current) ? current - average : null,
+          to: asof,
+          previous: complete ? previous : null,
+          change:
+            complete && finite(current)
+              ? (Math.round(current * 100) - Math.round(previous * 100)) / 100
+              : null,
           reason: !finite(current)
             ? 'Saldo actual sin dato'
             : !complete
-              ? 'Histórico insuficiente para esta media'
+              ? 'Sin saldo histórico al ' + from
               : null,
         };
       }),
     }));
   }
-  return { compare, comparisons, accountAverages, valueAt, subtractMonths };
+  return { compare, comparisons, accountComparisons, valueAt, subtractMonths };
 })();
 
 if (typeof module !== 'undefined' && module.exports)

@@ -1394,7 +1394,48 @@ test('@responsive fixed-width spending histogram and city tones remain readable 
   await screenshot(page, 'histogram-and-city');
 });
 
-test('@responsive account moving-average cards, separated resources and emergency fund preserve the same underlying assignments', async ({
+test('@responsive @safari account rolling changes show a full expense and preserve its exact dated baseline after reload', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  seed.settings = {
+    start: '2026-09-30',
+    asof: '2026-10-23',
+    valuation: '2026-10-15',
+  };
+  seed.tables.tCuentas = [
+    { Cuenta: 'EFECTIVO', 'Saldo inicial': 168, 'Saldo calculado': 153 },
+  ];
+  seed.tables.tMovimientos = [
+    {
+      ID: 'FICTIONAL-CASH-EXPENSE',
+      Fecha: '2026-10-17',
+      Tipo: 'Gasto',
+      Origen: 'EFECTIVO',
+      Importe: 15,
+    },
+  ];
+  await setup(page, seed);
+  for (let pass = 0; pass < 2; pass++) {
+    await navigate(page, 'accounts');
+    const cells = page.locator('.account-balance-card .comparison-cell');
+    await expect(cells.nth(0).locator('strong')).toHaveText('0,00 €');
+    await expect(cells.nth(1).locator('strong')).toHaveText('-15,00 €');
+    await expect(cells.nth(1)).toHaveClass(/comparison-negative/);
+    await expect(cells.nth(1)).toHaveAttribute(
+      'title',
+      'Saldo al 23/10/2026 − saldo al 16/10/2026: 168,00 €',
+    );
+    await expect(cells.nth(2).locator('strong')).toHaveText('—');
+    if (!pass) {
+      await page.reload();
+      await page.evaluate((seed) => FinanceDashboard.render(seed), seed);
+    }
+  }
+  await screenshot(page, 'account-rolling-expense');
+});
+
+test('@responsive account historical-change cards, separated resources and emergency fund preserve the same underlying assignments', async ({
   page,
 }) => {
   const seed = structuredClone(snapshot);
@@ -1421,7 +1462,7 @@ test('@responsive account moving-average cards, separated resources and emergenc
   );
   await expect(page.locator('#account-reconciliation')).toBeHidden();
   await expect(page.locator('#forecast-chart .chart-card')).toHaveCount(0);
-  await screenshot(page, 'account-averages');
+  await screenshot(page, 'account-comparisons');
   await navigate(page, 'budgets');
   await page.locator('#goal-resources > summary').click();
   await expect(page.locator('[data-resource-kind=account]')).toContainText(
