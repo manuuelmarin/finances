@@ -427,3 +427,231 @@ test('all eight account horizons include their opening date and exclude movement
     assert.equal(result.change, -10, result.label);
   }
 });
+
+test('account total comes first in the requested order and internal transfers cancel', () => {
+  const names = [
+    'Trade Republic',
+    'MyInvestor',
+    'EFECTIVO',
+    'Bankinter',
+    'Unicaja',
+  ];
+  const s = {
+    settings: { start: '2026-01-01', asof: '2026-10-23' },
+    tables: {
+      tCuentas: names.map((Cuenta) => ({
+        Cuenta,
+        'Saldo inicial': 100,
+        'Saldo calculado':
+          Cuenta === 'Unicaja' ? 80 : Cuenta === 'Bankinter' ? 120 : 100,
+      })),
+      tMovimientos: [
+        {
+          Fecha: '2026-10-23',
+          Tipo: 'Transferencia',
+          Origen: 'Unicaja',
+          Destino: 'Bankinter',
+          Importe: 20,
+        },
+      ],
+    },
+  };
+  const rows = FinanceWealth.accountComparisons(s, FinanceAnalytics);
+  assert.deepEqual(
+    rows.map((r) => r.account),
+    [
+      'Total',
+      'Unicaja',
+      'Bankinter',
+      'EFECTIVO',
+      'MyInvestor',
+      'Trade Republic',
+    ],
+  );
+  assert.equal(rows[0].current, 500);
+  assert.equal(rows[0].windows[0].change, 0);
+  assert.equal(rows[1].windows[0].change, -20);
+  assert.equal(rows[2].windows[0].change, 20);
+  assert.equal(s.tables.tCuentas[0].Cuenta, 'Trade Republic');
+  s.tables.tCuentas[0]['Saldo calculado'] = null;
+  assert.equal(
+    FinanceWealth.accountComparisons(s, FinanceAnalytics)[0].current,
+    null,
+  );
+  s.tables.tCuentas[0]['Saldo calculado'] = 100;
+  s.tables.tCuentas[0]['Saldo inicial'] = null;
+  assert.equal(
+    FinanceWealth.accountComparisons(s, FinanceAnalytics)[0].windows[0].change,
+    null,
+  );
+});
+
+test('investment value comparisons include pocket contributions, withdrawals and price changes without altering returns', () => {
+  const s = {
+    settings: {
+      start: '2025-01-01',
+      asof: '2026-10-23',
+      valuation: '2026-10-22',
+    },
+    tables: {
+      tProductos: [
+        {
+          ID: 'P',
+          Producto: 'Fondo',
+          'Fecha base': '2025-01-01',
+          'Unidades base': 10,
+          Valor: 150,
+          'Aportado neto': 140,
+          Resultado: 10,
+        },
+      ],
+      tOperaciones: [
+        {
+          Producto: 'P',
+          Fecha: '2026-10-22',
+          Tipo: 'Compra',
+          Participaciones: 5,
+        },
+      ],
+      tPrecios: [
+        { Producto: 'P', Fecha: '2025-01-01', 'VL EUR': 10 },
+        { Producto: 'P', Fecha: '2026-10-23', 'VL EUR': 999 },
+      ],
+    },
+  };
+  let rows = FinanceWealth.investmentComparisons(s, FinanceAnalytics);
+  assert.equal(rows[0].product, 'Total');
+  assert.equal(rows[1].name, 'Fondo');
+  assert.equal(rows[1].windows[0].previous, 100);
+  assert.equal(rows[1].windows[0].change, 50);
+  assert.equal(rows[1].windows[0].to, '2026-10-22');
+  assert.equal(rows[1].windows[0].priceDate, '2025-01-01');
+  assert.equal(FinanceAnalytics.investmentMetrics(s).gain, 10);
+  s.tables.tProductos[0].Valor = 165;
+  s.tables.tPrecios.push({ Producto: 'P', Fecha: '2026-10-22', 'VL EUR': 11 });
+  rows = FinanceWealth.investmentComparisons(s, FinanceAnalytics);
+  assert.equal(rows[0].windows[0].change, 65);
+  s.tables.tOperaciones[0] = {
+    Producto: 'P',
+    Fecha: '2026-10-22',
+    Tipo: 'Venta',
+    Participaciones: 5,
+  };
+  s.tables.tProductos[0].Valor = 55;
+  assert.equal(
+    FinanceWealth.investmentComparisons(s, FinanceAnalytics)[0].windows[0]
+      .change,
+    -45,
+  );
+});
+
+test('investment openings include all eight boundary dates, preserve missing prices and use zero before a new fund purchase', () => {
+  for (const [index, from] of [
+    '2026-10-23',
+    '2026-10-22',
+    '2026-10-16',
+    '2026-10-08',
+    '2026-09-23',
+    '2026-07-23',
+    '2026-04-23',
+    '2025-10-23',
+  ].entries()) {
+    const s = {
+      settings: { start: '2025-01-01', asof: '2026-10-23' },
+      tables: {
+        tProductos: [
+          {
+            ID: 'P',
+            Producto: 'Nuevo',
+            'Fecha base': '2025-01-01',
+            'Unidades base': 0,
+            Valor: 100,
+          },
+        ],
+        tOperaciones: [
+          { Producto: 'P', Fecha: from, Tipo: 'Compra', Participaciones: 10 },
+        ],
+        tPrecios: [{ Producto: 'P', Fecha: from, 'VL EUR': 10 }],
+      },
+    };
+    assert.equal(
+      FinanceWealth.investmentComparisons(s, FinanceAnalytics)[0].windows[index]
+        .previous,
+      0,
+    );
+    assert.equal(
+      FinanceWealth.investmentComparisons(s, FinanceAnalytics)[0].windows[index]
+        .change,
+      100,
+    );
+    s.tables.tProductos[0]['Unidades base'] = 1;
+    assert.equal(
+      FinanceWealth.investmentComparisons(s, FinanceAnalytics)[0].windows[index]
+        .change,
+      null,
+    );
+    s.tables.tPrecios.unshift({
+      Producto: 'P',
+      Fecha: '2025-01-01',
+      'VL EUR': 10,
+    });
+    assert.equal(
+      FinanceWealth.investmentComparisons(s, FinanceAnalytics)[0].windows[index]
+        .change,
+      90,
+    );
+    s.summary = { missingPrices: ['Nuevo'] };
+    assert.equal(
+      FinanceWealth.investmentComparisons(s, FinanceAnalytics)[0].current,
+      null,
+    );
+  }
+});
+
+test('fund transfers move value between products and cancel in the portfolio total', () => {
+  const s = {
+    settings: { start: '2026-01-01', asof: '2026-10-23' },
+    tables: {
+      tProductos: [
+        { ID: 'A', 'Fecha base': '2026-01-01', 'Unidades base': 10, Valor: 50 },
+        { ID: 'B', 'Fecha base': '2026-01-01', 'Unidades base': 0, Valor: 50 },
+      ],
+      tOperaciones: [
+        {
+          Producto: 'A',
+          Fecha: '2026-10-23',
+          Tipo: 'Venta',
+          Participaciones: 5,
+        },
+        {
+          Producto: 'B',
+          Fecha: '2026-10-23',
+          Tipo: 'Compra',
+          Participaciones: 5,
+        },
+      ],
+      tPrecios: ['A', 'B'].map((Producto) => ({
+        Producto,
+        Fecha: '2026-01-01',
+        'VL EUR': 10,
+      })),
+    },
+  };
+  const rows = FinanceWealth.investmentComparisons(s, FinanceAnalytics);
+  assert.deepEqual(
+    rows.map((r) => r.windows[0].change),
+    [0, -50, 50],
+  );
+  s.tables.tOperaciones[0].Fecha = 'invalid';
+  assert.equal(
+    FinanceWealth.investmentComparisons(s, FinanceAnalytics)[0].windows[0]
+      .change,
+    null,
+  );
+  s.settings.start = '2026-10-23';
+  assert.equal(
+    FinanceWealth.investmentComparisons(s, FinanceAnalytics)[0].windows[1]
+      .change,
+    null,
+  );
+});

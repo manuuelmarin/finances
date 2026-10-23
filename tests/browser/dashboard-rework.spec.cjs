@@ -475,6 +475,8 @@ test('@responsive checklist filtra categorías; salario y cuentas mantienen sus 
   await screenshot(page, 'spending');
   await navigate(page, 'salary');
   const salaryCharts = page.locator('#salary-charts .chart-card');
+  await expect(page.locator('#salary-cut')).toBeEmpty();
+  await expect(page.locator('#salary-charts')).not.toContainText('parcial');
   await expect(salaryCharts).toHaveCount(2);
   await expect(salaryCharts.nth(0)).toContainText(
     'Nóminas registradas por mes',
@@ -1418,7 +1420,7 @@ test('@responsive @safari account rolling changes show a full expense and preser
   await setup(page, seed);
   for (let pass = 0; pass < 2; pass++) {
     await navigate(page, 'accounts');
-    const cells = page.locator('.account-balance-card .comparison-cell');
+    const cells = page.locator('[data-account="EFECTIVO"] .comparison-cell');
     await expect(cells).toHaveCount(8);
     await expect(cells.nth(0).locator('strong')).toHaveText('0,00 €');
     await expect(cells.nth(1).locator('strong')).toHaveText('0,00 €');
@@ -1506,10 +1508,10 @@ test('@responsive account historical-change cards, separated resources and emerg
   seed.tables.tObjetivos[0].Asignado = 550;
   await setup(page, seed);
   await navigate(page, 'accounts');
-  await expect(page.locator('.account-balance-card')).toHaveCount(2);
+  await expect(page.locator('.account-balance-card')).toHaveCount(3);
   await expect(
     page.locator('.account-balance-card .comparison-cell'),
-  ).toHaveCount(16);
+  ).toHaveCount(24);
   expect(
     await page
       .locator('.account-balance-card')
@@ -1564,21 +1566,105 @@ test('@responsive account historical-change cards, separated resources and emerg
   expect(await page.evaluate(() => window.reviewedOperations)).toBeUndefined();
 });
 
-test('@responsive five additional themes retain readable foregrounds and persist across reopening', async ({
+test('@responsive @safari account order and investment total include all four funds and pocket contributions', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  seed.tables.tCuentas = [
+    'Trade Republic',
+    'MyInvestor',
+    'EFECTIVO',
+    'Bankinter',
+    'Unicaja',
+  ].map((Cuenta) => ({ Cuenta, 'Saldo inicial': 100, 'Saldo calculado': 100 }));
+  seed.tables.tMovimientos = [];
+  seed.tables.tProductos = [1, 2, 3, 4].map((n) => ({
+    ...snapshot.tables.tProductos[0],
+    ID: 'F' + n,
+    Producto: 'Fondo ficticio ' + n,
+    'Unidades base': 10,
+    'Coste base': 100,
+    Participaciones: n === 1 ? 15 : 10,
+    Valor: n === 1 ? 150 : 100,
+    'Aportado neto': n === 1 ? 150 : 100,
+    Resultado: 0,
+    Rentabilidad: 0,
+  }));
+  seed.tables.tOperaciones = [
+    {
+      ID: 'BUY',
+      Producto: 'F1',
+      Fecha: '2026-03-15',
+      Tipo: 'Compra',
+      Participaciones: 5,
+      Precio: 10,
+      Importe: 50,
+    },
+  ];
+  seed.tables.tPrecios = [1, 2, 3, 4].map((n) => ({
+    Producto: 'F' + n,
+    Fecha: '2026-01-01',
+    'VL EUR': 10,
+  }));
+  await setup(page, seed);
+  await navigate(page, 'accounts');
+  await expect(page.locator('#account-comparisons h3')).toHaveText([
+    'Total',
+    'Unicaja',
+    'Bankinter',
+    'Efectivo físico',
+    'MyInvestor',
+    'Trade Republic',
+  ]);
+  await expect(
+    page.locator('#account-comparisons .balance-total .account-balance'),
+  ).toHaveText('500,00 €');
+  await navigate(page, 'investments');
+  const cards = page.locator('.investment-balance-card');
+  await expect(cards).toHaveCount(5);
+  await expect(cards.first().locator('h3')).toHaveText('Total');
+  await expect(cards.first().locator('.account-balance')).toHaveText(
+    '450,00 €',
+  );
+  await expect(
+    cards.first().locator('.comparison-cell').first().locator('strong'),
+  ).toHaveText('+50,00 €');
+  await expect(
+    page.locator('[data-product="F1"] .comparison-cell strong').first(),
+  ).toHaveText('+50,00 €');
+  await expect(
+    page.locator('[data-product="F2"] .comparison-cell strong').first(),
+  ).toHaveText('0,00 €');
+  await expect(
+    cards.first().locator('.comparison-cell').last().locator('strong'),
+  ).toHaveText('—');
+  await expect(page.locator('#investment-kpis')).toContainText('0,00');
+  await page.locator('#investment-product').selectOption('F2');
+  await expect(cards).toHaveCount(5);
+  await expect(cards.first().locator('.account-balance')).toHaveText(
+    '450,00 €',
+  );
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth + 1,
+    ),
+  ).toBe(true);
+  await screenshot(page, 'investment-comparisons');
+  await page.evaluate(() => FinanceDashboard.render(null));
+  await expect(page.locator('#investment-comparisons')).toBeEmpty();
+});
+
+test('@responsive @safari all 24 themes retain readable foregrounds and persist across reopening', async ({
   page,
 }) => {
   await setup(page);
   await navigate(page, 'connection');
-  const themes = [
-    'light',
-    'dark',
-    'warm',
-    'ocean',
-    'forest',
-    'slate',
-    'lavender',
-    'solar',
-  ];
+  const themes = await page
+    .locator('#theme-preference option')
+    .evaluateAll((options) =>
+      options.map((o) => o.value).filter((v) => v !== 'system'),
+    );
+  expect(themes).toHaveLength(24);
   for (const theme of themes) {
     await page.locator('#theme-preference').selectOption(theme);
     const ratios = await page.evaluate(() => {
@@ -1598,15 +1684,40 @@ test('@responsive five additional themes retain readable foregrounds and persist
         return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
       };
       const contrast = (fg, bg) => {
-        const a = luminance(css.getPropertyValue(fg)),
-          b = luminance(css.getPropertyValue(bg));
+        const resolve = (color) =>
+          color.startsWith('--') ? css.getPropertyValue(color) : color;
+        const a = luminance(resolve(fg)),
+          b = luminance(resolve(bg));
         return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
       };
-      return ['--bg', '--surface', '--surface-raised'].flatMap((bg) =>
-        ['--text', '--muted', '--subtle', '--series-mint', '--danger'].map(
-          (fg) => ({ fg, bg, value: contrast(fg, bg) }),
-        ),
+      const cells = ['comparison-positive', 'comparison-negative'].map(
+        (tone) => {
+          const cell = document.createElement('div');
+          cell.className = 'comparison-cell ' + tone;
+          document.body.append(cell);
+          const style = getComputedStyle(cell);
+          const pair = {
+            fg: tone,
+            bg: 'tinted surface',
+            value: contrast(style.color, style.backgroundColor),
+          };
+          cell.remove();
+          return pair;
+        },
       );
+      return ['--bg', '--sidebar', '--surface', '--surface-raised']
+        .flatMap((bg) =>
+          ['--text', '--muted', '--subtle', '--series-mint', '--danger'].map(
+            (fg) => ({ fg, bg, value: contrast(fg, bg) }),
+          ),
+        )
+        .concat(cells, [
+          {
+            fg: '--accent-ink',
+            bg: '--accent',
+            value: contrast('--accent-ink', '--accent'),
+          },
+        ]);
     });
     for (const ratio of ratios)
       expect(
@@ -1616,7 +1727,8 @@ test('@responsive five additional themes retain readable foregrounds and persist
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
   }
   await page.reload();
-  await expect(page.locator('#theme-preference')).toHaveValue('solar');
+  await expect(page.locator('#theme-preference')).toHaveValue(themes.at(-1));
+  await expect(page.locator('.appearance-preview')).toBeVisible();
   await screenshot(page, 'themes');
 });
 

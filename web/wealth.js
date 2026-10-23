@@ -315,13 +315,11 @@ const FinanceWealth = (() => {
     }));
   }
 
-  // Compare the current balance with the opening of each requested date.
-  // Opening equals the preceding close, or the initial balance on book start.
-  function accountComparisons(snapshot, analytics = FinanceAnalytics) {
+  function openingWindows(snapshot) {
     const asof = snapshot?.settings?.asof;
     const start = snapshot?.settings?.start;
     if (!validDate(asof) || !validDate(start) || start > asof) return [];
-    const windows = [
+    return [
       { label: 'Hoy', from: asof },
       ...[1, 7, 15].map((days) => ({
         label: days + 'D',
@@ -334,48 +332,183 @@ const FinanceWealth = (() => {
         from: subtractMonths(asof, months),
       })),
     ];
+  }
+
+  function comparisonWindow(window, previous, current, start, asof) {
+    const complete = window.from >= start && finite(previous);
+    return {
+      ...window,
+      baselineDate: dayBefore(window.from),
+      to: asof,
+      previous: complete ? previous : null,
+      change:
+        complete && finite(current)
+          ? (Math.round(current * 100) - Math.round(previous * 100)) / 100
+          : null,
+      reason: !finite(current)
+        ? 'Valor actual sin dato'
+        : !complete
+          ? 'Sin valor de apertura al ' + window.from
+          : null,
+    };
+  }
+
+  function withTotal(rows, key, snapshot) {
+    if (!rows.length) return [];
+    const sum = (values) =>
+      values.every(finite) ? values.reduce((a, b) => a + b, 0) : null;
+    const current = sum(rows.map((row) => row.current));
+    return [
+      {
+        [key]: 'Total',
+        current,
+        total: true,
+        windows: rows[0].windows.map((window, index) =>
+          comparisonWindow(
+            { label: window.label, from: window.from },
+            sum(rows.map((row) => row.windows[index].previous)),
+            current,
+            snapshot.settings.start,
+            window.to,
+          ),
+        ),
+      },
+      ...rows,
+    ];
+  }
+
+  // Opening equals the preceding close, or the initial balance on book start.
+  function accountComparisons(snapshot, analytics = FinanceAnalytics) {
+    const windows = openingWindows(snapshot);
+    if (!windows.length) return [];
+    const { start, asof } = snapshot.settings;
     const months = new Map();
     for (const { from } of windows) {
       const month = dayBefore(from).slice(0, 7);
       if (from > start && !months.has(month))
         months.set(month, analytics.cashTimeline(snapshot, month));
     }
-    return (snapshot.tables?.tCuentas || []).map((account) => ({
-      account: account.Cuenta,
-      current: finite(account['Saldo calculado'])
-        ? account['Saldo calculado']
-        : null,
-      windows: windows.map(({ label, from }) => {
-        const baselineDate = dayBefore(from);
-        const row = months
-          .get(baselineDate.slice(0, 7))
-          ?.find((row) => row.date === baselineDate);
-        const previous =
-          from === start
-            ? account['Saldo inicial']
-            : row?.accounts[account.Cuenta];
-        const complete = from >= start && finite(previous);
-        const current = account['Saldo calculado'];
-        return {
-          label,
-          from,
-          baselineDate,
-          to: asof,
-          previous: complete ? previous : null,
-          change:
-            complete && finite(current)
-              ? (Math.round(current * 100) - Math.round(previous * 100)) / 100
-              : null,
-          reason: !finite(current)
-            ? 'Saldo actual sin dato'
-            : !complete
-              ? 'Sin saldo de apertura al ' + from
-              : null,
-        };
-      }),
-    }));
+    const order = [
+      'unicaja',
+      'bankinter',
+      'efectivo',
+      'myinvestor',
+      'traderepublic',
+    ];
+    const rank = (name) => {
+      const normalized = String(name).toLowerCase().replace(/\s/g, '');
+      const index = order.indexOf(
+        normalized === 'efectivofísico' ? 'efectivo' : normalized,
+      );
+      return index < 0 ? order.length : index;
+    };
+    const rows = [...(snapshot.tables?.tCuentas || [])]
+      .sort((a, b) => rank(a.Cuenta) - rank(b.Cuenta))
+      .map((account) => ({
+        account: account.Cuenta,
+        current: finite(account['Saldo calculado'])
+          ? account['Saldo calculado']
+          : null,
+        windows: windows.map(({ label, from }) => {
+          const baselineDate = dayBefore(from);
+          const row = months
+            .get(baselineDate.slice(0, 7))
+            ?.find((row) => row.date === baselineDate);
+          const previous =
+            from === start
+              ? account['Saldo inicial']
+              : row?.accounts[account.Cuenta];
+          const current = account['Saldo calculado'];
+          return comparisonWindow(
+            { label, from },
+            previous,
+            current,
+            start,
+            asof,
+          );
+        }),
+      }));
+    return withTotal(rows, 'account', snapshot);
   }
-  return { compare, comparisons, accountComparisons, valueAt, subtractMonths };
+
+  // Market value changes include contributions and withdrawals. They are not
+  // TWR: use actual units and the latest known NAV at each opening, never a
+  // future quote or cost basis as a substitute for market value.
+  function investmentComparisons(snapshot, analytics = FinanceAnalytics) {
+    const asof = snapshot?.settings?.valuation || snapshot?.settings?.asof;
+    const dated = { ...snapshot, settings: { ...snapshot?.settings, asof } };
+    const windows = openingWindows(dated);
+    if (!windows.length) return [];
+    const products = snapshot.tables?.tProductos || [];
+    const operations = snapshot.tables?.tOperaciones || [];
+    const prices = snapshot.tables?.tPrecios || [];
+    const rows = products.map((p) => {
+      const current = analytics.investmentMetrics(snapshot, p.ID).value;
+      const base = p['Fecha base'] || snapshot.settings.start;
+      const trades = operations.filter((o) => o.Producto === p.ID);
+      const invalid =
+        !validDate(base) ||
+        trades.some(
+          (o) =>
+            !validDate(o.Fecha) ||
+            o.Fecha < base ||
+            (['Compra', 'Venta'].includes(o.Tipo) &&
+              !finite(o.Participaciones)),
+        );
+      const quotes = prices
+        .filter(
+          (q) =>
+            q.Producto === p.ID &&
+            validDate(q.Fecha) &&
+            finite(q['VL EUR']) &&
+            q['VL EUR'] > 0,
+        )
+        .sort((a, b) => b.Fecha.localeCompare(a.Fecha));
+      return {
+        product: p.ID,
+        name: p.Producto,
+        current,
+        windows: windows.map((window) => {
+          const date = dayBefore(window.from);
+          let units = p['Unidades base'];
+          if (date < base && units === 0) units = 0;
+          else if (date < base && window.from !== base) units = null;
+          for (const o of trades.filter((o) => o.Fecha <= date)) {
+            if (finite(units) && ['Compra', 'Venta'].includes(o.Tipo))
+              units += o.Participaciones * (o.Tipo === 'Compra' ? 1 : -1);
+          }
+          const quote = quotes.find((q) => q.Fecha <= date);
+          const previous =
+            invalid || !finite(units) || units < -1e-10
+              ? null
+              : Math.abs(units) < 1e-10
+                ? 0
+                : quote
+                  ? units * quote['VL EUR']
+                  : null;
+          return {
+            ...comparisonWindow(
+              window,
+              previous,
+              current,
+              snapshot.settings.start,
+              asof,
+            ),
+            priceDate: previous === 0 ? null : quote?.Fecha || null,
+          };
+        }),
+      };
+    });
+    return withTotal(rows, 'product', dated);
+  }
+  return {
+    compare,
+    comparisons,
+    accountComparisons,
+    investmentComparisons,
+    valueAt,
+    subtractMonths,
+  };
 })();
 
 if (typeof module !== 'undefined' && module.exports)

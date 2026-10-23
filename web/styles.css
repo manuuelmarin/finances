@@ -60,7 +60,7 @@
   --line: #ded4c3;
   --text: #2c2a25;
   --muted: #686052;
-  --subtle: #71675a;
+  --subtle: #6f6558;
   --accent: #536d5e;
   --accent-ink: #fff;
   --copper: #a46543;
@@ -226,25 +226,89 @@ input {
   font-weight: 650;
   letter-spacing: -0.06em;
 }
-.brand-mark {
-  display: inline-flex;
-  align-items: flex-end;
-  gap: 3px;
-  height: 23px;
+.bank-mark {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  color: var(--accent);
 }
-.brand-mark span {
-  width: 5px;
+.appearance-preview {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 18px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(
+      ellipse at top right,
+      color-mix(in srgb, var(--accent) 12%, transparent),
+      transparent 70%
+    ),
+    var(--surface);
+}
+.appearance-preview .bank-mark {
+  width: 56px;
+  height: 56px;
+  flex-basis: 56px;
+}
+.appearance-preview strong {
+  font-size: 1.1rem;
+  letter-spacing: -0.02em;
+}
+.appearance-preview p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+.appearance-palette {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.appearance-palette i {
+  width: 16px;
+  height: 32px;
+  border-radius: 5px;
   background: var(--accent);
-  border-radius: 2px;
 }
-.brand-mark span:nth-child(1) {
-  height: 11px;
+.appearance-palette i:nth-child(2) {
+  background: var(--series-blue);
 }
-.brand-mark span:nth-child(2) {
-  height: 17px;
+.appearance-palette i:nth-child(3) {
+  background: var(--series-lilac);
 }
-.brand-mark span:nth-child(3) {
-  height: 23px;
+.appearance-palette i:nth-child(4) {
+  background: var(--series-gold);
+}
+.appearance-palette i:nth-child(5) {
+  background: var(--series-mint);
+}
+.balance-total {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  background:
+    radial-gradient(
+      ellipse at top right,
+      color-mix(in srgb, var(--accent) 9%, transparent),
+      transparent 65%
+    ),
+    var(--surface);
+}
+.balance-total h3 {
+  color: var(--accent);
+}
+.balance-evolution {
+  margin: 28px 0;
+}
+.comparison-help {
+  margin-bottom: 20px;
+  color: var(--muted);
+}
+.comparison-help summary {
+  cursor: pointer;
+}
+.settings-preferences .appearance-preview {
+  flex-basis: 100%;
 }
 .desktop-nav {
   margin-top: 32px;
@@ -2410,6 +2474,7 @@ dialog .inline-link {
 }
 .settings-preferences {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
@@ -2593,7 +2658,7 @@ dialog .inline-link {
   --line: #d4c9e2;
   --text: #29213b;
   --muted: #625674;
-  --subtle: #716481;
+  --subtle: #6e617e;
   --accent: #7051a0;
   --accent-ink: #ffffff;
   --copper: #98602e;
@@ -2616,7 +2681,7 @@ dialog .inline-link {
   --line: #d8cbb1;
   --text: #283b42;
   --muted: #4e6268;
-  --subtle: #5b6c6d;
+  --subtle: #596a6b;
   --accent: #216e78;
   --accent-ink: #ffffff;
   --copper: #955b2a;
