@@ -1419,20 +1419,80 @@ test('@responsive @safari account rolling changes show a full expense and preser
   for (let pass = 0; pass < 2; pass++) {
     await navigate(page, 'accounts');
     const cells = page.locator('.account-balance-card .comparison-cell');
+    await expect(cells).toHaveCount(8);
     await expect(cells.nth(0).locator('strong')).toHaveText('0,00 €');
-    await expect(cells.nth(1).locator('strong')).toHaveText('-15,00 €');
-    await expect(cells.nth(1)).toHaveClass(/comparison-negative/);
-    await expect(cells.nth(1)).toHaveAttribute(
+    await expect(cells.nth(1).locator('strong')).toHaveText('0,00 €');
+    await expect(cells.nth(2).locator('strong')).toHaveText('-15,00 €');
+    await expect(cells.nth(2)).toHaveClass(/comparison-negative/);
+    await expect(cells.nth(2)).toHaveAttribute(
       'title',
-      'Saldo al 23/10/2026 − saldo al 16/10/2026: 168,00 €',
+      'Saldo al 23/10/2026 − saldo al inicio del 16/10/2026: 168,00 €',
     );
-    await expect(cells.nth(2).locator('strong')).toHaveText('—');
+    await expect(cells.nth(4).locator('strong')).toHaveText('—');
     if (!pass) {
       await page.reload();
       await page.evaluate((seed) => FinanceDashboard.render(seed), seed);
     }
   }
   await screenshot(page, 'account-rolling-expense');
+});
+
+test('@responsive @safari today and yesterday cards include the correct days and allow equal changes for today-only spending', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  seed.settings = {
+    start: '2026-01-01',
+    asof: '2026-03-15',
+    valuation: '2026-03-15',
+  };
+  for (const [yesterday, today, expected] of [
+    [10, 0, ['0,00 €', '-10,00 €']],
+    [10, 5, ['-5,00 €', '-15,00 €']],
+    [0, 5, ['-5,00 €', '-5,00 €']],
+  ]) {
+    seed.tables.tCuentas = [
+      {
+        Cuenta: 'EFECTIVO',
+        'Saldo inicial': 500,
+        'Saldo calculado': 500 - yesterday - today,
+      },
+    ];
+    seed.tables.tMovimientos = [
+      { Fecha: '2026-03-14', Origen: 'EFECTIVO', Importe: yesterday },
+      { Fecha: '2026-03-15', Origen: 'EFECTIVO', Importe: today },
+    ];
+    await setup(page, seed);
+    await navigate(page, 'accounts');
+    const cells = page.locator('.account-balance-card .comparison-cell');
+    await expect(cells.nth(0).locator('strong')).toHaveText(expected[0]);
+    await expect(cells.nth(1).locator('strong')).toHaveText(expected[1]);
+    await expect(cells.nth(0)).toHaveAttribute(
+      'title',
+      /inicio del 15\/3\/2026/,
+    );
+    await expect(cells.nth(1)).toHaveAttribute(
+      'title',
+      /inicio del 14\/3\/2026/,
+    );
+  }
+  const cells = page.locator('.account-balance-card .comparison-cell');
+  const boxes = await cells.evaluateAll((nodes) =>
+    nodes.map((n) => ({
+      x: n.getBoundingClientRect().x,
+      y: n.getBoundingClientRect().y,
+    })),
+  );
+  for (let row = 0; row < 4; row++) {
+    expect(boxes[row * 2].y).toBe(boxes[row * 2 + 1].y);
+    expect(boxes[row * 2].x).toBeLessThan(boxes[row * 2 + 1].x);
+  }
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth + 1,
+    ),
+  ).toBe(true);
+  await screenshot(page, 'account-opening-horizons');
 });
 
 test('@responsive account historical-change cards, separated resources and emergency fund preserve the same underlying assignments', async ({
@@ -1449,14 +1509,14 @@ test('@responsive account historical-change cards, separated resources and emerg
   await expect(page.locator('.account-balance-card')).toHaveCount(2);
   await expect(
     page.locator('.account-balance-card .comparison-cell'),
-  ).toHaveCount(8);
+  ).toHaveCount(16);
   expect(
     await page
       .locator('.account-balance-card')
       .first()
       .locator('.comparison-cell span')
       .allTextContents(),
-  ).toEqual(['1D', '1S', '1M', '3M']);
+  ).toEqual(['Hoy', '1D', '7D', '15D', '1M', '3M', '6M', '1A']);
   await expect(page.locator('.account-balance-card').first()).not.toContainText(
     '%',
   );

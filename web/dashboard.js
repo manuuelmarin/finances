@@ -1436,7 +1436,7 @@ const FinanceDashboard = (() => {
             window.reason ||
               'Saldo al ' +
                 displayDate(window.to) +
-                ' − saldo al ' +
+                ' − saldo al inicio del ' +
                 displayDate(window.from) +
                 ': ' +
                 amount(window.previous),

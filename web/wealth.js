@@ -315,45 +315,51 @@ const FinanceWealth = (() => {
     }));
   }
 
-  // Compare closing balances at two exact dates, never a daily average.
+  // Compare the current balance with the opening of each requested date.
+  // Opening equals the preceding close, or the initial balance on book start.
   function accountComparisons(snapshot, analytics = FinanceAnalytics) {
     const asof = snapshot?.settings?.asof;
     const start = snapshot?.settings?.start;
     if (!validDate(asof) || !validDate(start) || start > asof) return [];
-    const previousDay = dayBefore(asof);
     const windows = [
-      { label: '1D', from: previousDay },
-      {
-        label: '1S',
-        from: new Date(Date.parse(asof + 'T00:00:00Z') - 7 * 86400000)
+      { label: 'Hoy', from: asof },
+      ...[1, 7, 15].map((days) => ({
+        label: days + 'D',
+        from: new Date(Date.parse(asof + 'T00:00:00Z') - days * 86400000)
           .toISOString()
           .slice(0, 10),
-      },
-      { label: '1M', from: subtractMonths(asof, 1) },
-      { label: '3M', from: subtractMonths(asof, 3) },
+      })),
+      ...[1, 3, 6, 12].map((months) => ({
+        label: months === 12 ? '1A' : months + 'M',
+        from: subtractMonths(asof, months),
+      })),
     ];
     const months = new Map();
-    for (const { from } of windows)
-      if (from >= start && !months.has(from.slice(0, 7)))
-        months.set(
-          from.slice(0, 7),
-          analytics.cashTimeline(snapshot, from.slice(0, 7)),
-        );
+    for (const { from } of windows) {
+      const month = dayBefore(from).slice(0, 7);
+      if (from > start && !months.has(month))
+        months.set(month, analytics.cashTimeline(snapshot, month));
+    }
     return (snapshot.tables?.tCuentas || []).map((account) => ({
       account: account.Cuenta,
       current: finite(account['Saldo calculado'])
         ? account['Saldo calculado']
         : null,
       windows: windows.map(({ label, from }) => {
+        const baselineDate = dayBefore(from);
         const row = months
-          .get(from.slice(0, 7))
-          ?.find((row) => row.date === from);
-        const previous = row?.accounts[account.Cuenta];
+          .get(baselineDate.slice(0, 7))
+          ?.find((row) => row.date === baselineDate);
+        const previous =
+          from === start
+            ? account['Saldo inicial']
+            : row?.accounts[account.Cuenta];
         const complete = from >= start && finite(previous);
         const current = account['Saldo calculado'];
         return {
           label,
           from,
+          baselineDate,
           to: asof,
           previous: complete ? previous : null,
           change:
@@ -363,7 +369,7 @@ const FinanceWealth = (() => {
           reason: !finite(current)
             ? 'Saldo actual sin dato'
             : !complete
-              ? 'Sin saldo histórico al ' + from
+              ? 'Sin saldo de apertura al ' + from
               : null,
         };
       }),
