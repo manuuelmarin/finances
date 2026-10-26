@@ -1834,6 +1834,7 @@ dialog .inline-link {
   .table-tools .text-button {
     flex: 1 1 140px;
   }
+  .form-grid,
   .operation-fields {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -2868,7 +2869,7 @@ dialog .inline-link {
 }
 .month-picker {
   display: grid;
-  grid-template-columns: minmax(125px, 1fr) 94px;
+  grid-template-columns: minmax(0, 1fr) 94px;
   gap: 8px;
 }
 #dashboard-grid > .section-heading {
@@ -2963,12 +2964,12 @@ dialog .inline-link {
     grid-template-columns: 1fr;
   }
   .month-picker {
-    grid-template-columns: minmax(115px, 1fr) 90px;
+    grid-template-columns: minmax(0, 1fr) 90px;
   }
 }
 
 .field:has(.month-picker) {
-  min-width: 240px;
+  min-width: min(100%, 240px);
 }
 
 #plan-new {

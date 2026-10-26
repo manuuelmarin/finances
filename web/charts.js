@@ -584,7 +584,11 @@ const FinanceCharts = (() => {
       fromLabel.htmlFor = from.id;
       const toLabel = html('label', 'Hasta');
       toLabel.htmlFor = to.id;
-      dates.append(fromLabel, from, toLabel, to, lo, hi);
+      const startControls = html('div', undefined, 'chart-date-field');
+      const endControls = html('div', undefined, 'chart-date-field');
+      startControls.append(fromLabel, from, lo);
+      endControls.append(toLabel, to, hi);
+      dates.append(startControls, endControls);
       const rangeError = html('p', '', 'chart-date-error');
       rangeError.setAttribute('role', 'alert');
       rangeError.hidden = true;

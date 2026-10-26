@@ -57,19 +57,29 @@
 }
 .chart-date-controls {
   display: grid;
-  grid-template-columns: auto minmax(8rem, 1fr) auto minmax(8rem, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
   align-items: center;
   gap: 0.55rem;
   padding: 0.65rem 0;
 }
+.chart-date-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.4rem;
+  min-width: 0;
+}
 .chart-date-controls input[type='date'] {
+  width: 100%;
+  max-width: 100%;
   min-height: 2.75rem;
   min-width: 0;
   font: inherit;
   padding: 0.35rem;
 }
 .chart-date-controls input[type='range'] {
-  grid-column: span 2;
+  min-width: 0;
+  max-width: 100%;
+  margin-inline: 0;
   width: 100%;
   min-height: 2.5rem;
   accent-color: #27765a;
@@ -87,14 +97,6 @@
   stroke: #ad6544;
   stroke-width: 1.5;
   stroke-dasharray: 6 4;
-}
-@media (max-width: 520px) {
-  .chart-date-controls {
-    grid-template-columns: 1fr 1fr;
-  }
-  .chart-date-controls input[type='range'] {
-    grid-column: span 2;
-  }
 }
 
 .chart-heading h3 {
