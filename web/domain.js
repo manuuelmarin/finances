@@ -24,7 +24,7 @@ const FinanceDomain = (() => {
   const location = field(
     'location',
     'Localización',
-    'select',
+    'suggestion',
     false,
     'locations',
   );
@@ -501,6 +501,14 @@ const FinanceDomain = (() => {
   }
   function options(source, snapshot, process, values = {}) {
     const t = snapshot?.tables || {};
+    const suggestions = (defaults, rows, key) =>
+      pairs([
+        ...new Set(
+          [...defaults, ...rows.map((row) => row[key])]
+            .filter((value) => typeof value === 'string' && value.trim())
+            .map((value) => value.trim()),
+        ),
+      ]);
     const accounts = pairs(
       (t.tCuentas || [])
         .filter(
@@ -572,7 +580,11 @@ const FinanceDomain = (() => {
         ...accounts.map(([id, name]) => [id, 'Cuenta · ' + name]),
         ...products.map(([id, name]) => [id, 'Producto · ' + name]),
       ],
-      locations: pairs(['Madrid', 'Alicante', 'La Manga', 'Albacete', 'N/A']),
+      locations: suggestions(
+        ['Madrid', 'Alicante', 'La Manga', 'Albacete', 'N/A'],
+        t.tMovimientos || [],
+        'Localización',
+      ),
       classes: pairs([
         'Renta variable',
         'Renta fija',

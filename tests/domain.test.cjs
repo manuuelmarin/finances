@@ -2,6 +2,30 @@ const { test } = require('node:test'),
   assert = require('node:assert/strict');
 const D = require('../web/domain.js');
 const { runtime } = require('./helpers/runtime.cjs');
+test('free-text cities reach Sheets and return as reusable suggestions without duplicates', () => {
+  const op = D.operation('gasto', {
+    date: '2026-01-02',
+    concept: 'Café',
+    account: 'Cuenta A',
+    category: 'Café',
+    amount: '4',
+    location: ' Valencia ',
+  });
+  assert.equal(op.location, 'Valencia');
+  const r = runtime();
+  r.init();
+  assert.equal(r.transact([op]).ok, true);
+  const s = r.state();
+  assert.equal(s.tables.tMovimientos.at(-1).Localización, 'Valencia');
+  s.tables.tMovimientos.push(
+    { Localización: 'Valencia' },
+    { Localización: null },
+  );
+  const cities = D.options('locations', s).map(([name]) => name);
+  assert.equal(cities.filter((name) => name === 'Valencia').length, 1);
+  assert.ok(cities.includes('Madrid'));
+  assert.equal(D.operation('gasto', { ...op, location: '' }).location, null);
+});
 test('nómina mantiene datos desconocidos, céntimos y un único ingreso', () => {
   const op = D.operation('nomina', {
     date: '2026-01-02',
