@@ -61,7 +61,7 @@
       EMBEDDED_CONTEXT:
         'Abre Finanzas en su propia ventana para acceder a tu libro.',
       UPDATE_REQUIRED:
-        'Actualiza Apps Script con el instalador 3.11.0 y publica una nueva versión.',
+        'Actualiza Apps Script con el instalador 3.11.1 y publica una nueva versión.',
       POPUP_BLOCKED:
         'Permite abrir la ventana de Google y vuelve a pulsar Abrir mi libro.',
       NOT_CONNECTED: 'Abre Google para leer o enviar los pendientes.',
@@ -601,6 +601,9 @@
         return state.sort.direction === 'ascending' ? order : -order;
       });
     const wrap = el('div', undefined, 'table-scroll');
+    wrap.tabIndex = 0;
+    wrap.setAttribute('role', 'region');
+    wrap.setAttribute('aria-label', 'Tabla de registros');
     const t = el('table', undefined, 'finance-table');
     const compact = name === 'tMovimientos';
     const caption = el(
@@ -878,8 +881,12 @@
       body.append(empty);
     }
     t.append(body);
-    wrap.append(tools, t);
-    parent.append(wrap);
+    wrap.append(t);
+    parent.append(
+      tools,
+      el('p', 'Desliza la tabla para ver más columnas.', 'table-scroll-hint'),
+      wrap,
+    );
     if (state.openFilterKey) {
       const dropdown = parent.querySelector(
         `[data-filter-key="${state.openFilterKey}-values"]`,
@@ -1557,13 +1564,30 @@
     input.name = f.key;
     input.id = 'operation-' + f.key;
     input.required = f.required;
+    label.append(input);
+    if (f.type === 'suggestion') {
+      const list = el('datalist');
+      list.id = input.id + '-suggestions';
+      for (const [id, name] of D.options(f.source, snapshot))
+        list.append(new Option(name, id));
+      input.setAttribute('list', list.id);
+      input.setAttribute('aria-label', f.label);
+      input.placeholder = 'Elige o escribe una ciudad';
+      const hint = el(
+        'small',
+        'Puedes elegir una sugerencia o escribir una opción nueva.',
+        'field-hint',
+      );
+      hint.id = input.id + '-hint';
+      input.setAttribute('aria-describedby', hint.id);
+      label.append(list, hint);
+    }
     if (value !== null && value !== undefined) input.value = String(value);
     if (f.key === 'product' && $('operation-kind').value === 'compra')
       input.addEventListener('change', () => {
         if (input.value === '__new_product__')
           processFields(Object.fromEntries(new FormData($('operation-form'))));
       });
-    label.append(input);
     return label;
   }
   function processFields(values = {}) {
@@ -1858,7 +1882,7 @@
       ['Destino', 'select', 'accounts'],
       ['Importe', 'money'],
       ['Recuperable', 'money'],
-      ['Localización', 'select', 'locations'],
+      ['Localización', 'suggestion', 'locations'],
       ['Recurrente', 'nullableBoolean'],
     ],
     tOperaciones: [
@@ -2041,7 +2065,7 @@
       fields: (linked
         ? [
             ['Concepto', 'text'],
-            ['Localización', 'select', 'locations'],
+            ['Localización', 'suggestion', 'locations'],
           ]
         : editSpec[name]
       ).map(([key, type, source]) => ({
@@ -2334,7 +2358,9 @@
                   )
                 : ['boolean', 'nullableBoolean'].includes(f.type)
                   ? value === 'true'
-                  : value;
+                  : f.type === 'suggestion'
+                    ? value.trim() || null
+                    : value;
           if (converted !== editing.row[f.key]) changes[f.key] = converted;
         }
         if (!Object.keys(changes).length)

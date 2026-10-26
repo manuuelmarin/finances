@@ -292,7 +292,7 @@ async function setup(
     'Lectura confirmada',
   );
 }
-async function expense(page) {
+async function expense(page, { location } = {}) {
   await page.locator('#finance-new').click();
   await page.locator('.operation-additional summary').click();
   await page.locator('#operation-date').fill('2026-01-02');
@@ -300,8 +300,54 @@ async function expense(page) {
   await page.locator('#operation-account').selectOption('Cuenta A');
   await page.locator('#operation-category').selectOption('Café');
   await page.locator('#operation-amount').fill('12,34');
+  if (location !== undefined)
+    await page.locator('#operation-location').fill(location);
   await page.locator('#operation-form button[type=submit]').click();
 }
+test('@responsive @safari a new city survives confirmation, reload and correction', async ({
+  page,
+}) => {
+  await setup(page);
+  await expense(page, { location: 'Valencia' });
+  await expect(page.locator('#review-fields')).toContainText('Valencia');
+  await page.locator('#review-confirm').click();
+  await expect(page.locator('#operation-dialog')).not.toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          JSON.parse(
+            localStorage.getItem('fixture.server'),
+          ).snapshot.tables.tMovimientos.at(-1).Localización,
+      ),
+    )
+    .toBe('Valencia');
+  await page.reload();
+  await page.locator('#finance-connect').click();
+  await expect(page.locator('#finance-state')).toContainText(
+    'Lectura confirmada',
+  );
+  await navigate(page, 'book');
+  const row = page
+    .locator('#finance-register tbody tr')
+    .filter({ hasText: 'Compra ficticia' });
+  await row.getByRole('button', { name: 'Corregir', exact: true }).click();
+  await expect(page.getByLabel('Localización', { exact: true })).toHaveValue(
+    'Valencia',
+  );
+  await page.getByLabel('Localización', { exact: true }).fill('Bilbao');
+  await page.locator('#operation-review').click();
+  await expect(page.locator('#review-fields')).toContainText('Bilbao');
+  await page.locator('#review-cancel').click();
+  await page.locator('#operation-cancel').click();
+  await page.locator('#view-book [data-operation=gasto]').click();
+  await page.locator('.operation-additional summary').click();
+  await expect(
+    page.locator('#operation-location-suggestions option[value="Valencia"]'),
+  ).toHaveCount(1);
+  await page.locator('#operation-location').fill('');
+  await expect(page.locator('#operation-location')).toHaveValue('');
+});
 async function setupChannel(page, { delayed = false } = {}) {
   await setup(page, { open: false });
   await page.unroute('**/api.js');

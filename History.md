@@ -175,10 +175,16 @@ Changes in repository order, from the first recorded build to the current app. V
 - Verify yesterday-only, yesterday-and-today and today-only spending; all eight inclusive opening boundaries; leap/month-end dates; first-day coverage; zero/unknown balances; reload and the two-column mobile layout.
 - Existing backend/Bridge 3.10.4–3.10.6 installations need only the PWA update. Installer backend/Bridge edits synchronize version labels; API 3.3.0 and workbook model 3 are unchanged.
 
-## 3.11.0 · current
+## 3.11.0
 
 - Add a complete account total and order the cards as Total, Unicaja, Bankinter, physical cash, MyInvestor and Trade Republic. Internal transfers cancel; an incomplete account keeps the total unknown.
 - Add Total and every product to investment value comparisons for Hoy, 1D, 7D, 15D, 1M, 3M, 6M and 1A. Include pocket contributions, withdrawals and price changes. Use the valuation date, actual holdings and the latest NAV known before each opening. Keep return analytics and their filters separate.
 - Remove the truncated partial-month suffix and redundant cut-date note from payroll record charts.
 - Expand to 24 themes plus device preference, grouped by style, with a live preview and verified foreground contrast. Add an original bank monogram with M to navigation, favicon and all home-screen icon sizes, including maskable variants.
 - Existing backend/Bridge 3.10.4–3.10.7 installations need only the PWA update. Installer changes synchronize version labels; API 3.3.0, workbook model 3 and private data are unchanged.
+
+## 3.11.1 · current
+
+- Let movement locations accept new cities directly, with native suggestions from defaults and saved movements. Preserve optional empty locations and custom values in every correction path. Keep relational references and validated asset classes constrained to their existing flows.
+- Constrain native date editors and form controls to their containers, stack phone forms and very narrow date filters, and wrap long headings and status text. Keep table actions separate from horizontal scrolling, with clear touch targets, keyboard focus and a mobile scroll hint.
+- Check Valencia through the existing backend, confirmation, reload, reuse and correction; verify field bounds and separation at 320–1024px and in WebKit. Existing Google installations need only the PWA update; API and workbook model remain unchanged.

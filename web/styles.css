@@ -428,6 +428,7 @@ input {
   color: var(--muted);
   font-size: 0.8rem;
   min-height: 22px;
+  overflow-wrap: anywhere;
 }
 html[data-book-state='error'] .app-status,
 html[data-book-state='readonly'] .app-status {
@@ -442,6 +443,7 @@ html[data-book-state='loading'] .app-status {
 }
 .page-heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
@@ -456,6 +458,7 @@ html[data-book-state='loading'] .app-status {
 }
 .section-heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
@@ -884,7 +887,7 @@ html[data-book-state='loading'] .app-status {
 }
 .finance-filters {
   display: grid;
-  grid-template-columns: minmax(160px, 1fr) 170px 170px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 170px) minmax(0, 170px);
   gap: 12px;
   padding: 20px;
   align-items: end;
@@ -900,12 +903,14 @@ html[data-book-state='loading'] .app-status {
   font-size: 0.8rem;
   font-weight: 500;
   min-width: 0;
+  max-width: 100%;
 }
 .field input,
 .field select {
   min-height: 44px;
   width: 100%;
   min-width: 0;
+  max-width: 100%;
   border: 1px solid var(--line);
   border-radius: 7px;
   background: var(--surface-raised);
@@ -913,6 +918,25 @@ html[data-book-state='loading'] .app-status {
   padding: 10px 12px;
   font-size: 0.9rem;
   line-height: 1.3;
+}
+/* WebKit's date editor has its own intrinsic width. Keep the native picker,
+   but allow its host and text box to shrink inside grid/flex tracks. */
+.field input:is([type='date'], [type='month'], [type='time']) {
+  display: block;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+.field input::-webkit-date-and-time-value {
+  min-width: 0;
+  text-align: start;
+}
+.field input::-webkit-datetime-edit {
+  min-width: 0;
+  padding: 0;
+}
+.field-hint {
+  font-weight: 400;
+  line-height: 1.5;
 }
 .field input::placeholder {
   color: var(--subtle);
@@ -953,6 +977,24 @@ html[data-book-state='loading'] .app-status {
   width: 100%;
   overflow: auto;
   border-radius: var(--radius);
+}
+.table-scroll:focus-visible {
+  outline-offset: -3px;
+}
+.table-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 20px 16px;
+}
+.table-tools .text-button {
+  justify-content: center;
+  background: var(--surface-raised);
+  border-color: var(--line);
+  padding-inline: 12px;
+}
+.table-scroll-hint {
+  display: none;
 }
 .finance-table {
   width: 100%;
@@ -1683,8 +1725,17 @@ dialog .inline-link {
     margin-bottom: 22px;
   }
   .finance-filters {
-    grid-template-columns: minmax(160px, 1fr) 150px 150px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 150px) minmax(0, 150px);
     padding: 16px;
+  }
+  .table-tools {
+    padding-inline: 16px;
+  }
+  .table-scroll-hint {
+    display: block;
+    padding: 0 16px 12px;
+    color: var(--muted);
+    font-size: 0.75rem;
   }
   .tools-grid {
     gap: 16px;
@@ -1776,6 +1827,15 @@ dialog .inline-link {
   }
   .finance-filters .field:first-child {
     grid-column: 1 / -1;
+  }
+  .finance-filters input[type='search'] {
+    font-size: 16px;
+  }
+  .table-tools .text-button {
+    flex: 1 1 140px;
+  }
+  .operation-fields {
+    grid-template-columns: minmax(0, 1fr);
   }
   .field input,
   .field select {
@@ -1951,6 +2011,11 @@ dialog .inline-link {
   }
   .mobile-nav-item {
     font-size: 0.6rem;
+  }
+}
+@media (max-width: 380px) {
+  .finance-filters {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 @media (prefers-reduced-motion: reduce) {

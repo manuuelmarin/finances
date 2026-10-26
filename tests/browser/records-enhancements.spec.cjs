@@ -403,6 +403,65 @@ test('@responsive móvil conserva filtros y orden en la tabla sin desbordar la p
   expect(dimensions.pageWidth).toBeLessThanOrEqual(dimensions.viewportWidth);
 });
 
+test('@responsive @safari filters and operation controls stay inside their fields at phone and tablet widths', async ({
+  page,
+}) => {
+  await setupRecords(page);
+  for (const width of [320, 375, 390, 414, 600, 768, 1024]) {
+    await page.setViewportSize({ width, height: 896 });
+    await page.locator('#finance-from').fill('2026-01-01');
+    await page.locator('#finance-to').fill('2026-12-31');
+    const layout = await page
+      .locator('.finance-filters')
+      .evaluate((filters) => {
+        const rect = (n) => {
+          const r = n.getBoundingClientRect();
+          return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+        };
+        return {
+          fields: [...filters.querySelectorAll('label')].map((label) => ({
+            label: rect(label),
+            input: rect(label.querySelector('input')),
+          })),
+          page: document.documentElement.scrollWidth,
+          viewport: innerWidth,
+        };
+      });
+    expect(layout.page).toBeLessThanOrEqual(layout.viewport);
+    for (const { label, input } of layout.fields) {
+      expect(input.left).toBeGreaterThanOrEqual(label.left - 1);
+      expect(input.right).toBeLessThanOrEqual(label.right + 1);
+      expect(input.bottom - input.top).toBeGreaterThanOrEqual(44);
+    }
+    const a = layout.fields[1].input,
+      b = layout.fields[2].input;
+    expect(a.right + 8 <= b.left || a.bottom + 8 <= b.top).toBe(true);
+  }
+  await page.setViewportSize({ width: 414, height: 896 });
+  await page.screenshot({
+    path: test.info().outputPath('movement-filters-mobile.png'),
+  });
+  await page.locator('#view-book [data-operation=gasto]').click();
+  await page.locator('.operation-additional summary').click();
+  await page
+    .locator('#operation-location')
+    .fill('Una localización nueva con un nombre largo');
+  const sizes = await page
+    .locator('#operation-fields input, #operation-fields select')
+    .evaluateAll((nodes) =>
+      nodes
+        .filter((n) => n.getClientRects().length)
+        .map((n) => ({
+          width: n.clientWidth,
+          scroll: n.scrollWidth,
+          right: n.getBoundingClientRect().right,
+          parentRight: n.parentElement.getBoundingClientRect().right,
+        })),
+    );
+  for (const size of sizes)
+    expect(size.right).toBeLessThanOrEqual(size.parentRight + 1);
+});
+
 test('@responsive percentage filters use displayed percent, retain focus, clear and export all selected rows', async ({
   page,
 }) => {
