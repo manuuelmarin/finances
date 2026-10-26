@@ -259,7 +259,7 @@ const FinanceDomain = (() => {
     deuda_inicial: {
       label: 'Nueva deuda',
       fields: [
-        field('creditor', 'Acreedor'),
+        field('creditor', 'Acreedor', 'suggestion', true, 'creditors'),
         field('opening', 'Deuda inicial EUR', 'money', true, null, '0'),
       ],
     },
@@ -315,8 +315,8 @@ const FinanceDomain = (() => {
       label: 'Nueva subcategoría',
       fields: [
         field('group', 'Grupo', 'select', true, 'groups'),
-        field('subgroup', 'Subgrupo'),
-        field('category', 'Categoría'),
+        field('subgroup', 'Subgrupo', 'suggestion', true, 'subgroups'),
+        field('category', 'Categoría', 'suggestion', true, 'categoryNames'),
         field('subcategory', 'Subcategoría'),
       ],
     },
@@ -580,6 +580,24 @@ const FinanceDomain = (() => {
         ...accounts.map(([id, name]) => [id, 'Cuenta · ' + name]),
         ...products.map(([id, name]) => [id, 'Producto · ' + name]),
       ],
+      creditors: suggestions([], t.tDeudas || [], 'Acreedor'),
+      subgroups: suggestions(
+        [],
+        (t.tCategorias || []).filter(
+          (r) => r.Grupo === (values.group || values.Grupo),
+        ),
+        'Subgrupo',
+      ),
+      categoryNames: suggestions(
+        [],
+        (t.tCategorias || []).filter(
+          (r) =>
+            r.Grupo === (values.group || values.Grupo) &&
+            (!(values.subgroup || values.Subgrupo) ||
+              r.Subgrupo === (values.subgroup || values.Subgrupo)),
+        ),
+        'Categoría',
+      ),
       locations: suggestions(
         ['Madrid', 'Alicante', 'La Manga', 'Albacete', 'N/A'],
         t.tMovimientos || [],

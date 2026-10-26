@@ -61,7 +61,7 @@
       EMBEDDED_CONTEXT:
         'Abre Finanzas en su propia ventana para acceder a tu libro.',
       UPDATE_REQUIRED:
-        'Actualiza Apps Script con el instalador 3.11.1 y publica una nueva versión.',
+        'Actualiza Apps Script con el instalador 3.11.2 y publica una nueva versión.',
       POPUP_BLOCKED:
         'Permite abrir la ventana de Google y vuelve a pulsar Abrir mi libro.',
       NOT_CONNECTED: 'Abre Google para leer o enviar los pendientes.',
@@ -1520,6 +1520,23 @@
       (needsAttention(item) ? parent : history).append(card);
     }
   }
+  function suggestionOptions(source) {
+    return D.options(source, snapshot, $('operation-kind').value, {
+      ...editing?.row,
+      ...Object.fromEntries(new FormData($('operation-form'))),
+    });
+  }
+  function refreshSuggestions() {
+    for (const list of $('operation-fields').querySelectorAll(
+      'datalist[data-source]',
+    )) {
+      list.replaceChildren(
+        ...suggestionOptions(list.dataset.source).map(
+          ([id, name]) => new Option(name, id),
+        ),
+      );
+    }
+  }
   function fieldInput(f, value) {
     const label = el('label', f.label, 'field');
     let input;
@@ -1568,14 +1585,19 @@
     if (f.type === 'suggestion') {
       const list = el('datalist');
       list.id = input.id + '-suggestions';
-      for (const [id, name] of D.options(f.source, snapshot))
+      list.dataset.source = f.source;
+      for (const [id, name] of suggestionOptions(f.source))
         list.append(new Option(name, id));
       input.setAttribute('list', list.id);
       input.setAttribute('aria-label', f.label);
-      input.placeholder = 'Elige o escribe una ciudad';
+      input.placeholder =
+        f.placeholder ||
+        (f.source === 'locations'
+          ? 'Elige o escribe una ciudad'
+          : 'Elige o escribe: ' + f.label.toLocaleLowerCase('es'));
       const hint = el(
         'small',
-        'Puedes elegir una sugerencia o escribir una opción nueva.',
+        f.hint || 'Puedes elegir una sugerencia o escribir una opción nueva.',
         'field-hint',
       );
       hint.id = input.id + '-hint';
@@ -1821,6 +1843,7 @@
           $('operation-fields').querySelector('[name=from]').parentElement;
         current.replaceWith(fieldInput(spec.fields[1]));
       });
+    refreshSuggestions();
     $('operation-note').textContent =
       {
         traspaso_fondo:
@@ -1902,7 +1925,7 @@
     ],
     tCuentas: [['Saldo inicial', 'signedMoney']],
     tDeudas: [
-      ['Acreedor', 'text'],
+      ['Acreedor', 'suggestion', 'creditors'],
       ['Saldo inicial', 'money'],
     ],
     tNominas: [
@@ -1923,8 +1946,8 @@
     ],
     tCategorias: [
       ['Grupo', 'select', 'groups'],
-      ['Subgrupo', 'text'],
-      ['Categoría', 'text'],
+      ['Subgrupo', 'suggestion', 'subgroups'],
+      ['Categoría', 'suggestion', 'categoryNames'],
     ],
   };
   function editRow(name, row) {
@@ -2096,6 +2119,7 @@
     const fields = $('operation-fields');
     fields.replaceChildren();
     for (const f of editing.fields) fields.append(fieldInput(f, row[f.key]));
+    refreshSuggestions();
     $('operation-note').textContent = linked
       ? 'Este movimiento pertenece a una inversión. Para cambiar fecha, participaciones o importe, corrige la operación de inversión.'
       : 'Solo se modificarán las entradas que cambies. Google verifica las relaciones; las columnas calculadas se conservan.';
@@ -2513,6 +2537,8 @@
   }
   operationChoices();
   $('operation-kind').addEventListener('change', () => processFields());
+  $('operation-form').addEventListener('input', refreshSuggestions);
+  $('operation-form').addEventListener('change', refreshSuggestions);
   $('operation-load').addEventListener('click', () => {
     void loadOperation();
   });

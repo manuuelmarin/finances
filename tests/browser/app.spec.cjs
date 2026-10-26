@@ -1134,3 +1134,65 @@ test('cambiar de implementación durante la conexión cancela la lectura antigua
     ),
   ).toEqual([]);
 });
+
+test('@responsive @safari shared suggestions follow category context while accepting new text', async ({
+  page,
+}) => {
+  await setup(page);
+  await page.evaluate(() => {
+    const server = JSON.parse(localStorage.getItem('fixture.server'));
+    const s = server.snapshot;
+    s.tables.tCategorias = [
+      {
+        Grupo: 'Gastos',
+        Subgrupo: 'Esenciales',
+        Categoría: 'Vivienda',
+        Subcategoría: 'Alquiler',
+      },
+      {
+        Grupo: 'Ingresos',
+        Subgrupo: 'Trabajo',
+        Categoría: 'Salario',
+        Subcategoría: 'Nómina',
+      },
+    ];
+    localStorage.setItem('fixture.server', JSON.stringify(server));
+  });
+  await page.locator('#finance-refresh').click();
+  await expect(page.locator('#finance-state')).toContainText(
+    'Lectura confirmada',
+  );
+  await navigate(page, 'connection');
+  await page.locator('#category-settings > summary').click();
+  await page.locator('[data-operation=categoria]').click();
+  await page.locator('#operation-group').selectOption('Gastos');
+  await expect(
+    page.locator('#operation-subgroup-suggestions option'),
+  ).toHaveText(['Esenciales']);
+  await page.locator('#operation-subgroup').fill('Esenciales');
+  await expect(
+    page.locator('#operation-category-suggestions option'),
+  ).toHaveText(['Vivienda']);
+  await page.locator('#operation-group').selectOption('Ingresos');
+  await expect(
+    page.locator('#operation-subgroup-suggestions option'),
+  ).toHaveText(['Trabajo']);
+  await expect(
+    page.locator('#operation-category-suggestions option'),
+  ).toHaveCount(0);
+  await page.locator('#operation-subgroup').fill('Trabajo');
+  await expect(
+    page.locator('#operation-category-suggestions option'),
+  ).toHaveText(['Salario']);
+  await page.locator('#operation-subgroup').fill('Nuevo subgrupo');
+  await page.locator('#operation-category').fill('Nueva categoría');
+  await page.locator('#operation-subcategory').fill('Nueva subcategoría');
+  await expect(page.locator('#operation-category')).not.toHaveAttribute(
+    'placeholder',
+    /ciudad/,
+  );
+  await page.locator('#operation-review').click();
+  await expect(page.locator('#review-fields')).toContainText('Nuevo subgrupo');
+  await expect(page.locator('#review-fields')).toContainText('Nueva categoría');
+  await page.locator('#review-cancel').click();
+});

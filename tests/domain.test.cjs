@@ -192,3 +192,52 @@ test('formularios de inversión muestran Precio y omiten Localización', () => {
     assert.ok(!fields.some((field) => field.key === 'location'));
   }
 });
+
+test('free-text suggestions respect category hierarchy, deduplicate and never cross books', () => {
+  const snapshot = {
+    tables: {
+      tCategorias: [
+        { Grupo: 'Gastos', Subgrupo: 'Esenciales', Categoría: 'Vivienda' },
+        { Grupo: 'Gastos', Subgrupo: 'Esenciales', Categoría: 'Vivienda' },
+        { Grupo: 'Gastos', Subgrupo: 'Ocio', Categoría: 'Viajes' },
+        { Grupo: 'Ingresos', Subgrupo: 'Trabajo', Categoría: 'Salario' },
+      ],
+      tDeudas: [{ Acreedor: ' Ana ' }, { Acreedor: 'Ana' }, { Acreedor: null }],
+    },
+  };
+  assert.deepEqual(
+    D.options('subgroups', snapshot, 'categoria', { group: 'Gastos' }),
+    [
+      ['Esenciales', 'Esenciales'],
+      ['Ocio', 'Ocio'],
+    ],
+  );
+  assert.deepEqual(
+    D.options('categoryNames', snapshot, 'categoria', {
+      group: 'Gastos',
+      subgroup: 'Esenciales',
+    }),
+    [['Vivienda', 'Vivienda']],
+  );
+  assert.deepEqual(
+    D.options('categoryNames', snapshot, 'editar', {
+      Grupo: 'Ingresos',
+      Subgrupo: 'Trabajo',
+    }),
+    [['Salario', 'Salario']],
+  );
+  assert.deepEqual(D.options('creditors', snapshot), [['Ana', 'Ana']]);
+  assert.deepEqual(D.options('creditors', { tables: {} }), []);
+  assert.deepEqual(
+    D.options('subgroups', snapshot, 'categoria', { group: 'Ingresos' }),
+    [['Trabajo', 'Trabajo']],
+  );
+  const op = D.operation('categoria', {
+    group: 'Gastos',
+    subgroup: ' Nuevo ',
+    category: 'Otra',
+    subcategory: 'Prueba',
+  });
+  assert.equal(op.subgroup, 'Nuevo');
+  assert.equal(op.category, 'Otra');
+});
