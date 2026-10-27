@@ -13,7 +13,16 @@ if (fs.existsSync(unitReport)) {
     const match = tap.match(new RegExp('^# ' + name + ' (\\d+)', 'm'));
     console.log('| ' + name + ' | ' + (match ? match[1] : 'no report') + ' |');
   }
-  if (!/^# pass [1-9]\d*$/m.test(tap) || !/^# fail 0$/m.test(tap)) {
+  const count = (name) => {
+    const match = tap.match(new RegExp('^# ' + name + ' (\\d+)$', 'm'));
+    return match ? Number(match[1]) : null;
+  };
+  if (
+    !count('pass') ||
+    count('tests') !== count('pass') ||
+    count('fail') !== 0 ||
+    count('skipped') !== 0
+  ) {
     console.log('\nUnit test evidence is missing or unsuccessful.');
     missingEvidence = true;
   }
@@ -53,9 +62,11 @@ if (fs.existsSync(report)) {
   );
   if (
     missing.length ||
-    data.stats.unexpected ||
-    data.stats.flaky ||
-    !data.stats.expected
+    data.stats.unexpected !== 0 ||
+    data.stats.flaky !== 0 ||
+    data.stats.skipped !== 0 ||
+    !Number.isInteger(data.stats.expected) ||
+    data.stats.expected < 1
   ) {
     console.log(
       '\nIncomplete or unsuccessful browser evidence: ' +

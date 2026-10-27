@@ -32,6 +32,23 @@ test('quality evidence requires successful unit results and every browser profil
   }));
   report(passed);
   assert.equal(run().status, 0);
+  fs.writeFileSync(
+    path.join(dir, 'quality-results/unit-tests.tap'),
+    '# tests 2\n# pass 1\n# fail 0\n# skipped 1\n',
+  );
+  assert.equal(run().status, 1, 'skipped unit tests must fail quality');
+  fs.writeFileSync(
+    path.join(dir, 'quality-results/unit-tests.tap'),
+    '# tests 2\n# pass 1\n# fail 0\n# skipped 0\n',
+  );
+  assert.equal(run().status, 1, 'incomplete unit counts must fail quality');
+  fs.writeFileSync(
+    path.join(dir, 'quality-results/unit-tests.tap'),
+    '# tests 2\n# pass 2\n# fail 0\n# skipped 0\n',
+  );
+  report(passed, { expected: 3, unexpected: 0, flaky: 0, skipped: 1 });
+  assert.equal(run().status, 1, 'skipped browser tests must fail quality');
+  report(passed);
   report(passed.slice(0, 2));
   const missing = run();
   assert.equal(missing.status, 1);
