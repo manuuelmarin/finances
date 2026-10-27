@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const { runtime } = require('../helpers/runtime.cjs');
 const { navigate } = require('./helpers/navigation.cjs');
+const { capture } = require('./helpers/capture.cjs');
 
 test('@responsive @safari existing resolved requests move to collapsed history while uncertain and unread confirmations stay active', async ({
   page,
@@ -86,8 +87,5 @@ test('@responsive @safari existing resolved requests move to collapsed history w
     'open',
     '',
   );
-  await page.screenshot({
-    path: test.info().outputPath('activity-history.png'),
-    fullPage: true,
-  });
+  await capture(page, 'activity-history');
 });

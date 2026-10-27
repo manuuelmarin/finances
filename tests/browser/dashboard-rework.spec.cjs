@@ -1,13 +1,10 @@
 const { chartState, chartSeries } = require('./helpers/charts.cjs');
 const { test, expect } = require('@playwright/test');
 const { navigate } = require('./helpers/navigation.cjs');
+const { capture } = require('./helpers/capture.cjs');
 async function screenshot(page, name) {
   const viewport = page.viewportSize().width < 600 ? 'mobile' : 'desktop';
-  await page.screenshot({
-    path: test.info().outputPath('dashboard-' + name + '-' + viewport + '.png'),
-    fullPage: true,
-    scale: 'css',
-  });
+  await capture(page, 'dashboard-' + name + '-' + viewport);
 }
 
 // Entirely fictitious, read-only fixture. No connection to a Google book.

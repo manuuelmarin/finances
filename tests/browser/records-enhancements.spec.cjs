@@ -2,6 +2,7 @@ const { test, expect } = require('@playwright/test');
 const fs = require('node:fs');
 const path = require('node:path');
 const { navigate } = require('./helpers/navigation.cjs');
+const { capture } = require('./helpers/capture.cjs');
 const snapshot = {
   ok: true,
   apiVersion: '3.3.0',
@@ -438,9 +439,7 @@ test('@responsive @safari filters and operation controls stay inside their field
     expect(a.right + 8 <= b.left || a.bottom + 8 <= b.top).toBe(true);
   }
   await page.setViewportSize({ width: 414, height: 896 });
-  await page.screenshot({
-    path: test.info().outputPath('movement-filters-mobile.png'),
-  });
+  await capture(page, 'movement-filters-mobile', { fullPage: false });
   await page.locator('#view-book [data-operation=gasto]').click();
   await page.locator('.operation-additional summary').click();
   await page
