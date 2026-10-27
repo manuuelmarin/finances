@@ -2252,3 +2252,42 @@ test('@responsive @safari compositions adapt to many groups and retain unknown v
     .click();
   await expect(small.locator('.chart-readout')).toContainText('60 %');
 });
+
+test('@responsive @safari expanded city charts keep the selected movement detail inside the active dialog', async ({
+  page,
+}) => {
+  await setup(page);
+  await navigate(page, 'book');
+  const city = page
+    .locator('#spending-charts .chart-card')
+    .filter({
+      has: page.getByRole('heading', { name: 'Gasto por ciudad', exact: true }),
+    });
+  await city.locator('.chart-menu summary').click();
+  await city
+    .getByRole('button', { name: 'Ampliar gráfico', exact: true })
+    .click();
+  const dialog = page.getByRole('dialog', {
+    name: 'Gasto por ciudad',
+    exact: true,
+  });
+  const host = dialog.locator('.finance-chart');
+  await host.scrollIntoViewIfNeeded();
+  const point = await host.evaluate((node) => {
+    const engine = FinanceECharts.getInstanceByDom(node),
+      rect = node.getBoundingClientRect();
+    return {
+      x: rect.left + 170,
+      y: rect.top + engine.convertToPixel({ yAxisIndex: 0 }, 0),
+    };
+  });
+  await page.mouse.click(point.x, point.y);
+  const detail = dialog.locator('.transaction-selection');
+  await expect(detail).toBeVisible();
+  await expect(detail.locator('tbody tr')).not.toHaveCount(0);
+  await expect(dialog.locator('.chart-readout')).toContainText(
+    'Ciudad ficticia',
+  );
+  await page.keyboard.press('Escape');
+  await expect(city.locator('.transaction-selection')).toBeVisible();
+});

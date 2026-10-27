@@ -233,7 +233,10 @@ const FinanceDashboard = (() => {
     chart = null,
     summary = false,
   ) {
-    const target = chart || $('spending-charts');
+    const target =
+      chart ||
+      document.querySelector('.chart-dialog[open] .chart-card') ||
+      $('spending-charts');
     const selectionKey = JSON.stringify([category, date, city, bin, recurring]);
     const existing = target.querySelector('.transaction-selection');
     if (existing?.dataset.selection === selectionKey) {

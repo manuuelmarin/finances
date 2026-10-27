@@ -437,6 +437,7 @@ const FinanceCharts = (() => {
       return new XMLSerializer().serializeToString(clone);
     };
     add('Ampliar gráfico', () => {
+      details.open = false;
       const slot = html('div');
       slot.dataset.chartRoot = '';
       article.before(slot);
