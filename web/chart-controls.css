@@ -329,3 +329,9 @@
 .chart-card {
   align-self: start;
 }
+
+.finance-chart svg,
+.donut-chart svg {
+  display: block;
+  max-width: 100%;
+}

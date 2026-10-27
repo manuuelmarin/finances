@@ -6,6 +6,7 @@ async function screenshot(page, name) {
   await page.screenshot({
     path: test.info().outputPath('dashboard-' + name + '-' + viewport + '.png'),
     fullPage: true,
+    scale: 'css',
   });
 }
 

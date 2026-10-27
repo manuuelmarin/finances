@@ -263,6 +263,7 @@ const FinanceCharts = (() => {
     const details = html('details', undefined, 'chart-menu');
     const summary = html('summary', '…');
     summary.setAttribute('aria-label', 'Acciones del gráfico: ' + title);
+    summary.tabIndex = 0;
     const actions = html('div', undefined, 'chart-menu-actions');
     details.append(summary, actions);
     const slug =
@@ -461,7 +462,9 @@ const FinanceCharts = (() => {
           if (slot.isConnected) slot.replaceWith(article);
           else article.remove();
           dialog.remove();
-          summary.focus();
+          requestAnimationFrame(() => {
+            if (summary.isConnected) summary.focus({ preventScroll: true });
+          });
         },
         { once: true },
       );
