@@ -1161,7 +1161,10 @@ const FinanceDashboard = (() => {
     FinanceCharts.plot(target, {
       title: 'Contribución al resultado',
       horizontal: true,
-      rows: analysis.contributions,
+      rows: analysis.contributions.map((row) => ({
+        ...row,
+        tone: row.value < 0 ? 'chart-red' : 'chart-mint',
+      })),
       fields: [
         {
           key: 'value',

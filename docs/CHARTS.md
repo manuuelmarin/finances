@@ -1,4 +1,4 @@
-# Finance charts · 3.12.0
+# Finance charts · 3.12.1
 
 The public app draws charts locally with Apache ECharts 6.1.0, using only the SVG renderer and the required line/bar/pie/grid/mark-line/graphic components. `tools/build-charts.cjs` bundles the exact npm lockfile dependencies, includes third-party license notices, and produces the public offline asset. No CDN or remote chart/export service receives book data. The raw bundle is about 544 KiB; HTTP compression reduces transfer size. The dependency increases the offline cache size in exchange for sharing axis/layout/rendering maintenance with an established engine.
 
@@ -37,7 +37,7 @@ The public app draws charts locally with Apache ECharts 6.1.0, using only the SV
 
 `chart-renderer.js` accepts already computed data. It does not calculate returns, aggregate money, resample, round stored values or smooth curves. Tables and CSV use the same supplied rows. Date controls filter by actual dates; temporal axes use UTC dates. Histograms retain numeric x positions. Null values remain null; explicit existing `connectGaps` policies are preserved rather than introduced globally. Bars/areas include zero; reference limits participate in axis bounds.
 
-Native buttons, keyboard inspection, date sliders, screen-reader readouts, table filtering/sorting and movement callbacks remain outside the drawing engine. SVG output is hidden from assistive technology to avoid duplicate reading; its host and native controls supply the accessible interface. Themes repaint vector colors. Each chart exposes an enlarged native dialog with the same controls, restores focus on close and disposes engine instances on replacement. SVG/PNG exports embed title, active date bounds and wrapped legend; CSV keeps exact numeric precision and neutralizes spreadsheet formulas in text labels.
+Native buttons, keyboard inspection, date sliders, screen-reader readouts, table filtering/sorting and movement callbacks remain outside the drawing engine. SVG output is hidden from assistive technology to avoid duplicate reading; its host and native controls supply the accessible interface. Themes repaint vector colors. Each chart exposes an enlarged native dialog with the same controls, restores focus on close and disposes engine instances on replacement. SVG/PNG exports preserve the active theme’s background, text and series palette together and embed title, active date bounds and wrapped legend; CSV keeps exact numeric precision and neutralizes spreadsheet formulas in text labels.
 
 ## Audit
 
