@@ -59,6 +59,23 @@ const FinanceCharts = (() => {
     if (text !== undefined) node.textContent = text;
     return node;
   };
+  // ResizeObserver callbacks only schedule work. Rendering changes dimensions;
+  // writing during delivery causes undelivered-notification loops in WebKit.
+  function observeSize(node, draw) {
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        if (node.isConnected) draw();
+      });
+    });
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }
   function clear(parent) {
     if (!parent) return;
     for (const node of parent.querySelectorAll('[data-chart-root]'))
@@ -912,10 +929,9 @@ const FinanceCharts = (() => {
       inspect(cursor);
     }
     redraw.set(article, draw);
-    const observer = new ResizeObserver(draw);
-    observer.observe(stage);
+    const stopObserving = observeSize(stage, draw);
     cleanup.set(article, () => {
-      observer.disconnect();
+      stopObserving();
       redraw.delete(article);
       FinanceChartRenderer.dispose(graph);
     });
@@ -1094,10 +1110,9 @@ const FinanceCharts = (() => {
       chart.querySelector('svg')?.setAttribute('aria-hidden', 'true');
     }
     redraw.set(article, drawDistribution);
-    const observer = new ResizeObserver(drawDistribution);
-    observer.observe(chart);
+    const stopObserving = observeSize(chart, drawDistribution);
     cleanup.set(article, () => {
-      observer.disconnect();
+      stopObserving();
       redraw.delete(article);
       FinanceChartRenderer.dispose(chart);
     });
