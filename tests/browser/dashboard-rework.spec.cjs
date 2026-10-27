@@ -419,109 +419,117 @@ test('@responsive investment provenance stays collapsed and discovers a newly ad
 test('@responsive checklist filtra categorías; salario y cuentas mantienen sus gráficos', async ({
   page,
 }) => {
-  await setup(page);
-  await navigate(page, 'book');
-  await expect(page.locator('#spending-month')).toHaveValue('2026-03');
-  await page.locator('#spending-categories summary').click();
-  await page
-    .locator('#spending-categories label')
-    .filter({ hasText: 'Vivienda' })
-    .locator('input')
-    .uncheck();
-  await expect(page.locator('#spending-categories details')).toHaveAttribute(
-    'open',
-    '',
-  );
-  await expect(
-    page.locator('#spending-categories input[value="Vivienda"]'),
-  ).toBeFocused();
-  await expect(
-    page.locator('#spending-summary .kpi').first().locator('.kpi-value'),
-  ).toContainText('500,00');
-  await expect(page.locator('#spending-categories summary')).toContainText(
-    '2 categorías incluidas',
-  );
-  const distribution = page.locator('#spending-charts .chart-card').filter({
-    has: page.getByRole('heading', {
-      name: 'Distribución del gasto',
-      exact: true,
-    }),
-  });
-  await expect(distribution.locator('.distribution-legend')).not.toContainText(
-    'Vivienda',
-  );
-  await expect(
-    distribution.locator('button.distribution-item').filter({
-      hasText: 'Alimentación',
-    }),
-  ).toContainText('60 %');
-  await expect(
-    distribution.locator('button.distribution-item').filter({
-      hasText: 'Transporte',
-    }),
-  ).toContainText('40 %');
-  const cityChart = page.locator('#spending-charts .chart-card').filter({
-    has: page.getByRole('heading', { name: 'Gasto por ciudad', exact: true }),
-  });
-  await cityChart.locator('.finance-chart').focus();
-  await page.keyboard.press('Home');
-  const selection = page.locator('.transaction-selection');
-  await expect(selection.locator('tbody tr')).toHaveCount(1);
-  await expect(selection.locator('tbody')).toContainText('300,00');
-  await expect(selection.locator('thead th')).toHaveCount(3);
-  await expect(selection.locator('tbody')).not.toContainText('Vivienda');
-  await distribution
-    .locator('button.distribution-item')
-    .filter({ hasText: 'Alimentación' })
-    .click();
-  await expect(distribution.locator('.chart-readout')).toContainText(
-    '60 % del total mostrado',
-  );
-  expect(
-    (await chartSeries(page.locator('#spending-charts'))).filter(
-      (s) => s.step === 'end',
-    ),
-  ).toHaveLength(1);
-  await screenshot(page, 'spending');
-  await navigate(page, 'salary');
-  const salaryCharts = page.locator('#salary-charts .chart-card');
-  await expect(page.locator('#salary-cut')).toBeEmpty();
-  await expect(page.locator('#salary-charts')).not.toContainText('parcial');
-  await expect(salaryCharts).toHaveCount(2);
-  await expect(salaryCharts.nth(0)).toContainText(
-    'Nóminas registradas por mes',
-  );
-  await expect(salaryCharts.nth(1)).toContainText(
-    'Ahorro mensual sobre nómina',
-  );
-  await expect(salaryCharts.nth(1).locator('.chart-readout')).toContainText(
-    '25 %',
-  );
-  const firstSalary = await salaryCharts.nth(0).boundingBox();
-  const secondSalary = await salaryCharts.nth(1).boundingBox();
-  if (page.viewportSize().width >= 1000) {
-    expect(Math.abs(firstSalary.y - secondSalary.y)).toBeLessThan(2);
-    expect(secondSalary.x).toBeGreaterThanOrEqual(
-      firstSalary.x + firstSalary.width,
+  const seed = structuredClone(snapshot);
+  // This cross-view check needs cash, salary and goals, not a priced portfolio.
+  for (const name of ['tProductos', 'tOperaciones', 'tPrecios'])
+    seed.tables[name] = [];
+  await setup(page, seed);
+  await test.step('Filtrar gastos y consultar sus movimientos', async () => {
+    await navigate(page, 'book');
+    await expect(page.locator('#spending-month')).toHaveValue('2026-03');
+    await page.locator('#spending-categories summary').click();
+    await page
+      .locator('#spending-categories label')
+      .filter({ hasText: 'Vivienda' })
+      .locator('input')
+      .uncheck();
+    await expect(page.locator('#spending-categories details')).toHaveAttribute(
+      'open',
+      '',
     );
-  } else {
-    expect(secondSalary.y).toBeGreaterThanOrEqual(
-      firstSalary.y + firstSalary.height,
+    await expect(
+      page.locator('#spending-categories input[value="Vivienda"]'),
+    ).toBeFocused();
+    await expect(
+      page.locator('#spending-summary .kpi').first().locator('.kpi-value'),
+    ).toContainText('500,00');
+    await expect(page.locator('#spending-categories summary')).toContainText(
+      '2 categorías incluidas',
     );
-  }
-  await screenshot(page, 'salary');
-  await navigate(page, 'accounts');
-  await expect(page.locator('#account-charts .chart-card')).toHaveCount(1);
-  await expect(page.locator('#account-charts')).toContainText(
-    'Diferencias por cuenta',
-  );
-  await expect(page.locator('#account-charts')).not.toContainText(
-    'Saldos diarios por cuenta',
-  );
-  await screenshot(page, 'accounts');
-  await navigate(page, 'goals');
-  await expect(page.locator('#goal-charts')).toContainText('Meta ficticia');
-  await screenshot(page, 'goals');
+    const distribution = page.locator('#spending-charts .chart-card').filter({
+      has: page.getByRole('heading', {
+        name: 'Distribución del gasto',
+        exact: true,
+      }),
+    });
+    await expect(
+      distribution.locator('.distribution-legend'),
+    ).not.toContainText('Vivienda');
+    await expect(
+      distribution.locator('button.distribution-item').filter({
+        hasText: 'Alimentación',
+      }),
+    ).toContainText('60 %');
+    await expect(
+      distribution.locator('button.distribution-item').filter({
+        hasText: 'Transporte',
+      }),
+    ).toContainText('40 %');
+    const cityChart = page.locator('#spending-charts .chart-card').filter({
+      has: page.getByRole('heading', { name: 'Gasto por ciudad', exact: true }),
+    });
+    await cityChart.locator('.finance-chart').focus();
+    await page.keyboard.press('Home');
+    const selection = page.locator('.transaction-selection');
+    await expect(selection.locator('tbody tr')).toHaveCount(1);
+    await expect(selection.locator('tbody')).toContainText('300,00');
+    await expect(selection.locator('thead th')).toHaveCount(3);
+    await expect(selection.locator('tbody')).not.toContainText('Vivienda');
+    await distribution
+      .locator('button.distribution-item')
+      .filter({ hasText: 'Alimentación' })
+      .click();
+    await expect(distribution.locator('.chart-readout')).toContainText(
+      '60 % del total mostrado',
+    );
+    expect(
+      (await chartSeries(page.locator('#spending-charts'))).filter(
+        (s) => s.step === 'end',
+      ),
+    ).toHaveLength(1);
+  });
+  await test.step('Conservar gráficos y disposición de salario', async () => {
+    await navigate(page, 'salary');
+    const salaryCharts = page.locator('#salary-charts .chart-card');
+    await expect(page.locator('#salary-cut')).toBeEmpty();
+    await expect(page.locator('#salary-charts')).not.toContainText('parcial');
+    await expect(salaryCharts).toHaveCount(2);
+    await expect(salaryCharts.nth(0)).toContainText(
+      'Nóminas registradas por mes',
+    );
+    await expect(salaryCharts.nth(1)).toContainText(
+      'Ahorro mensual sobre nómina',
+    );
+    await expect(salaryCharts.nth(1).locator('.chart-readout')).toContainText(
+      '25 %',
+    );
+    const firstSalary = await salaryCharts.nth(0).boundingBox();
+    const secondSalary = await salaryCharts.nth(1).boundingBox();
+    if (page.viewportSize().width >= 1000) {
+      expect(Math.abs(firstSalary.y - secondSalary.y)).toBeLessThan(2);
+      expect(secondSalary.x).toBeGreaterThanOrEqual(
+        firstSalary.x + firstSalary.width,
+      );
+    } else {
+      expect(secondSalary.y).toBeGreaterThanOrEqual(
+        firstSalary.y + firstSalary.height,
+      );
+    }
+  });
+  await test.step('Conservar conciliación por cuenta', async () => {
+    await navigate(page, 'accounts');
+    await expect(page.locator('#account-charts .chart-card')).toHaveCount(1);
+    await expect(page.locator('#account-charts')).toContainText(
+      'Diferencias por cuenta',
+    );
+    await expect(page.locator('#account-charts')).not.toContainText(
+      'Saldos diarios por cuenta',
+    );
+  });
+  await test.step('Conservar objetivos al cambiar de vista', async () => {
+    await navigate(page, 'goals');
+    await expect(page.locator('#goal-charts')).toContainText('Meta ficticia');
+  });
 });
 
 test('spending projections preserve unknown amounts until their category is excluded', async ({
@@ -591,7 +599,21 @@ test('spending projections preserve unknown amounts until their category is excl
 test('@responsive selección genérica de producto y periodo conserva escalera, valor e inspección', async ({
   page,
 }) => {
-  await setup(page);
+  const seed = structuredClone(snapshot);
+  // Keep each boundary and the final valuation; dense histories have separate coverage.
+  const dates = new Set([
+    '2026-01-01',
+    '2026-01-31',
+    '2026-02-01',
+    '2026-02-14',
+    '2026-02-15',
+    '2026-03-01',
+    '2026-03-15',
+  ]);
+  seed.tables.tPrecios = seed.tables.tPrecios.filter((row) =>
+    dates.has(row.Fecha),
+  );
+  await setup(page, seed);
   await navigate(page, 'investments');
   await expect(page.locator('#investment-product option')).toHaveCount(3);
   await page.locator('#investment-product').selectOption('FICTITIOUS-ALPHA');
@@ -609,14 +631,13 @@ test('@responsive selección genérica de producto y periodo conserva escalera, 
       .data.some((d) => d.value[1] === 1100),
   ).toBe(true);
   await expect(chart.locator('svg path')).not.toHaveCount(0);
-  await screenshot(page, 'investments-area');
   await expect(chart.locator('.finance-chart circle')).toHaveCount(0);
   await chart.locator('.chart-data > summary').click();
   const allRows = await chart.locator('tbody tr').count();
   await page.locator('#investment-range').selectOption('1m');
   await expect(
     chart.getByLabel('Desde Valor de mercado y aportación neta'),
-  ).toHaveValue(/^2026-02/);
+  ).toHaveValue('2026-02-15');
   await expect(
     chart.getByLabel('Hasta Valor de mercado y aportación neta'),
   ).toHaveValue('2026-03-15');
@@ -625,10 +646,10 @@ test('@responsive selección genérica de producto y periodo conserva escalera, 
   const oneMonthDates = await chart.locator('tbody tr th').allTextContents();
   expect(oneMonthDates.length).toBeGreaterThan(0);
   expect(
-    oneMonthDates.every((date) => date >= '2026-02' && date <= '2026-03-15'),
+    oneMonthDates.every((date) => date >= '2026-02-15' && date <= '2026-03-15'),
   ).toBe(true);
   await page.locator('#investment-range').selectOption('ytd');
-  await expect(chart.locator('tbody tr')).not.toHaveCount(0);
+  await expect(chart.locator('tbody tr')).toHaveCount(allRows);
   await page.locator('#investment-range').selectOption('all');
   await expect(chart.locator('tbody tr')).toHaveCount(allRows);
   await page.locator('#investment-product').selectOption('FICTITIOUS-BETA');
@@ -650,7 +671,6 @@ test('@responsive selección genérica de producto y periodo conserva escalera, 
   await chart.locator('.finance-chart').focus();
   await page.keyboard.press('Home');
   await expect(chart.locator('.chart-readout')).toContainText('01 ene 2026');
-  await screenshot(page, 'investments');
 });
 
 test('@responsive datos del gráfico permiten ordenar y filtrar con teclado sin alterar las series', async ({
@@ -1646,7 +1666,8 @@ test('@responsive @safari account order and investment total include all four fu
 test('@responsive @safari all 24 themes retain readable foregrounds and persist across reopening', async ({
   page,
 }) => {
-  await setup(page);
+  // Appearance does not depend on a book; avoid computing every financial chart.
+  await page.goto('/');
   await navigate(page, 'connection');
   const themes = await page
     .locator('#theme-preference option')
@@ -1658,10 +1679,10 @@ test('@responsive @safari all 24 themes retain readable foregrounds and persist 
     await page.locator('#theme-preference').selectOption(theme);
     const ratios = await page.evaluate(() => {
       const css = getComputedStyle(document.documentElement);
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 1;
+      const c = canvas.getContext('2d');
       const luminance = (color) => {
-        const canvas = document.createElement('canvas');
-        canvas.width = canvas.height = 1;
-        const c = canvas.getContext('2d');
         c.fillStyle = color;
         c.fillRect(0, 0, 1, 1);
         const rgb = [...c.getImageData(0, 0, 1, 1).data]
@@ -1714,11 +1735,13 @@ test('@responsive @safari all 24 themes retain readable foregrounds and persist 
         `${theme}: ${ratio.fg} on ${ratio.bg}`,
       ).toBeGreaterThanOrEqual(4.5);
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+    expect(
+      await page.evaluate(() => localStorage.getItem('finances.theme')),
+    ).toBe(theme);
   }
   await page.reload();
   await expect(page.locator('#theme-preference')).toHaveValue(themes.at(-1));
   await expect(page.locator('.appearance-preview')).toBeVisible();
-  await screenshot(page, 'themes');
 });
 
 test('performance result crosses the year boundary while unavailable exact TWR stays explicitly unavailable', async ({
@@ -2002,9 +2025,15 @@ test('@responsive monthly return bars exclude deposits and use green for gains a
   const monthlyBars = (await chartSeries(chart))[0].data;
   expect(monthlyBars.filter((d) => d.value >= 0)).toHaveLength(2);
   expect(monthlyBars.filter((d) => d.value < 0)).toHaveLength(1);
-  expect(monthlyBars[2].itemStyle.color).not.toBe(
-    monthlyBars[0].itemStyle.color,
+  const colors = await chart.evaluate(
+    (node) => FinanceChartRenderer.palette(node).colors,
   );
+  for (const [i, expected] of [0, 10, -1].entries()) {
+    expect(monthlyBars[i].value).toBeCloseTo(expected, 12);
+    expect(monthlyBars[i].itemStyle.color).toBe(
+      colors[expected < 0 ? 'chart-red' : 'chart-mint'],
+    );
+  }
   await chart.getByText('Ver datos', { exact: true }).click();
   const rows = chart.locator('.chart-table tbody tr');
   await expect(rows).toHaveCount(3);
@@ -2028,7 +2057,6 @@ test('@responsive monthly return bars exclude deposits and use green for gains a
         nodes.some((n) => /^-0(?:[,.]0+)?$/.test(n.textContent.trim())),
       ),
   ).toBe(false);
-  await screenshot(page, 'monthly-return-bars');
 });
 
 test('@responsive @safari shared chart and form controls fit every main view on phones and tablets', async ({
