@@ -678,7 +678,10 @@ test.describe('Price and expense bridge workflow', () => {
     await navigate(page, 'investments');
     await page.locator('#finance-prices').click();
     await page.locator('#review-confirm').click();
-    await expect(page.locator('#history-total')).toHaveText('1');
+    // The confirmation includes a full book reread, which can be slow in WebKit.
+    await expect(page.locator('#history-total')).toHaveText('1', {
+      timeout: 15000,
+    });
     await expect(page.locator('#finance-history')).toContainText(
       '0 solicitudes con movimientos confirmados · 1 actualizaciones de precios',
     );
