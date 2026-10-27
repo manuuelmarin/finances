@@ -2258,11 +2258,9 @@ test('@responsive @safari expanded city charts keep the selected movement detail
 }) => {
   await setup(page);
   await navigate(page, 'book');
-  const city = page
-    .locator('#spending-charts .chart-card')
-    .filter({
-      has: page.getByRole('heading', { name: 'Gasto por ciudad', exact: true }),
-    });
+  const city = page.locator('#spending-charts .chart-card').filter({
+    has: page.getByRole('heading', { name: 'Gasto por ciudad', exact: true }),
+  });
   await city.locator('.chart-menu summary').click();
   await city
     .getByRole('button', { name: 'Ampliar gráfico', exact: true })
