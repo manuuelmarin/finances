@@ -663,68 +663,70 @@ test('@responsive @safari unrelated price acknowledgement preserves the expense 
   await expect(page.locator('#history-total')).toHaveText('1');
 });
 
-test('@responsive @safari confirmed prices create no movement; a later expense remains visible beyond cutoff and active filters', async ({
-  page,
-  context,
-  browserName,
-}) => {
-  // This full bridge workflow reached 29.3s on WebKit CI; keep its checks
-  // intact while allowing for runner variation, as other long WebKit flows do.
-  if (browserName === 'webkit') test.setTimeout(60000);
-  const { r } = await channel(context);
-  await open(page);
-  const cutoff = r.state().settings.asof;
-  await navigate(page, 'investments');
-  await page.locator('#finance-prices').click();
-  await page.locator('#review-confirm').click();
-  await expect(page.locator('#history-total')).toHaveText('1');
-  await expect(page.locator('#finance-history')).toContainText(
-    '0 solicitudes con movimientos confirmados · 1 actualizaciones de precios',
-  );
-  expect(r.state().tables.tMovimientos).toHaveLength(0);
-  await navigate(page, 'activity');
-  await page.locator('#confirmed-history summary').click();
-  await expect(page.locator('#finance-history')).toContainText(
-    'Actualización de precios · no crea movimientos',
-  );
-  await navigate(page, 'book');
-  await page.locator('#finance-search').fill('hidden by user filter');
-  await page.locator('#finance-to').fill('2026-01-02');
-  await navigate(page, 'home');
-  await require('./helpers/finalization-runtime.cjs').expense(
+test.describe('Price and expense bridge workflow', () => {
+  test.beforeEach(({ browserName }, info) => {
+    // WebKit startup can consume a substantial part of the test budget.
+    if (browserName === 'webkit') info.setTimeout(60000);
+  });
+  test('@responsive @safari confirmed prices create no movement; a later expense remains visible beyond cutoff and active filters', async ({
     page,
-    'Expense after cutoff',
-  );
-  await page.locator('#operation-date').fill('2026-01-04');
-  await page.locator('#operation-form button[type=submit]').click();
-  await page.locator('#review-confirm').click();
-  await expect(page.locator('#history-total')).toHaveText('2');
-  expect(
-    r.transact([{ process: 'fechas', asof: r.ctx.isoDate_(cutoff) }]).ok,
-  ).toBe(true);
-  expect(r.state().settings.asof).toBe(cutoff);
-  await navigate(page, 'book');
-  await expect(page.locator('#finance-register')).not.toContainText(
-    'Expense after cutoff',
-  );
-  await navigate(page, 'activity');
-  await page
-    .locator('#finance-history')
-    .getByRole('button', { name: 'Ver movimiento', exact: true })
-    .click();
-  await expect(page.locator('#view-book')).toBeVisible();
-  await expect(page.locator('#finance-register')).toContainText(
-    'Expense after cutoff',
-  );
-  await page.reload();
-  const popup = page.waitForEvent('popup');
-  await page.locator('#finance-connect').click();
-  await popup;
-  await expect(page.locator('#finance-state')).toContainText(
-    'Lectura confirmada',
-  );
-  await expect(page.locator('#finance-register')).toContainText(
-    'Expense after cutoff',
-  );
-  expect(r.state().tables.tMovimientos).toHaveLength(1);
+    context,
+  }) => {
+    const { r } = await channel(context);
+    await open(page);
+    const cutoff = r.state().settings.asof;
+    await navigate(page, 'investments');
+    await page.locator('#finance-prices').click();
+    await page.locator('#review-confirm').click();
+    await expect(page.locator('#history-total')).toHaveText('1');
+    await expect(page.locator('#finance-history')).toContainText(
+      '0 solicitudes con movimientos confirmados · 1 actualizaciones de precios',
+    );
+    expect(r.state().tables.tMovimientos).toHaveLength(0);
+    await navigate(page, 'activity');
+    await page.locator('#confirmed-history summary').click();
+    await expect(page.locator('#finance-history')).toContainText(
+      'Actualización de precios · no crea movimientos',
+    );
+    await navigate(page, 'book');
+    await page.locator('#finance-search').fill('hidden by user filter');
+    await page.locator('#finance-to').fill('2026-01-02');
+    await navigate(page, 'home');
+    await require('./helpers/finalization-runtime.cjs').expense(
+      page,
+      'Expense after cutoff',
+    );
+    await page.locator('#operation-date').fill('2026-01-04');
+    await page.locator('#operation-form button[type=submit]').click();
+    await page.locator('#review-confirm').click();
+    await expect(page.locator('#history-total')).toHaveText('2');
+    expect(
+      r.transact([{ process: 'fechas', asof: r.ctx.isoDate_(cutoff) }]).ok,
+    ).toBe(true);
+    expect(r.state().settings.asof).toBe(cutoff);
+    await navigate(page, 'book');
+    await expect(page.locator('#finance-register')).not.toContainText(
+      'Expense after cutoff',
+    );
+    await navigate(page, 'activity');
+    await page
+      .locator('#finance-history')
+      .getByRole('button', { name: 'Ver movimiento', exact: true })
+      .click();
+    await expect(page.locator('#view-book')).toBeVisible();
+    await expect(page.locator('#finance-register')).toContainText(
+      'Expense after cutoff',
+    );
+    await page.reload();
+    const popup = page.waitForEvent('popup');
+    await page.locator('#finance-connect').click();
+    await popup;
+    await expect(page.locator('#finance-state')).toContainText(
+      'Lectura confirmada',
+    );
+    await expect(page.locator('#finance-register')).toContainText(
+      'Expense after cutoff',
+    );
+    expect(r.state().tables.tMovimientos).toHaveLength(1);
+  });
 });
