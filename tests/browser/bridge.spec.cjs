@@ -666,7 +666,11 @@ test('@responsive @safari unrelated price acknowledgement preserves the expense 
 test('@responsive @safari confirmed prices create no movement; a later expense remains visible beyond cutoff and active filters', async ({
   page,
   context,
+  browserName,
 }) => {
+  // This full bridge workflow reached 29.3s on WebKit CI; keep its checks
+  // intact while allowing for runner variation, as other long WebKit flows do.
+  if (browserName === 'webkit') test.setTimeout(60000);
   const { r } = await channel(context);
   await open(page);
   const cutoff = r.state().settings.asof;
