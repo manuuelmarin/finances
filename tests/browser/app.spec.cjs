@@ -306,7 +306,10 @@ async function expense(page, { location } = {}) {
 }
 test('@responsive @safari a new city survives confirmation, reload and correction', async ({
   page,
+  browserName,
 }) => {
+  // Confirmation, reload and correction can exceed 30 seconds on WebKit CI.
+  if (browserName === 'webkit') test.setTimeout(60000);
   await setup(page);
   await expense(page, { location: 'Valencia' });
   await expect(page.locator('#review-fields')).toContainText('Valencia');
