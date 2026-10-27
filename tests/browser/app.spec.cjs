@@ -309,7 +309,7 @@ test.describe('City confirmation and correction', () => {
     // WebKit startup can consume a substantial part of the test budget.
     if (browserName === 'webkit') info.setTimeout(60000);
   });
-  test('@responsive @safari a new city survives confirmation, reload and correction', async ({
+  test('@responsive @safari a new city survives confirmation and reload; correction preview can be cancelled', async ({
     page,
   }) => {
     await setup(page);
@@ -345,6 +345,13 @@ test.describe('City confirmation and correction', () => {
     await expect(page.locator('#review-fields')).toContainText('Bilbao');
     await page.locator('#review-cancel').click();
     await page.locator('#operation-cancel').click();
+    const server = await page.evaluate(() =>
+      JSON.parse(localStorage.getItem('fixture.server')),
+    );
+    expect(server.snapshot.tables.tMovimientos.at(-1).Localización).toBe(
+      'Valencia',
+    );
+    expect(server.calls).toHaveLength(1);
     await page.locator('#view-book [data-operation=gasto]').click();
     await page.locator('.operation-additional summary').click();
     await expect(

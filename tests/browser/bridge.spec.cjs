@@ -678,7 +678,10 @@ test.describe('Price and expense bridge workflow', () => {
     await navigate(page, 'investments');
     await page.locator('#finance-prices').click();
     await page.locator('#review-confirm').click();
-    await expect(page.locator('#history-total')).toHaveText('1');
+    // The confirmation includes a full book reread, which can be slow in WebKit.
+    await expect(page.locator('#history-total')).toHaveText('1', {
+      timeout: 15000,
+    });
     await expect(page.locator('#finance-history')).toContainText(
       '0 solicitudes con movimientos confirmados · 1 actualizaciones de precios',
     );
@@ -728,5 +731,68 @@ test.describe('Price and expense bridge workflow', () => {
       'Expense after cutoff',
     );
     expect(r.state().tables.tMovimientos).toHaveLength(1);
+  });
+});
+
+test.describe('City correction through the bridge', () => {
+  test.beforeEach(({ browserName }, info) => {
+    if (browserName === 'webkit') info.setTimeout(60000);
+  });
+  test('@responsive @safari a confirmed city correction survives a reread and reload', async ({
+    page,
+    context,
+  }) => {
+    const { r } = await channel(context);
+    await open(page);
+    await require('./helpers/finalization-runtime.cjs').expense(
+      page,
+      'City correction fixture',
+    );
+    await page.locator('#operation-location').fill('Valencia');
+    await page.locator('#operation-review').click();
+    await page.locator('#review-confirm').click();
+    await expect(page.locator('#history-total')).toHaveText('1');
+    const first = r.state().tables.tMovimientos;
+    expect(first).toHaveLength(1);
+    expect(first[0].Localización).toBe('Valencia');
+    const id = first[0].ID;
+    await navigate(page, 'book');
+    const row = page
+      .locator('#finance-register tbody tr')
+      .filter({ hasText: 'City correction fixture' });
+    await row.getByRole('button', { name: 'Corregir', exact: true }).click();
+    await expect(page.getByLabel('Localización', { exact: true })).toHaveValue(
+      'Valencia',
+    );
+    await page.getByLabel('Localización', { exact: true }).fill('Bilbao');
+    await page.locator('#operation-review').click();
+    await expect(page.locator('#review-fields')).toContainText('Bilbao');
+    await page.locator('#review-confirm').click();
+    await expect
+      .poll(
+        () =>
+          r.state().tables.tMovimientos.find((m) => m.ID === id)?.Localización,
+      )
+      .toBe('Bilbao');
+    await expect(page.locator('#history-total')).toHaveText('2');
+    expect(r.state().tables.tMovimientos).toHaveLength(1);
+    await page.reload();
+    const popup = page.waitForEvent('popup');
+    await page.locator('#finance-connect').click();
+    await popup;
+    await expect(page.locator('#finance-state')).toContainText(
+      'Lectura confirmada',
+    );
+    await navigate(page, 'book');
+    await page
+      .locator('#finance-register tbody tr')
+      .filter({ hasText: 'City correction fixture' })
+      .getByRole('button', { name: 'Corregir', exact: true })
+      .click();
+    await expect(page.getByLabel('Localización', { exact: true })).toHaveValue(
+      'Bilbao',
+    );
+    expect(r.state().tables.tMovimientos).toHaveLength(1);
+    expect(r.state().tables.tMovimientos[0].ID).toBe(id);
   });
 });
