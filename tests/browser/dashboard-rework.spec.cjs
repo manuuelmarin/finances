@@ -2061,80 +2061,83 @@ test('@responsive monthly return bars exclude deposits and use green for gains a
   ).toBe(false);
 });
 
-test('@responsive @safari shared chart and form controls fit every main view on phones and tablets', async ({
-  page,
-}) => {
-  test.setTimeout(90000);
-  await setup(page);
-  for (const width of [320, 375, 414, 768, 1024]) {
-    await page.setViewportSize({ width, height: 896 });
-    for (const view of [
-      'home',
-      'book',
-      'investments',
-      'accounts',
-      'salary',
-      'budgets',
-      'tools',
-      'connection',
-    ]) {
-      await navigate(page, view);
-      const layout = await page.evaluate(() => {
-        const controls = [
-          ...document.querySelectorAll(
-            '.chart-date-field input, .field input, .field select',
-          ),
-        ].filter(
-          (n) =>
-            n.getClientRects().length && n.getBoundingClientRect().width > 3,
+test.describe('Cross-view responsive layout', () => {
+  // Include browser/page fixture setup in the existing test-specific budget.
+  test.beforeEach(({}, info) => info.setTimeout(90000));
+  test('@responsive @safari shared chart and form controls fit every main view on phones and tablets', async ({
+    page,
+  }) => {
+    await setup(page);
+    for (const width of [320, 375, 414, 768, 1024]) {
+      await page.setViewportSize({ width, height: 896 });
+      for (const view of [
+        'home',
+        'book',
+        'investments',
+        'accounts',
+        'salary',
+        'budgets',
+        'tools',
+        'connection',
+      ]) {
+        await navigate(page, view);
+        const layout = await page.evaluate(() => {
+          const controls = [
+            ...document.querySelectorAll(
+              '.chart-date-field input, .field input, .field select',
+            ),
+          ].filter(
+            (n) =>
+              n.getClientRects().length && n.getBoundingClientRect().width > 3,
+          );
+          return {
+            page: document.documentElement.scrollWidth,
+            viewport: innerWidth,
+            oversizedCharts: [...document.querySelectorAll('[data-renderer]')]
+              .filter(
+                (n) =>
+                  n.getClientRects().length &&
+                  n.getBoundingClientRect().width > 1,
+              )
+              .filter((n) => {
+                const image = n.querySelector('svg');
+                return (
+                  image &&
+                  image.getBoundingClientRect().width >
+                    n.getBoundingClientRect().width + 1
+                );
+              })
+              .map((n) => n.getAttribute('aria-label')),
+            overflow: controls
+              .filter((n) => {
+                const a = n.getBoundingClientRect(),
+                  b = n
+                    .closest('.chart-date-field, .field')
+                    .getBoundingClientRect();
+                return a.left < b.left - 1 || a.right > b.right + 1;
+              })
+              .map((n) => n.id || n.getAttribute('aria-label')),
+          };
+        });
+        expect(layout.page, view + ' at ' + width).toBeLessThanOrEqual(
+          layout.viewport,
         );
-        return {
-          page: document.documentElement.scrollWidth,
-          viewport: innerWidth,
-          oversizedCharts: [...document.querySelectorAll('[data-renderer]')]
-            .filter(
-              (n) =>
-                n.getClientRects().length &&
-                n.getBoundingClientRect().width > 1,
-            )
-            .filter((n) => {
-              const image = n.querySelector('svg');
-              return (
-                image &&
-                image.getBoundingClientRect().width >
-                  n.getBoundingClientRect().width + 1
-              );
-            })
-            .map((n) => n.getAttribute('aria-label')),
-          overflow: controls
-            .filter((n) => {
-              const a = n.getBoundingClientRect(),
-                b = n
-                  .closest('.chart-date-field, .field')
-                  .getBoundingClientRect();
-              return a.left < b.left - 1 || a.right > b.right + 1;
-            })
-            .map((n) => n.id || n.getAttribute('aria-label')),
-        };
-      });
-      expect(layout.page, view + ' at ' + width).toBeLessThanOrEqual(
-        layout.viewport,
-      );
-      expect(layout.overflow, view + ' at ' + width).toEqual([]);
-      expect(
-        layout.oversizedCharts,
-        view + ' vector bounds at ' + width,
-      ).toEqual([]);
+        expect(layout.overflow, view + ' at ' + width).toEqual([]);
+        expect(
+          layout.oversizedCharts,
+          view + ' vector bounds at ' + width,
+        ).toEqual([]);
+      }
     }
-  }
-  await navigate(page, 'home');
-  const dates = page.locator('.chart-date-controls:visible').first();
-  await expect(dates).toBeVisible();
-  const from = dates.locator('input[type=date]').first();
-  const before = await from.inputValue();
-  await dates.locator('input[type=range]').first().focus();
-  await page.keyboard.press('ArrowRight');
-  await expect(from).not.toHaveValue(before);
+    await navigate(page, 'home');
+    const dates = page.locator('.chart-date-controls:visible').first();
+    await expect(dates).toBeVisible();
+    const from = dates.locator('input[type=date]').first();
+    const before = await from.inputValue();
+    await dates.locator('input[type=range]').first().focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(from).not.toHaveValue(before);
+  });
 });
 
 test('@responsive @safari vector charts preserve pointer selection, nulls, full-screen controls and disposal', async ({
