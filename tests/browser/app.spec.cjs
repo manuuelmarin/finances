@@ -34,9 +34,9 @@ test('CSP bloquea código inyectado y conexiones a terceros manteniendo la app f
 }) => {
   await page.goto('/');
   const results = await page.evaluate(async () => {
-    const violations = [];
+    window.testCspViolations = [];
     document.addEventListener('securitypolicyviolation', (event) =>
-      violations.push(event.violatedDirective),
+      window.testCspViolations.push(event.violatedDirective),
     );
     const injected = document.createElement('script');
     injected.textContent = 'window.compromised = true;';
@@ -47,13 +47,13 @@ test('CSP bloquea código inyectado y conexiones a terceros manteniendo la app f
     } catch {
       blocked = true;
     }
-    await new Promise((resolve) => setTimeout(resolve, 30));
-    return { ran: window.compromised === true, blocked, violations };
+    return { ran: window.compromised === true, blocked };
   });
   expect(results.ran).toBe(false);
   expect(results.blocked).toBe(true);
-  expect(results.violations).toContain('script-src-elem');
-  expect(results.violations).toContain('connect-src');
+  await expect
+    .poll(() => page.evaluate(() => window.testCspViolations))
+    .toEqual(expect.arrayContaining(['script-src-elem', 'connect-src']));
   await navigate(page, 'connection');
   await page.locator('#setup-toggle').click();
   await expect(page.locator('#setup-dialog')).toBeVisible();
