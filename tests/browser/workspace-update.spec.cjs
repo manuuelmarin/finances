@@ -1,3 +1,4 @@
+const { chartSeries } = require('./helpers/charts.cjs');
 const { test, expect } = require('@playwright/test');
 const { setup, queueData } = require('./helpers/finalization-runtime.cjs');
 const { navigate } = require('./helpers/navigation.cjs');
@@ -144,17 +145,12 @@ test('interval and monthly limits survive confirmation without changing financia
   await expect(card).toHaveCount(1);
   await card.getByRole('button', { name: 'Ver evolución del límite' }).click();
   await expect(page.locator('#budget-details')).toBeVisible();
-  await expect(
-    page.locator('#budget-detail-chart .chart-reference'),
-  ).toHaveCount(1);
-  const rect = await page
-    .locator('#budget-detail-chart .chart-reference')
-    .evaluate((n) => ({
-      y: Number(n.getAttribute('y1')),
-      height: n.ownerSVGElement.viewBox.baseVal.height,
-    }));
-  expect(rect.y).toBeGreaterThanOrEqual(0);
-  expect(rect.y).toBeLessThan(rect.height);
+  const reference = (await chartSeries(page.locator('#budget-detail-chart')))[0]
+    .markLine;
+  expect(reference.data[0]).toMatchObject({ yAxis: 50 });
+  await expect(page.locator('#budget-detail-chart svg')).toContainText(
+    'Límite',
+  );
   await card.getByRole('button', { name: 'Editar', exact: true }).click();
   await page.locator('#budget-amount').fill('60');
   await page.locator('#budget-form button[type=submit]').click();

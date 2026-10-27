@@ -617,9 +617,37 @@ test.describe('PWA instalable', () => {
     });
     expect(urls.some((url) => url.includes('script.google'))).toBe(false);
     expect(urls.some((url) => url.endsWith('/index.html'))).toBe(true);
+    expect(urls.some((url) => url.endsWith('/vendor/echarts.min.js'))).toBe(
+      true,
+    );
+    expect(urls.some((url) => url.endsWith('/chart-renderer.js'))).toBe(true);
     await context.setOffline(true);
     await page.reload();
     await expect(page.locator('#home-title')).toBeVisible();
+    await page.evaluate(() =>
+      FinanceCharts.plot(
+        (() => {
+          const host = document.createElement('div');
+          host.id = 'offline-chart';
+          document.querySelector('main').append(host);
+          return host;
+        })(),
+        {
+          title: 'Gráfico ficticio sin conexión',
+          rows: [
+            { date: '2026-01-01', value: 12.34 },
+            { date: '2026-01-02', value: 56.78 },
+          ],
+          fields: [{ key: 'value', label: 'Importe' }],
+        },
+      ),
+    );
+    await expect(
+      page.locator('#offline-chart [data-renderer=echarts-svg] svg'),
+    ).toBeVisible();
+    await expect(page.locator('#offline-chart .chart-readout')).toContainText(
+      '56,78',
+    );
     await navigate(page, 'tools');
     await expect(page.locator('#inflation-form')).toBeVisible();
   });

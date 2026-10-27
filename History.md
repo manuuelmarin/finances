@@ -189,9 +189,15 @@ Changes in repository order, from the first recorded build to the current app. V
 - Constrain native date editors and form controls to their containers, stack phone forms and very narrow date filters, and wrap long headings and status text. Keep table actions separate from horizontal scrolling, with clear touch targets, keyboard focus and a mobile scroll hint.
 - Check Valencia through the existing backend, confirmation, reload, reuse and correction; verify field bounds and separation at 320–1024px and in WebKit. Existing Google installations need only the PWA update; API and workbook model remain unchanged.
 
-## 3.11.2 · current
+## 3.11.2
 
 - Adapt chart date controls to their card width, keeping native date pickers, sliders and validation usable without page overflow on tablets.
 - Share the phone form layout with budgets and calculators, and allow month selectors to shrink inside their fields.
 - Reuse free-text suggestions for creditors and category creation/correction. Filter subgroups by group and category names by group and subgroup; retain custom text, per-book suggestions and validated relational selectors.
 - Existing Google installations need only the PWA update; API 3.3.0 and workbook model 3 remain unchanged.
+
+## 3.12.0 · current
+
+- Replace hand-drawn plots with a pinned, locally bundled Apache ECharts SVG renderer. Keep the financial projections separate from rendering, with exact input values, null gaps and existing date/series/keyboard/drill-down controls.
+- Use horizontal comparisons for cities, contributions, risk, reconciliation and goals; retain temporal lines, zero-baseline bars, numeric histograms, step capital and budget references. Use ring compositions for up to four groups and horizontal comparisons for larger compositions, preserving unknown and negative values in accessible details and exports.
+- Preserve accessible controls and tables, SVG/PNG/CSV exports, local themes and offline use. Existing Google installations need only the PWA update; API 3.3.0 and workbook model 3 remain unchanged.

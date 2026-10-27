@@ -51,6 +51,7 @@ module.exports = [
     ignores: [
       'web/install.html',
       'web/sw.js',
+      'web/vendor/**',
       'node_modules/**',
       'playwright-report/**',
       'test-results/**',
@@ -80,6 +81,8 @@ module.exports = [
         FinanceInsights: 'readonly',
         FinanceWealth: 'readonly',
         FinanceCharts: 'readonly',
+        FinanceChartRenderer: 'readonly',
+        FinanceECharts: 'readonly',
         FinanceDashboard: 'readonly',
         FinanceSync: 'readonly',
         FinanceApiClient: 'readonly',
