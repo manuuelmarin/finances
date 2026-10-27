@@ -23,37 +23,33 @@
 .chart-menu[open] {
   z-index: 5;
 }
-.chart-menu button:first-of-type {
+.chart-menu-actions {
   position: absolute;
   right: 0;
-  top: 100%;
-}
-.chart-menu button + button {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 2.65rem);
-}
-.chart-menu button + button + button {
-  top: calc(100% + 5.3rem);
-}
-.chart-menu button + button + button + button {
-  top: calc(100% + 7.95rem);
-}
-.chart-menu button {
-  display: block;
+  top: calc(100% + 6px);
+  display: grid;
   width: max-content;
-  max-width: min(18rem, 80vw);
-  padding: 0.65rem 0.8rem;
+  max-width: min(18rem, calc(100vw - 48px));
+  max-height: 60dvh;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px #0002;
+  background: var(--surface);
+}
+.chart-menu-actions button {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 0;
   text-align: left;
-  background: var(--surface, #fff);
-  color: inherit;
-  border: 1px solid var(--line, #d6ddd8);
+  color: var(--text);
+  background: var(--surface);
 }
-.chart-menu button + button {
-  border-top: 0;
-}
-.chart-menu button:last-child {
-  border-radius: 0 0 0.6rem 0.6rem;
+.chart-menu-actions button:not(:last-child) {
+  border-bottom: 1px solid var(--line);
 }
 .chart-date-controls {
   display: grid;
@@ -263,4 +259,79 @@
 .column-multiselect label {
   white-space: nowrap;
   font-size: 0.83rem;
+}
+
+/* The renderer owns the vector drawing; native controls keep keyboard access. */
+.chart-card .finance-chart {
+  max-height: none;
+  width: 100%;
+  min-width: 0;
+  touch-action: pan-y;
+}
+.finance-chart > div,
+.donut-chart > div {
+  max-width: 100%;
+}
+.finance-chart:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+.chart-stage {
+  min-width: 0;
+}
+.chart-readout {
+  padding: 12px 14px;
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-raised);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.65;
+}
+.distribution-layout .donut-chart {
+  width: 100%;
+  max-width: 280px;
+  margin-inline: auto;
+}
+.distribution-ranked {
+  grid-template-columns: minmax(0, 1fr);
+}
+.distribution-ranked .donut-chart {
+  max-width: none;
+}
+.distribution-item {
+  min-height: 44px;
+}
+.correlation-table td {
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  min-width: 84px;
+}
+.chart-dialog {
+  width: min(1120px, calc(100vw - 24px));
+  max-width: none;
+  max-height: calc(100dvh - 24px);
+  padding: 20px;
+  overflow: auto;
+}
+.chart-dialog > .button {
+  margin-bottom: 16px;
+}
+.chart-dialog .chart-card {
+  border: 0;
+  padding: 8px 0;
+}
+.chart-dialog .chart-explanation p {
+  right: 0;
+}
+
+.chart-card {
+  align-self: start;
+}
+
+.finance-chart svg,
+.donut-chart svg {
+  display: block;
+  max-width: 100%;
 }

@@ -5,3 +5,5 @@ web/install.html
 web/sw.js
 package-lock.json
 quality-results
+
+web/vendor

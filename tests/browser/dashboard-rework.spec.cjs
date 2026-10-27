@@ -1,3 +1,4 @@
+const { chartState, chartSeries } = require('./helpers/charts.cjs');
 const { test, expect } = require('@playwright/test');
 const { navigate } = require('./helpers/navigation.cjs');
 async function screenshot(page, name) {
@@ -5,6 +6,7 @@ async function screenshot(page, name) {
   await page.screenshot({
     path: test.info().outputPath('dashboard-' + name + '-' + viewport + '.png'),
     fullPage: true,
+    scale: 'css',
   });
 }
 
@@ -330,7 +332,9 @@ test('@responsive resumen concentra patrimonio, caja seleccionable y gráficos a
       exact: true,
     }),
   });
-  await expect(cash.locator('path.chart-line')).toHaveCount(3);
+  expect(
+    (await chartSeries(cash)).filter((s) => s.type === 'line'),
+  ).toHaveLength(3);
   await expect(cash.locator('.finance-chart circle')).toHaveCount(0);
   const accountToggle = cash.getByRole('button', {
     name: 'Banco ficticio',
@@ -338,7 +342,9 @@ test('@responsive resumen concentra patrimonio, caja seleccionable y gráficos a
   });
   await accountToggle.click();
   await expect(accountToggle).toHaveAttribute('aria-pressed', 'false');
-  await expect(cash.locator('path.chart-line')).toHaveCount(2);
+  expect(
+    (await chartSeries(cash)).filter((s) => s.type === 'line'),
+  ).toHaveLength(2);
   await accountToggle.click();
   const graph = cash.locator('.finance-chart');
   await graph.focus();
@@ -471,7 +477,11 @@ test('@responsive checklist filtra categorías; salario y cuentas mantienen sus 
   await expect(distribution.locator('.chart-readout')).toContainText(
     '60 % del total mostrado',
   );
-  await expect(page.locator('#spending-charts path.chart-step')).toHaveCount(1);
+  expect(
+    (await chartSeries(page.locator('#spending-charts'))).filter(
+      (s) => s.step === 'end',
+    ),
+  ).toHaveLength(1);
   await screenshot(page, 'spending');
   await navigate(page, 'salary');
   const salaryCharts = page.locator('#salary-charts .chart-card');
@@ -588,20 +598,17 @@ test('@responsive selección genérica de producto y periodo conserva escalera, 
   await expect(page.locator('#investment-kpis')).toContainText(/1\.?210,00/);
   await expect(page.locator('#investment-kpis')).toContainText(/1\.?100,00/);
   const chart = page.locator('#investment-charts .chart-card').first();
-  await expect(chart.locator('path.chart-step')).toHaveCount(1);
-  await expect(chart.locator('path.chart-area.chart-blue')).toHaveAttribute(
-    'data-baseline',
-    '0',
-  );
-  const market = chart.locator('path.chart-line.chart-red');
-  await expect(market).toHaveCount(1);
-  expect(await market.evaluate((node) => getComputedStyle(node).fill)).toBe(
-    'none',
-  );
-  const area = chart.locator('path.chart-area');
-  expect(await area.getAttribute('d')).toContain(' H ');
-  expect(await area.getAttribute('d')).toMatch(/^M [\d.]+ 213 L /);
-  expect(await area.getAttribute('d')).toMatch(/Z$/);
+  const rendered = await chartSeries(chart);
+  expect(rendered.find((s) => s.id === 'capital').step).toBe('end');
+  expect(rendered.find((s) => s.id === 'capital').areaStyle.origin).toBe(0);
+  expect(rendered.find((s) => s.id === 'value').smooth).toBe(false);
+  expect(rendered.find((s) => s.id === 'value').areaStyle).toBeUndefined();
+  expect(
+    rendered
+      .find((s) => s.id === 'capital')
+      .data.some((d) => d.value[1] === 1100),
+  ).toBe(true);
+  await expect(chart.locator('svg path')).not.toHaveCount(0);
   await screenshot(page, 'investments-area');
   await expect(chart.locator('.finance-chart circle')).toHaveCount(0);
   await chart.locator('.chart-data > summary').click();
@@ -637,7 +644,9 @@ test('@responsive selección genérica de producto y periodo conserva escalera, 
   });
   await valueToggle.click();
   await expect(valueToggle).toHaveAttribute('aria-pressed', 'false');
-  await expect(chart.locator('path.chart-line')).toHaveCount(1);
+  expect(
+    (await chartSeries(chart)).filter((s) => s.type === 'line'),
+  ).toHaveLength(1);
   await chart.locator('.finance-chart').focus();
   await page.keyboard.press('Home');
   await expect(chart.locator('.chart-readout')).toContainText('01 ene 2026');
@@ -715,7 +724,9 @@ test('@responsive datos del gráfico permiten ordenar y filtrar con teclado sin 
   await expect(table.locator('tbody')).toContainText(
     'No hay datos para estos filtros',
   );
-  await expect(chart.locator('path.chart-line')).toHaveCount(1);
+  expect(
+    (await chartSeries(chart)).filter((s) => s.type === 'line'),
+  ).toHaveLength(1);
   expect(
     await page.evaluate(() => window.chartTableFixture.map((r) => r.value)),
   ).toEqual([2, 100, 15, null]);
@@ -1071,16 +1082,10 @@ test('@responsive exact spending dates filter histogram, recurrence and transact
       exact: true,
     }),
   });
-  const tickBoxes = await histogram
-    .locator('.chart-x-tick')
-    .evaluateAll((nodes) =>
-      nodes.map((node) => {
-        const rect = node.getBoundingClientRect();
-        return { left: rect.left, right: rect.right };
-      }),
-    );
-  for (let i = 1; i < tickBoxes.length; i++)
-    expect(tickBoxes[i].left).toBeGreaterThan(tickBoxes[i - 1].right + 4);
+  expect((await chartState(histogram)).xAxis[0].axisLabel.hideOverlap).toBe(
+    true,
+  );
+  await expect(histogram.locator('svg text')).not.toHaveCount(0);
   await expect(histogram.locator('svg')).toContainText('Importe (€)');
   await histogram.locator('.chart-menu summary').click();
   const download = page.waitForEvent('download');
@@ -1163,16 +1168,9 @@ test('@responsive goals expose real assignments, completed state and a clean emp
     'Plazo vencido',
   );
   await expect(page.locator('#goal-charts .chart-card')).toHaveCount(2);
-  const goalTicks = await page
-    .locator('#goal-charts .chart-x-tick')
-    .evaluateAll((nodes) =>
-      nodes.map((node) => {
-        const rect = node.getBoundingClientRect();
-        return { left: rect.left, right: rect.right };
-      }),
-    );
-  for (let i = 1; i < goalTicks.length; i++)
-    expect(goalTicks[i].left).toBeGreaterThan(goalTicks[i - 1].right + 4);
+  const goalsChart = await chartState(page.locator('#goal-charts'));
+  expect(goalsChart.yAxis[0].type).toBe('category');
+  expect(goalsChart.yAxis[0].axisLabel.overflow).toBe('truncate');
   await expect(page.locator('#goal-resources')).not.toHaveAttribute('open', '');
   await screenshot(page, 'goals-detail');
   seed.tables.tObjetivos = [];
@@ -1225,7 +1223,9 @@ test('account reconciliation never hides opposite differences by netting them', 
   await expect(
     page.locator('#account-summary .kpi-value').nth(2),
   ).toContainText('20,00');
-  await expect(page.locator('#account-charts rect.chart-red')).toHaveCount(2);
+  expect(
+    (await chartSeries(page.locator('#account-charts')))[0].data,
+  ).toHaveLength(2);
   await expect(page.locator('#account-charts')).not.toContainText(
     'Saldo por cuenta',
   );
@@ -1352,9 +1352,7 @@ test('@responsive fixed-width spending histogram and city tones remain readable 
     histogram.getByLabel('Intervalo de gasto en euros').locator('option'),
   ).toHaveText(['5 €', '10 €', '20 €', '50 €', '100 €']);
   await histogram.getByLabel('Intervalo de gasto en euros').selectOption('20');
-  expect(
-    await histogram.locator('.chart-x-tick').first().getAttribute('transform'),
-  ).toContain('rotate(-60');
+  expect((await chartState(histogram)).xAxis[0].axisLabel.rotate).toBe(60);
   await histogram.locator('.chart-menu summary').click();
   const download = page.waitForEvent('download');
   await histogram
@@ -1380,19 +1378,10 @@ test('@responsive fixed-width spending histogram and city tones remain readable 
   const city = page.locator('#spending-charts .chart-card').filter({
     has: page.getByRole('heading', { name: 'Gasto por ciudad', exact: true }),
   });
-  await expect(city.locator('rect.chart-unclassified')).toHaveCount(1);
-  await expect(city.locator('rect.chart-city')).toHaveCount(2);
-  const colors = await city
-    .locator('rect.chart-city, rect.chart-unclassified')
-    .evaluateAll((nodes) =>
-      nodes.map((node) => ({
-        unknown: node.classList.contains('chart-unclassified'),
-        fill: getComputedStyle(node).fill,
-      })),
-    );
-  expect(colors.find((c) => c.unknown).fill).not.toBe(
-    colors.find((c) => !c.unknown).fill,
-  );
+  const cityData = (await chartSeries(city))[0].data;
+  expect(cityData).toHaveLength(3);
+  expect(new Set(cityData.map((d) => d.itemStyle.color)).size).toBe(2);
+  expect((await chartState(city)).yAxis[0].type).toBe('category');
   await screenshot(page, 'histogram-and-city');
 });
 
@@ -1957,7 +1946,7 @@ test('@responsive complete TWR replaces the redundant estimate and product retur
   await expect(
     bars.getByRole('heading', { name: 'Rentabilidad por mes', exact: true }),
   ).toBeVisible();
-  await expect(bars.locator('svg rect')).not.toHaveCount(0);
+  await expect(bars.locator('svg path')).not.toHaveCount(0);
   await page.locator('#investment-measure').selectOption('result');
   await expect(
     page.locator('#portfolio-analysis-charts .chart-card'),
@@ -2010,8 +1999,12 @@ test('@responsive monthly return bars exclude deposits and use green for gains a
       exact: true,
     }),
   });
-  await expect(chart.locator('svg rect.chart-mint')).toHaveCount(2);
-  await expect(chart.locator('svg rect.chart-red')).toHaveCount(1);
+  const monthlyBars = (await chartSeries(chart))[0].data;
+  expect(monthlyBars.filter((d) => d.value >= 0)).toHaveLength(2);
+  expect(monthlyBars.filter((d) => d.value < 0)).toHaveLength(1);
+  expect(monthlyBars[2].itemStyle.color).not.toBe(
+    monthlyBars[0].itemStyle.color,
+  );
   await chart.getByText('Ver datos', { exact: true }).click();
   const rows = chart.locator('.chart-table tbody tr');
   await expect(rows).toHaveCount(3);
@@ -2030,7 +2023,7 @@ test('@responsive monthly return bars exclude deposits and use green for gains a
   ).toBe(true);
   expect(
     await chart
-      .locator('.chart-axis')
+      .locator('svg text')
       .evaluateAll((nodes) =>
         nodes.some((n) => /^-0(?:[,.]0+)?$/.test(n.textContent.trim())),
       ),
@@ -2068,6 +2061,21 @@ test('@responsive @safari shared chart and form controls fit every main view on 
         return {
           page: document.documentElement.scrollWidth,
           viewport: innerWidth,
+          oversizedCharts: [...document.querySelectorAll('[data-renderer]')]
+            .filter(
+              (n) =>
+                n.getClientRects().length &&
+                n.getBoundingClientRect().width > 1,
+            )
+            .filter((n) => {
+              const image = n.querySelector('svg');
+              return (
+                image &&
+                image.getBoundingClientRect().width >
+                  n.getBoundingClientRect().width + 1
+              );
+            })
+            .map((n) => n.getAttribute('aria-label')),
           overflow: controls
             .filter((n) => {
               const a = n.getBoundingClientRect(),
@@ -2083,6 +2091,10 @@ test('@responsive @safari shared chart and form controls fit every main view on 
         layout.viewport,
       );
       expect(layout.overflow, view + ' at ' + width).toEqual([]);
+      expect(
+        layout.oversizedCharts,
+        view + ' vector bounds at ' + width,
+      ).toEqual([]);
     }
   }
   await navigate(page, 'home');
@@ -2093,4 +2105,188 @@ test('@responsive @safari shared chart and form controls fit every main view on 
   await dates.locator('input[type=range]').first().focus();
   await page.keyboard.press('ArrowRight');
   await expect(from).not.toHaveValue(before);
+});
+
+test('@responsive @safari vector charts preserve pointer selection, nulls, full-screen controls and disposal', async ({
+  page,
+}) => {
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await setup(page);
+  await page.evaluate(() => {
+    window.chartSelections = [];
+    FinanceCharts.clear(document.getElementById('dashboard-charts'));
+    FinanceCharts.plot(document.getElementById('dashboard-charts'), {
+      title: 'Auditoría vectorial',
+      rows: [
+        { date: '2026-01-01', value: 301.123456 },
+        { date: '2026-01-05', value: null },
+        { date: '2026-02-01', value: 290 },
+      ],
+      fields: [{ key: 'value', label: 'Valor' }],
+      onSelect: (row) => window.chartSelections.push(row),
+    });
+  });
+  const chart = page.locator('#dashboard-charts .chart-card');
+  const host = chart.locator('.finance-chart');
+  await host.scrollIntoViewIfNeeded();
+  const point = await host.evaluate((node) => {
+    const engine = FinanceECharts.getInstanceByDom(node);
+    const rect = node.getBoundingClientRect();
+    return {
+      x:
+        rect.left +
+        engine.convertToPixel(
+          { xAxisIndex: 0 },
+          Date.parse('2026-01-05T00:00:00Z'),
+        ),
+      y: rect.top + 100,
+    };
+  });
+  await page.mouse.click(point.x, point.y);
+  await expect(chart.locator('.chart-readout')).toContainText(
+    'Valor: Sin dato',
+  );
+  expect(await page.evaluate(() => window.chartSelections)).toEqual([
+    { date: '2026-01-05', value: null },
+  ]);
+  await chart.locator('.chart-menu summary').click();
+  await chart
+    .getByRole('button', { name: 'Ampliar gráfico', exact: true })
+    .click();
+  const dialog = page.getByRole('dialog', {
+    name: 'Auditoría vectorial',
+    exact: true,
+  });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel('Desde Auditoría vectorial').fill('2026-01-05');
+  await dialog.getByLabel('Desde Auditoría vectorial').dispatchEvent('change');
+  await dialog.locator('.finance-chart').focus();
+  await page.keyboard.press('End');
+  await expect(dialog.locator('.chart-readout')).toContainText('290,00');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(chart.locator('.chart-menu summary')).toBeFocused();
+  await page.evaluate(() => {
+    const host = document.querySelector('#dashboard-charts .finance-chart');
+    window.disposedChartHost = host;
+    FinanceCharts.clear(document.getElementById('dashboard-charts'));
+  });
+  expect(
+    await page.evaluate(
+      () =>
+        FinanceECharts.getInstanceByDom(window.disposedChartHost) === undefined,
+    ),
+  ).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test('@responsive @safari compositions adapt to many groups and retain unknown values, signed data and live theme colors', async ({
+  page,
+}) => {
+  await setup(page);
+  await page.evaluate(() => {
+    const parent = document.getElementById('dashboard-charts');
+    FinanceCharts.clear(parent);
+    FinanceCharts.donut(parent, {
+      title: 'Composición extensa',
+      rows: [
+        ...Array.from({ length: 6 }, (_, i) => ({
+          label: 'Grupo ' + i,
+          value: i + 1,
+        })),
+        { label: 'Desconocido', value: null },
+        { label: 'Devolución', value: -2 },
+      ],
+    });
+    window.distributionSelected = null;
+    FinanceCharts.donut(parent, {
+      title: 'Composición breve',
+      rows: [
+        { label: 'A', value: 40 },
+        { label: 'B', value: 60 },
+      ],
+      onSelect: (row) => (window.distributionSelected = row),
+    });
+  });
+  const large = page.locator('.chart-card').filter({
+    has: page.getByRole('heading', {
+      name: 'Composición extensa',
+      exact: true,
+    }),
+  });
+  expect((await chartState(large)).series[0].type).toBe('bar');
+  expect((await chartSeries(large))[0].data.map((d) => d.value)).toEqual([
+    1, 2, 3, 4, 5, 6,
+  ]);
+  expect(
+    new Set((await chartSeries(large))[0].data.map((d) => d.itemStyle.color))
+      .size,
+  ).toBe(6);
+  await expect(large).toContainText('Peso desconocido');
+  await expect(large).toContainText('devoluciones netas negativas');
+  await large.locator('.chart-data > summary').click();
+  await expect(large.locator('tbody')).toContainText('-2,00');
+  const small = page.locator('.chart-card').filter({
+    has: page.getByRole('heading', {
+      name: 'Composición breve',
+      exact: true,
+    }),
+  });
+  expect((await chartSeries(small))[0].type).toBe('pie');
+  const pie = small.locator('.donut-chart');
+  await pie.scrollIntoViewIfNeeded();
+  const rect = await pie.boundingBox();
+  await page.mouse.click(rect.x + rect.width / 2 + 70, rect.y + 125 - 70);
+  expect(await page.evaluate(() => window.distributionSelected)).toEqual({
+    label: 'A',
+    value: 40,
+  });
+  const before = (await chartSeries(small))[0].data[0].itemStyle.color;
+  await page.evaluate(() => (document.documentElement.dataset.theme = 'dark'));
+  await expect
+    .poll(async () => (await chartSeries(small))[0].data[0].itemStyle.color)
+    .not.toBe(before);
+  await small
+    .locator('button.distribution-item')
+    .filter({ hasText: 'B' })
+    .click();
+  await expect(small.locator('.chart-readout')).toContainText('60 %');
+});
+
+test('@responsive @safari expanded city charts keep the selected movement detail inside the active dialog', async ({
+  page,
+}) => {
+  await setup(page);
+  await navigate(page, 'book');
+  const city = page.locator('#spending-charts .chart-card').filter({
+    has: page.getByRole('heading', { name: 'Gasto por ciudad', exact: true }),
+  });
+  await city.locator('.chart-menu summary').click();
+  await city
+    .getByRole('button', { name: 'Ampliar gráfico', exact: true })
+    .click();
+  const dialog = page.getByRole('dialog', {
+    name: 'Gasto por ciudad',
+    exact: true,
+  });
+  const host = dialog.locator('.finance-chart');
+  await host.scrollIntoViewIfNeeded();
+  const point = await host.evaluate((node) => {
+    const engine = FinanceECharts.getInstanceByDom(node),
+      rect = node.getBoundingClientRect();
+    return {
+      x: rect.left + 170,
+      y: rect.top + engine.convertToPixel({ yAxisIndex: 0 }, 0),
+    };
+  });
+  await page.mouse.click(point.x, point.y);
+  const detail = dialog.locator('.transaction-selection');
+  await expect(detail).toBeVisible();
+  await expect(detail.locator('tbody tr')).not.toHaveCount(0);
+  await expect(dialog.locator('.chart-readout')).toContainText(
+    'Ciudad ficticia',
+  );
+  await page.keyboard.press('Escape');
+  await expect(city.locator('.transaction-selection')).toBeVisible();
 });

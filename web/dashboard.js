@@ -233,7 +233,10 @@ const FinanceDashboard = (() => {
     chart = null,
     summary = false,
   ) {
-    const target = chart || $('spending-charts');
+    const target =
+      chart ||
+      document.querySelector('.chart-dialog[open] .chart-card') ||
+      $('spending-charts');
     const selectionKey = JSON.stringify([category, date, city, bin, recurring]);
     const existing = target.querySelector('.transaction-selection');
     if (existing?.dataset.selection === selectionKey) {
@@ -749,6 +752,7 @@ const FinanceDashboard = (() => {
     });
     FinanceCharts.plot(target, {
       title: 'Gasto por ciudad',
+      horizontal: true,
       rows: a.cities.map((row) => ({
         ...row,
         tone: row.label === 'Sin ciudad' ? 'chart-unclassified' : 'chart-city',
@@ -1156,6 +1160,7 @@ const FinanceDashboard = (() => {
     });
     FinanceCharts.plot(target, {
       title: 'Contribución al resultado',
+      horizontal: true,
       rows: analysis.contributions,
       fields: [
         {
@@ -1180,6 +1185,7 @@ const FinanceDashboard = (() => {
         : 'Histórico insuficiente: se necesitan 12 rendimientos semanales comparables.';
     const vol = FinanceCharts.plot(target, {
       title: 'Volatilidad anualizada',
+      horizontal: true,
       rows: risk.volatility,
       unit: '%',
       fields: [
@@ -1526,6 +1532,7 @@ const FinanceDashboard = (() => {
     );
     FinanceCharts.plot(target, {
       title: 'Diferencias por cuenta',
+      horizontal: true,
       rows: observed.map((observation) => ({
         label: labelAccount(observation.account),
         value: observation.difference,
@@ -2065,6 +2072,7 @@ const FinanceDashboard = (() => {
     }
     FinanceCharts.plot($('goal-charts'), {
       title: 'Asignación y meta por objetivo',
+      horizontal: true,
       rows: goals.map((goal) => ({
         label: goal.Objetivo,
         assigned: goal.Asignado,

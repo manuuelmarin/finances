@@ -33,6 +33,18 @@ const FinanceCharts = (() => {
     'chart-copper',
   ];
   const cleanup = new WeakMap();
+  const redraw = new Map();
+  const repaint = () => {
+    for (const [node, draw] of redraw)
+      if (node.isConnected && node.getClientRects().length) draw();
+  };
+  new MutationObserver(repaint).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme', 'data-color-scheme', 'class'],
+  });
+  window
+    .matchMedia('(prefers-color-scheme: dark)')
+    .addEventListener('change', repaint);
   let chartSequence = 0;
   const html = (tag, text, cls) => {
     const node = document.createElement(tag);
@@ -47,6 +59,23 @@ const FinanceCharts = (() => {
     if (text !== undefined) node.textContent = text;
     return node;
   };
+  // ResizeObserver callbacks only schedule work. Rendering changes dimensions;
+  // writing during delivery causes undelivered-notification loops in WebKit.
+  function observeSize(node, draw) {
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        if (node.isConnected) draw();
+      });
+    });
+    observer.observe(node);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }
   function clear(parent) {
     if (!parent) return;
     for (const node of parent.querySelectorAll('[data-chart-root]'))
@@ -251,7 +280,9 @@ const FinanceCharts = (() => {
     const details = html('details', undefined, 'chart-menu');
     const summary = html('summary', '…');
     summary.setAttribute('aria-label', 'Acciones del gráfico: ' + title);
-    details.append(summary);
+    summary.tabIndex = 0;
+    const actions = html('div', undefined, 'chart-menu-actions');
+    details.append(summary, actions);
     const slug =
       String(title || 'grafico')
         .normalize('NFD')
@@ -263,7 +294,7 @@ const FinanceCharts = (() => {
       const b = html('button', label);
       b.type = 'button';
       b.addEventListener('click', action);
-      details.append(b);
+      actions.append(b);
     };
     const download = (blob, ext) => {
       const a = html('a', '');
@@ -305,18 +336,52 @@ const FinanceCharts = (() => {
           const value = styles.getPropertyValue(property);
           if (value) copies[index].setAttribute(property, value);
         }
-        if (original.classList?.contains('chart-axis'))
+        if (original.tagName.toLowerCase() === 'text')
           copies[index].setAttribute('fill', '#263442');
       });
       clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
       clone.setAttribute('width', source.viewBox.baseVal.width || 1000);
-      const baseHeight = source.viewBox.baseVal.height || 600;
+      const baseHeight =
+        source.viewBox.baseVal.height ||
+        Number(source.getAttribute('height')) ||
+        600;
       const baseWidth = source.viewBox.baseVal.width || 1000;
       const hasRange = Boolean(source.dataset.range);
       const items = legendItems();
-      const legendRows = Math.ceil(items.length / 3);
-      const legendStart = baseHeight + (hasRange ? 58 : 40);
-      const exportHeight = legendStart + legendRows * 22 + 12;
+      const columns = baseWidth >= 640 ? 2 : 1;
+      const colWidth = (baseWidth - 24) / columns;
+      const maxChars = Math.max(12, Math.floor((colWidth - 20) / 7));
+      const wrapLabel = (text, limit = maxChars) => {
+        const lines = [''];
+        for (const word of String(text).match(
+          new RegExp('.{1,' + limit + '}', 'g'),
+        ) || []) {
+          if (lines.at(-1).length + word.length > limit && lines.at(-1))
+            lines.push('');
+          lines[lines.length - 1] += (lines.at(-1) ? ' ' : '') + word;
+        }
+        return lines;
+      };
+      const itemLines = items.map((item) => wrapLabel(item.label));
+      const titleLines = wrapLabel(
+        title,
+        Math.max(12, Math.floor((baseWidth - 24) / 9)),
+      );
+      const rowHeights = Array.from(
+        { length: Math.ceil(items.length / columns) },
+        (_, row) =>
+          Math.max(
+            ...itemLines
+              .slice(row * columns, (row + 1) * columns)
+              .map((lines) => lines.length),
+          ) *
+            17 +
+          10,
+      );
+      const legendStart =
+        baseHeight + titleLines.length * 22 + (hasRange ? 36 : 18);
+      const exportHeight =
+        legendStart + rowHeights.reduce((a, b) => a + b, 0) + 12;
       clone.setAttribute('height', exportHeight);
       clone.setAttribute('viewBox', `0 0 ${baseWidth} ${exportHeight}`);
       const background = svg('rect', {
@@ -327,17 +392,19 @@ const FinanceCharts = (() => {
         fill: '#fff',
       });
       clone.insertBefore(background, clone.firstChild);
-      clone.append(
-        svg(
-          'text',
-          {
-            x: baseWidth / 2,
-            y: baseHeight + 18,
-            'text-anchor': 'middle',
-            fill: '#263442',
-            'font-size': 18,
-          },
-          title,
+      titleLines.forEach((line, i) =>
+        clone.append(
+          svg(
+            'text',
+            {
+              x: baseWidth / 2,
+              y: baseHeight + 18 + i * 22,
+              'text-anchor': 'middle',
+              fill: '#263442',
+              'font-size': 18,
+            },
+            line,
+          ),
         ),
       );
       if (hasRange)
@@ -346,7 +413,7 @@ const FinanceCharts = (() => {
             'text',
             {
               x: baseWidth / 2,
-              y: baseHeight + 36,
+              y: baseHeight + titleLines.length * 22 + 16,
               'text-anchor': 'middle',
               fill: '#344054',
               'font-size': 14,
@@ -354,12 +421,12 @@ const FinanceCharts = (() => {
             source.dataset.range,
           ),
         );
-      const colWidth = (baseWidth - 24) / 3;
       items.forEach((item, index) => {
-        const col = index % 3;
-        const row = Math.floor(index / 3);
+        const col = index % columns;
+        const row = Math.floor(index / columns);
         const x = 12 + col * colWidth;
-        const y = legendStart + row * 22;
+        const y =
+          legendStart + rowHeights.slice(0, row).reduce((a, b) => a + b, 0);
         clone.append(
           svg('rect', {
             x,
@@ -370,16 +437,58 @@ const FinanceCharts = (() => {
             fill: item.color || '#667085',
           }),
         );
-        clone.append(
-          svg(
-            'text',
-            { x: x + 15, y, fill: '#263442', 'font-size': 14 },
-            item.label,
+        itemLines[index].forEach((line, lineIndex) =>
+          clone.append(
+            svg(
+              'text',
+              {
+                x: x + 15,
+                y: y + lineIndex * 17,
+                fill: '#263442',
+                'font-size': 12,
+              },
+              line,
+            ),
           ),
         );
       });
       return new XMLSerializer().serializeToString(clone);
     };
+    add('Ampliar gráfico', () => {
+      details.open = false;
+      const slot = html('div');
+      slot.dataset.chartRoot = '';
+      article.before(slot);
+      const dialog = html('dialog', undefined, 'chart-dialog');
+      dialog.setAttribute('aria-label', title);
+      const close = html(
+        'button',
+        'Cerrar vista ampliada',
+        'button button-secondary',
+      );
+      close.type = 'button';
+      dialog.append(close, article);
+      document.body.append(dialog);
+      cleanup.set(slot, () => {
+        cleanup.get(article)?.();
+        dialog.close();
+      });
+      dialog.addEventListener(
+        'close',
+        () => {
+          if (slot.isConnected) slot.replaceWith(article);
+          else article.remove();
+          dialog.remove();
+          requestAnimationFrame(() => {
+            if (summary.isConnected) summary.focus({ preventScroll: true });
+          });
+        },
+        { once: true },
+      );
+      close.addEventListener('click', () => dialog.close());
+      dialog.showModal();
+      close.focus();
+    });
     add('Abrir en pestaña nueva', () => {
       const data = snapshot();
       if (!data) return;
@@ -408,8 +517,12 @@ const FinanceCharts = (() => {
       const img = new Image();
       img.onload = () => {
         const c = document.createElement('canvas');
-        c.width = img.width * 2;
-        c.height = img.height * 2;
+        const scale = Math.min(
+          Math.max(2, 1600 / img.width),
+          Math.sqrt(16000000 / (img.width * img.height)),
+        );
+        c.width = Math.round(img.width * scale);
+        c.height = Math.round(img.height * scale);
         c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
         c.toBlob((blob) => {
           if (blob) download(blob, 'png');
@@ -467,6 +580,7 @@ const FinanceCharts = (() => {
       barMode = 'grouped',
       onSelect = null,
       showDataTable = true,
+      horizontal = false,
     },
   ) {
     const article = card(parent, title, description);
@@ -478,6 +592,7 @@ const FinanceCharts = (() => {
         }).format(v);
       if (field.unit === 'number') return number.format(v);
       if (unit === '%') return number.format(v) + ' %';
+      if (unit === 'Días') return number.format(v) + ' días';
       if (unit === 'count')
         return new Intl.NumberFormat('es-ES', {
           maximumFractionDigits: 0,
@@ -504,13 +619,12 @@ const FinanceCharts = (() => {
       : rows;
     rows = allRows;
     let cursor = Math.max(0, rows.length - 1);
-    const graph = svg('svg', {
-      role: 'img',
-      'aria-label': title,
-      class: 'finance-chart',
-      tabindex: '0',
-      'aria-describedby': readout.id,
-    });
+    const graph = html('div', undefined, 'finance-chart');
+    graph.tabIndex = 0;
+    graph.setAttribute('role', 'img');
+    graph.setAttribute('aria-label', title);
+    graph.setAttribute('aria-describedby', readout.id);
+    graph.dataset.renderer = 'echarts-svg';
     const buttons = new Map();
     fields.forEach((f, i) => {
       if (f.tooltipOnly) return;
@@ -682,8 +796,8 @@ const FinanceCharts = (() => {
           : '');
       if (guide && geometry) {
         const x = geometry.x(cursor);
-        guide.setAttribute('x1', x);
-        guide.setAttribute('x2', x);
+        guide.setAttribute(horizontal ? 'y1' : 'x1', x);
+        guide.setAttribute(horizontal ? 'y2' : 'x2', x);
         guide.hidden = false;
       }
     }
@@ -700,360 +814,132 @@ const FinanceCharts = (() => {
       onSelect?.(rows[cursor]);
     });
     function draw() {
-      graph.replaceChildren();
-      const width = Math.max(
-        260,
-        Math.round(
-          stage.getBoundingClientRect().width ||
-            Math.min(700, window.innerWidth - 56),
-        ),
+      const active = fields
+        .filter((f) => !f.tooltipOnly && visible.has(f.key))
+        .map((f) => ({
+          ...f,
+          tone: f.tone || tones[fields.indexOf(f) % tones.length],
+        }));
+      const themed = FinanceChartRenderer.palette(article);
+      const height = horizontal
+        ? Math.max(
+            article.closest('.chart-dialog') ? 420 : 280,
+            rows.length * 44 + 90,
+          )
+        : xTickRotation
+          ? 360
+          : article.closest('.chart-dialog')
+            ? 420
+            : 300;
+      graph.style.height = height + 'px';
+      const option = FinanceChartRenderer.plotOption(
+        {
+          rows,
+          fields: active,
+          unit,
+          xKey,
+          xTickRotation,
+          xAxisTitle,
+          reference,
+          barMode,
+          horizontal,
+        },
+        themed,
       );
-      const height = xTickRotation ? 320 : 260,
-        left = 64,
-        right = width - 18,
-        top = 18,
-        bottom = 213;
-      graph.setAttribute('viewBox', `0 0 ${width} ${height}`);
-      const active = fields.filter((f) => !f.tooltipOnly && visible.has(f.key));
-      const values = rows
-        .flatMap((r) => active.map((f) => r[f.key]))
-        .filter(finite);
-      if (reference && values.length && finite(reference.value))
-        values.push(reference.value);
-      if (!values.length) {
-        graph.append(
-          svg(
-            'text',
-            {
-              x: width / 2,
-              y: 125,
-              'text-anchor': 'middle',
-              class: 'chart-axis',
+      const hasValues = rows.some((r) => active.some((f) => finite(r[f.key])));
+      if (!hasValues) {
+        option.xAxis.show = false;
+        option.yAxis.show = false;
+        option.graphic = [
+          {
+            type: 'text',
+            left: 'center',
+            top: 'middle',
+            style: {
+              text: active.length
+                ? emptyMessage
+                : 'Selecciona una serie en la leyenda',
+              fill: themed.muted,
+              fontSize: 12,
+              width: Math.max(160, graph.clientWidth - 36),
+              overflow: 'break',
+              align: 'center',
             },
-            active.length ? emptyMessage : 'Selecciona una serie en la leyenda',
-          ),
-        );
-        geometry = null;
-        guide = null;
-        if (!rows.length) {
-          cursor = 0;
-          readout.textContent = active.length
-            ? emptyMessage
-            : 'Selecciona una serie en la leyenda';
-        } else {
-          inspect(cursor);
-        }
+          },
+        ];
+      }
+      const engine = FinanceChartRenderer.render(graph, option, height);
+      const image = graph.querySelector('svg');
+      if (image) {
+        image.dataset.range = graph.dataset.range || '';
+        image.setAttribute('aria-hidden', 'true');
+      }
+      if (!hasValues) {
+        geometry = guide = null;
+        graph.onpointermove = graph.onclick = null;
+        readout.textContent = active.length
+          ? emptyMessage
+          : 'Selecciona una serie en la leyenda';
+        if (rows.length) inspect(cursor);
         return;
       }
-      const bars = active.some((f) => f.shape === 'bar');
-      const zeroBaseline = bars || fields.some((f) => f.area);
-      const lo = values.reduce((a, b) => Math.min(a, b), Infinity),
-        hi = values.reduce((a, b) => Math.max(a, b), -Infinity);
-      const span = Math.max(hi - lo, Math.abs(hi) * 0.08, 1);
-      const min = zeroBaseline
-        ? Math.min(0, lo)
-        : lo >= 0
-          ? Math.max(0, lo - span * 0.08)
-          : lo - span * 0.08;
-      const max = bars
-        ? Math.max(0, hi) || 1
-        : zeroBaseline
-          ? Math.max(0, hi + span * 0.08) || 1
-          : hi + span * 0.08;
-      const y = (v) => bottom - ((v - min) / (max - min || 1)) * (bottom - top);
-      const time = (r, i) => {
-        if (xKey && finite(r[xKey])) return r[xKey];
-        const n = Date.parse((r.date || '') + 'T00:00:00Z');
-        return Number.isFinite(n) ? n : i;
-      };
-      const start = time(rows[0], 0),
-        end = time(rows[rows.length - 1], rows.length - 1);
-      const pad = bars ? (right - left) / (2 * Math.max(1, rows.length)) : 0;
-      const x = (i) =>
-        rows.length === 1
-          ? (left + right) / 2
-          : left +
-            pad +
-            ((time(rows[i], i) - start) / (end - start || 1)) *
-              (right - left - 2 * pad);
-      geometry = { x, left, right };
-      const rawStep = (max - min) / 4,
-        power = Math.pow(10, Math.floor(Math.log10(rawStep || 1)));
-      const fraction = rawStep / power,
-        niceStep =
-          (fraction <= 1
-            ? 1
-            : fraction <= 2
-              ? 2
-              : fraction <= 2.5
-                ? 2.5
-                : fraction <= 5
-                  ? 5
-                  : 10) * power;
-      const step =
-        unit === 'count' ? Math.max(1, Math.ceil(niceStep)) : niceStep;
-      const tickStart = Math.ceil(min / step) * step;
-      for (let v = tickStart; v <= max + step * 0.001; v += step) {
-        graph.append(
-          svg('line', {
-            x1: left,
-            x2: right,
-            y1: y(v),
-            y2: y(v),
-            class: 'chart-gridline',
-          }),
+      const categorical =
+        option[horizontal ? 'yAxis' : 'xAxis'].type === 'category';
+      const coordinate = (row, i) =>
+        xKey
+          ? row[xKey]
+          : categorical
+            ? i
+            : Date.parse(row.date + 'T00:00:00Z');
+      const position = (i) =>
+        engine.convertToPixel(
+          horizontal ? { yAxisIndex: 0 } : { xAxisIndex: 0 },
+          coordinate(rows[i], i),
         );
-        graph.append(
-          svg(
-            'text',
-            {
-              x: left - 8,
-              y: y(v) + 4,
-              'text-anchor': 'end',
-              class: 'chart-axis',
-            },
-            new Intl.NumberFormat('es-ES', {
-              maximumFractionDigits: unit === 'count' ? 0 : 2,
-            }).format(Math.abs(v) < step * 1e-10 ? 0 : v),
-          ),
-        );
-      }
-      graph.append(
-        svg(
-          'text',
-          { x: left, y: 12, class: 'chart-axis axis-title' },
-          displayUnit,
-        ),
-      );
-      if (reference && finite(reference.value)) {
-        const ry = y(reference.value);
-        graph.append(
-          svg('line', {
-            x1: left,
-            x2: right,
-            y1: ry,
-            y2: ry,
-            class: 'chart-reference',
-          }),
-        );
-        if (reference.label)
-          graph.append(
-            svg(
-              'text',
-              {
-                x: right,
-                y: ry - 4,
-                'text-anchor': 'end',
-                class: 'chart-axis',
-              },
-              reference.label,
-            ),
-          );
-      }
-      const tickLabel = (row) =>
-        row.axisLabel || dateLabel(row.label || row.date).slice(0, 15);
-      const labelWidth =
-        Math.max(...rows.map((row) => tickLabel(row).length)) * 6;
-      const count = Math.min(
-        xTickRotation
-          ? Math.max(2, Math.floor((right - left) / 60))
-          : width < 360
-            ? 2
-            : width < 480
-              ? 3
-              : 5,
-        Math.max(
-          2,
-          Math.floor((right - left) / (xTickRotation ? 60 : labelWidth + 16)),
-        ),
-        rows.length,
-      );
-      const ticks = new Set(
-        Array.from({ length: count }, (_, i) =>
-          Math.round((i * (rows.length - 1)) / Math.max(1, count - 1)),
-        ),
-      );
-      for (const i of ticks)
-        graph.append(
-          svg(
-            'text',
-            {
-              x: x(i),
-              y: 240,
-              ...(xTickRotation
-                ? { transform: `rotate(${xTickRotation} ${x(i)} 240)` }
-                : {}),
-              'text-anchor': xTickRotation
-                ? 'end'
-                : bars
-                  ? 'middle'
-                  : i === 0
-                    ? 'start'
-                    : i === rows.length - 1
-                      ? 'end'
-                      : 'middle',
-              class: 'chart-axis chart-x-tick',
-            },
-            tickLabel(rows[i]),
-          ),
-        );
-      if (xAxisTitle)
-        graph.append(
-          svg(
-            'text',
-            {
-              x: right,
-              y: xTickRotation ? 311 : 257,
-              'text-anchor': 'end',
-              class: 'chart-axis axis-title',
-            },
-            xAxisTitle,
-          ),
-        );
-      active.forEach((f, color) => {
-        const tone = f.tone || tones[fields.indexOf(f) % tones.length];
-        if (f.shape === 'bar') {
-          const w = Math.min(
-            28,
-            ((right - left) / Math.max(1, rows.length) / active.length) * 0.65,
-          );
-          rows.forEach((r, i) => {
-            if (finite(r[f.key])) {
-              const b = svg('rect', {
-                x: Math.min(
-                  right - w,
-                  Math.max(
-                    left,
-                    x(i) +
-                      (barMode === 'diverging'
-                        ? -0.5
-                        : color - active.length / 2) *
-                        w,
-                  ),
-                ),
-                y: Math.min(y(0), y(r[f.key])),
-                width: Math.max(2, w - 1),
-                height: Math.max(1, Math.abs(y(r[f.key]) - y(0))),
-                rx: 2,
-                class: tones
-                  .concat(['chart-city', 'chart-unclassified'])
-                  .includes(r.tone)
-                  ? r.tone
-                  : tone,
-              });
-              b.append(
-                svg(
-                  'title',
-                  {},
-                  (r.date || r.label) +
-                    ' · ' +
-                    f.label +
-                    ' · ' +
-                    format(r[f.key], f),
-                ),
-              );
-              graph.append(b);
-            }
-          });
-        } else {
-          let path = '',
-            area = '',
-            segment = '',
-            lastX = null,
-            connected = false;
-          const closeArea = () => {
-            if (segment) area += segment + ` L ${lastX} ${y(0)} Z`;
-            segment = '';
-          };
-          rows.forEach((r, i) => {
-            if (!finite(r[f.key])) {
-              if (f.connectGaps) return;
-              closeArea();
-              connected = false;
-              return;
-            }
-            const command = !connected
-              ? ` M ${x(i)} ${y(r[f.key])}`
-              : f.shape === 'step'
-                ? ` H ${x(i)} V ${y(r[f.key])}`
-                : ` L ${x(i)} ${y(r[f.key])}`;
-            path += command;
-            segment += !connected
-              ? ` M ${x(i)} ${y(0)} L ${x(i)} ${y(r[f.key])}`
-              : command;
-            lastX = x(i);
-            connected = true;
-          });
-          closeArea();
-          if (f.area)
-            graph.append(
-              svg('path', {
-                d: area.trim(),
-                class: 'chart-area ' + tone,
-                'data-baseline': '0',
-              }),
-            );
-          graph.append(
-            svg('path', {
-              d: path.trim(),
-              class:
-                'chart-line ' +
-                tone +
-                (f.shape === 'step' ? ' chart-step' : ''),
-            }),
-          );
-        }
-      });
+      const grid = option.grid;
+      geometry = { x: position };
       guide = svg('line', {
-        x1: left,
-        x2: left,
-        y1: top,
-        y2: bottom,
+        x1: grid.left,
+        x2: horizontal ? engine.getWidth() - grid.right : grid.left,
+        y1: grid.top,
+        y2: horizontal ? grid.top : height - grid.bottom,
         class: 'chart-hover-guide',
         'aria-hidden': 'true',
       });
-      graph.append(guide);
-      const hit = svg('rect', {
-        x: left,
-        y: top,
-        width: right - left,
-        height: bottom - top,
-        class: 'chart-hit',
-        'data-chart-hover-overlay': 'cross-series',
-      });
-      hit.addEventListener('pointermove', (e) => {
+      image?.querySelector('.chart-hover-guide')?.remove();
+      image?.append(guide);
+      const closest = (event) => {
         const rect = graph.getBoundingClientRect();
-        const pos = ((e.clientX - rect.left) * width) / rect.width;
+        const pos = horizontal
+          ? event.clientY - rect.top
+          : event.clientX - rect.left;
         let best = 0;
         rows.forEach((r, i) => {
-          if (Math.abs(x(i) - pos) < Math.abs(x(best) - pos)) best = i;
+          if (Math.abs(position(i) - pos) < Math.abs(position(best) - pos))
+            best = i;
         });
-        inspect(best);
-      });
-      hit.addEventListener('pointerdown', (e) => {
-        e.preventDefault();
-        graph.focus();
-      });
-      hit.addEventListener('click', (e) => {
-        const rect = graph.getBoundingClientRect(),
-          pos = ((e.clientX - rect.left) * width) / rect.width;
-        let best = 0;
-        rows.forEach((r, i) => {
-          if (Math.abs(x(i) - pos) < Math.abs(x(best) - pos)) best = i;
-        });
-        if (rows[best]) onSelect?.(rows[best]);
-      });
-      graph.append(hit);
+        return best;
+      };
+      graph.onpointermove = (event) => inspect(closest(event));
+      graph.onclick = (event) => {
+        const index = closest(event);
+        inspect(index);
+        onSelect?.(rows[index]);
+      };
       inspect(cursor);
     }
-    const observer = new ResizeObserver(draw);
-    observer.observe(stage);
-    cleanup.set(article, () => observer.disconnect());
+    redraw.set(article, draw);
+    const stopObserving = observeSize(stage, draw);
+    cleanup.set(article, () => {
+      stopObserving();
+      redraw.delete(article);
+      FinanceChartRenderer.dispose(graph);
+    });
     draw();
     chartMenu(
       article,
       title,
-      () => graph,
+      () => graph.querySelector('svg'),
       () => rows,
       () =>
         fields.filter(
@@ -1065,17 +951,9 @@ const FinanceCharts = (() => {
           .map((field) => {
             const tone =
               field.tone || tones[fields.indexOf(field) % tones.length];
-            const element = [...graph.querySelectorAll('*')].find((node) =>
-              node.classList.contains(tone),
-            );
-            const style = element ? getComputedStyle(element) : null;
             return {
               label: field.label,
-              color: style
-                ? style.fill !== 'none'
-                  ? style.fill
-                  : style.stroke
-                : '#667085',
+              color: FinanceChartRenderer.palette(article).colors[tone],
             };
           }),
     );
@@ -1095,12 +973,10 @@ const FinanceCharts = (() => {
     const valid = rows.filter((r) => finite(r.value) && r.value > 0);
     const total = valid.reduce((s, r) => s + r.value, 0);
     const content = html('div', undefined, 'distribution-layout');
-    const chart = svg('svg', {
-      viewBox: '0 0 240 240',
-      role: 'img',
-      'aria-label': title,
-      class: 'donut-chart',
-    });
+    const chart = html('div', undefined, 'donut-chart');
+    chart.setAttribute('role', 'img');
+    chart.setAttribute('aria-label', title);
+    chart.dataset.renderer = 'echarts-svg';
     const legend = html('div', undefined, 'distribution-legend');
     const readout = html(
       'p',
@@ -1109,16 +985,8 @@ const FinanceCharts = (() => {
         : 'Sin importes positivos.',
       'chart-readout',
     );
-    let start = -Math.PI / 2;
     valid.forEach((r, i) => {
-      const angle = (r.value / total) * Math.PI * 2,
-        end = start + Math.min(angle, Math.PI * 2 - 0.00001);
       const tone = tones[i % tones.length];
-      const arc = svg('path', {
-        d: `M120 120 L${120 + 96 * Math.cos(start)} ${120 + 96 * Math.sin(start)} A96 96 0 ${angle > Math.PI ? 1 : 0} 1 ${120 + 96 * Math.cos(end)} ${120 + 96 * Math.sin(end)} Z`,
-        class: tone,
-      });
-      arc.append(svg('title', {}, r.label + ' · ' + money.format(r.value)));
       const b = html('button', undefined, 'distribution-item ' + tone);
       b.type = 'button';
       b.append(
@@ -1147,22 +1015,8 @@ const FinanceCharts = (() => {
       };
       b.setAttribute('aria-pressed', 'false');
       b.addEventListener('click', select);
-      arc.addEventListener('pointermove', preview);
-      arc.addEventListener('click', select);
-      if (onSelect) {
-        arc.setAttribute('tabindex', '0');
-        arc.setAttribute('role', 'button');
-        arc.setAttribute('aria-label', r.label);
-        arc.addEventListener('keydown', (event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            select();
-          }
-        });
-      }
-      chart.append(arc);
+      b.addEventListener('focus', preview);
       legend.append(b);
-      start += angle;
     });
     for (const row of rows.filter((r) => !finite(r.value))) {
       const item = html('div', undefined, 'distribution-item');
@@ -1173,21 +1027,97 @@ const FinanceCharts = (() => {
       );
       legend.append(item);
     }
-    chart.append(
-      svg('circle', { cx: 120, cy: 120, r: 68, class: 'donut-hole' }),
-      svg(
-        'text',
-        { x: 120, y: 117, 'text-anchor': 'middle', class: 'donut-total' },
-        money.format(total),
-      ),
-      svg(
-        'text',
-        { x: 120, y: 140, 'text-anchor': 'middle', class: 'chart-axis' },
-        'Total mostrado',
-      ),
-    );
     content.append(chart, legend);
     article.append(content, readout);
+    function drawDistribution() {
+      const theme = FinanceChartRenderer.palette(article);
+      const ranked = valid.length > 4;
+      content.classList.toggle('distribution-ranked', ranked);
+      const height = ranked ? Math.max(260, valid.length * 36 + 72) : 250;
+      chart.style.height = height + 'px';
+      const option = ranked
+        ? FinanceChartRenderer.plotOption(
+            {
+              rows: valid.map((row, i) => ({
+                ...row,
+                tone: tones[i % tones.length],
+              })),
+              fields: [{ key: 'value', label: 'Importe', shape: 'bar' }],
+              unit: 'EUR',
+              horizontal: true,
+            },
+            theme,
+          )
+        : {
+            animation: false,
+            textStyle: { fontFamily: theme.font },
+            series: [
+              {
+                type: 'pie',
+                radius: ['67%', '86%'],
+                center: ['50%', '50%'],
+                silent: false,
+                avoidLabelOverlap: true,
+                label: { show: false },
+                emphasis: { disabled: true },
+                itemStyle: {
+                  borderWidth: 3,
+                  borderColor: theme.surface,
+                  borderRadius: 4,
+                },
+                data: valid.map((r, i) => ({
+                  name: r.label,
+                  value: r.value,
+                  itemStyle: { color: theme.colors[tones[i % tones.length]] },
+                })),
+              },
+            ],
+            graphic: [
+              {
+                type: 'text',
+                left: 'center',
+                top: '43%',
+                style: {
+                  text: money.format(total),
+                  fill: theme.text,
+                  fontSize: 20,
+                  fontWeight: 650,
+                },
+              },
+              {
+                type: 'text',
+                left: 'center',
+                top: '55%',
+                style: {
+                  text: 'Total mostrado',
+                  fill: theme.muted,
+                  fontSize: 11,
+                },
+              },
+            ],
+          };
+      const engine = FinanceChartRenderer.render(chart, option, height);
+      engine.off('click');
+      engine.off('mouseover');
+      engine.on('mouseover', (event) => {
+        if (event.componentType === 'series')
+          legend.children[event.dataIndex]?.dispatchEvent(new Event('focus'));
+      });
+      engine.on('click', (event) => {
+        if (event.componentType === 'series')
+          legend.children[event.dataIndex]?.click();
+      });
+      chart.querySelector('svg')?.setAttribute('aria-hidden', 'true');
+    }
+    redraw.set(article, drawDistribution);
+    const stopObserving = observeSize(chart, drawDistribution);
+    cleanup.set(article, () => {
+      stopObserving();
+      redraw.delete(article);
+      FinanceChartRenderer.dispose(chart);
+    });
+    drawDistribution();
+
     if (rows.some((r) => !finite(r.value)))
       article.append(
         html(
@@ -1215,22 +1145,17 @@ const FinanceCharts = (() => {
     chartMenu(
       article,
       title,
-      () => chart,
+      () => chart.querySelector('svg'),
       () => rows,
       () => [{ key: 'value', label: 'Importe EUR' }],
       () => [
         ...valid.map((row, index) => {
-          const element = [...chart.querySelectorAll('*')].find((node) =>
-            node.classList.contains(tones[index % tones.length]),
-          );
-          const style = element ? getComputedStyle(element) : null;
           return {
             label: `${row.label}: ${money.format(row.value)} (${number.format((row.value / total) * 100)} %)`,
-            color: style
-              ? style.fill !== 'none'
-                ? style.fill
-                : style.stroke
-              : '#667085',
+            color:
+              FinanceChartRenderer.palette(article).colors[
+                tones[index % tones.length]
+              ],
           };
         }),
         ...rows

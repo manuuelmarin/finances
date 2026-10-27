@@ -1,3 +1,4 @@
+const { chartState, chartSeries } = require('./helpers/charts.cjs');
 const { test, expect } = require('@playwright/test');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -8,6 +9,12 @@ test('charts expose accessible date bounds, reference line and export menu', asy
   await page.setContent('<main id="host"></main>');
   await page.addStyleTag({
     path: path.join(__dirname, '../../web/styles.css'),
+  });
+  await page.addScriptTag({
+    path: path.join(__dirname, '../../web/vendor/echarts.min.js'),
+  });
+  await page.addScriptTag({
+    path: path.join(__dirname, '../../web/chart-renderer.js'),
   });
   await page.addScriptTag({
     path: path.join(__dirname, '../../web/charts.js'),
@@ -30,7 +37,9 @@ test('charts expose accessible date bounds, reference line and export menu', asy
     });
   });
   await expect(page.getByLabel('Desde Evolución')).toHaveValue('2026-01-01');
-  await expect(page.locator('.chart-reference')).toHaveCount(1);
+  expect(
+    (await chartSeries(page.locator('.chart-card')))[0].markLine.data[0],
+  ).toMatchObject({ yAxis: 120 });
   await expect(page.locator('.chart-menu summary')).toHaveAttribute(
     'aria-label',
     'Acciones del gráfico: Evolución',
@@ -118,6 +127,12 @@ test('sparse date windows keep daily range handles ordered without fabricating o
 }) => {
   await page.setContent('<main id="host"></main>');
   await page.addScriptTag({
+    path: path.join(__dirname, '../../web/vendor/echarts.min.js'),
+  });
+  await page.addScriptTag({
+    path: path.join(__dirname, '../../web/chart-renderer.js'),
+  });
+  await page.addScriptTag({
     path: path.join(__dirname, '../../web/charts.js'),
   });
   await page.evaluate(() => {
@@ -139,7 +154,9 @@ test('sparse date windows keep daily range handles ordered without fabricating o
   await expect(page.locator('.chart-readout')).toHaveText(
     'Sin datos en este periodo',
   );
-  await expect(page.locator('path.chart-line')).toHaveCount(0);
+  expect((await chartSeries(page.locator('.chart-card')))[0].data).toHaveLength(
+    0,
+  );
   await page
     .getByLabel('Límite inicial del periodo')
     .evaluate((input) => (input.value = '0'));
@@ -163,6 +180,12 @@ test('chart CSV neutralizes formula-like labels and preserves numeric negatives'
   await page.setContent('<main id="host"></main>');
   await page.addStyleTag({
     path: path.join(__dirname, '../../web/styles.css'),
+  });
+  await page.addScriptTag({
+    path: path.join(__dirname, '../../web/vendor/echarts.min.js'),
+  });
+  await page.addScriptTag({
+    path: path.join(__dirname, '../../web/chart-renderer.js'),
   });
   await page.addScriptTag({
     path: path.join(__dirname, '../../web/charts.js'),
@@ -200,6 +223,12 @@ test('frequency charts expose integer counts without currency in axes, data, or 
     path: path.join(__dirname, '../../web/styles.css'),
   });
   await page.addScriptTag({
+    path: path.join(__dirname, '../../web/vendor/echarts.min.js'),
+  });
+  await page.addScriptTag({
+    path: path.join(__dirname, '../../web/chart-renderer.js'),
+  });
+  await page.addScriptTag({
     path: path.join(__dirname, '../../web/charts.js'),
   });
   await page.evaluate(() => {
@@ -215,7 +244,7 @@ test('frequency charts expose integer counts without currency in axes, data, or 
     });
   });
   const chart = page.locator('.chart-card');
-  await expect(chart.locator('.axis-title')).toHaveText('Recuento');
+  expect((await chartState(chart)).yAxis[0].name).toBe('Recuento');
   await chart.locator('.chart-data > summary').click();
   await expect(chart.locator('tbody')).toContainText('5');
   await expect(chart.locator('tbody')).not.toContainText('5,00');
@@ -235,9 +264,8 @@ test('frequency charts expose integer counts without currency in axes, data, or 
       fields: [{ key: 'value', label: 'Movimientos', shape: 'bar' }],
     });
   });
-  expect(
-    await page
-      .locator('.chart-axis:not(.axis-title):not(.chart-x-tick)')
-      .allTextContents(),
-  ).toEqual(['0', '3', '6', '9']);
+  const countAxis = (await chartState(page.locator('.chart-card'))).yAxis[0];
+  expect(countAxis.minInterval).toBe(1);
+  expect(countAxis.min).toBe(0);
+  await expect(page.locator('.chart-card svg')).toContainText('Recuento');
 });
