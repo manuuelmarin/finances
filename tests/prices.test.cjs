@@ -695,9 +695,19 @@ test('la serie de cortes mensuales del proveedor no se importa como fechas diari
 });
 
 function dailyRuntime(options = {}) {
+  // Keep the mocked service and test expectations on the same deterministic clock.
+  const instant = options.now ?? Date.parse('2026-10-19T12:00:00Z');
+  class FixtureDate extends Date {
+    constructor(...args) {
+      super(...(args.length ? args : [instant]));
+    }
+    static now() {
+      return instant;
+    }
+  }
   const freshDate = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Europe/Madrid',
-  }).format(new Date());
+  }).format(new Date(instant));
   const r = configured({
       fetch: () => ({ body: page({ date: freshDate }) }),
       ...options,
@@ -710,6 +720,7 @@ function dailyRuntime(options = {}) {
       }),
     ),
     triggers = [];
+  r.ctx.Date = FixtureDate;
   r.ctx.PropertiesService = {
     getScriptProperties: () => ({
       getProperty: (key) => properties.get(key),
@@ -749,6 +760,20 @@ function dailyRuntime(options = {}) {
   });
   return { r, properties, triggers };
 }
+
+test('daily price fixture remains consistent on both sides of Madrid midnight', () => {
+  for (const [instant, expected] of [
+    ['2026-10-26T22:59:59Z', '2026-10-26'],
+    ['2026-10-26T23:00:01Z', '2026-10-27'],
+  ]) {
+    const { r } = dailyRuntime({ now: Date.parse(instant) });
+    r.ctx.activateDailyPricesTest_();
+    const result = r.ctx.updatePricesTest_();
+    assert.equal(result.today, expected);
+    assert.equal(result.complete, true);
+    assert.equal(result.batches[0].results[0].date, expected);
+  }
+});
 
 test('la fachada pública prepara, activa, actualiza y desactiva precios vinculados al libro de pruebas', () => {
   const { r, properties, triggers } = dailyRuntime();
@@ -1037,7 +1062,7 @@ test('lease impide ejecuciones concurrentes y un fallo incierto recupera UUID si
   r.ctx.activateDailyPricesTest_();
   properties.set(
     'DAILY_PRICE_TEST_LEASE',
-    JSON.stringify({ started: Date.now(), token: 'another' }),
+    JSON.stringify({ started: r.ctx.Date.now(), token: 'another' }),
   );
   assert.equal(r.ctx.updatePricesTest_().reason, 'RUNNING');
   assert.equal(r.fetches.length, 0);
@@ -1074,7 +1099,7 @@ test('desactivar la rutina durante la consulta impide incluso la escritura del l
       body: page({
         date: new Intl.DateTimeFormat('en-GB', {
           timeZone: 'Europe/Madrid',
-        }).format(new Date()),
+        }).format(new r.ctx.Date()),
       }),
     };
   };
@@ -1321,7 +1346,7 @@ test('daily health marks current window due after yesterday and reports success 
   const { r, properties } = dailyRuntime();
   r.ctx.activateDailyPricesTest_();
   const today = r.ctx.Utilities.formatDate(
-      new Date(),
+      new r.ctx.Date(),
       'Europe/Madrid',
       'yyyy-MM-dd',
     ),
@@ -1376,7 +1401,7 @@ test('late publication after an early previous-day success is collected exactly 
   const formatter = r.ctx.Utilities.formatDate;
   r.ctx.Utilities.formatDate = (date, zone, f) =>
     f === 'HH' ? String(hour) : formatter(date, zone, f);
-  const today = formatter(new Date(), 'Europe/Madrid', 'yyyy-MM-dd'),
+  const today = formatter(new r.ctx.Date(), 'Europe/Madrid', 'yyyy-MM-dd'),
     previous = new Date(Date.parse(today + 'T00:00:00Z') - 86400000)
       .toISOString()
       .slice(0, 10),

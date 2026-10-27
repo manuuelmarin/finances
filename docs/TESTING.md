@@ -9,7 +9,7 @@ The suite exercises financial rules and the browser interface in different layer
 - `npm run test:browser` runs those browser cases and writes `test-results/browser-results.json`. Each test gets a separate browser context; financial fixtures are fictional and do not validate a private Google deployment.
 - `node tools/quality-summary.cjs` summarizes both reports and fails if unit evidence is missing or unsuccessful, or if desktop, mobile or Safari has no passing execution. The normal CI workflow also fails on test failures and retains failure screenshots and traces.
 
-For the 3.12.1 baseline there were 329 unit executions and 215 browser executions; the quality-evidence regression adds one unit execution. Counts are evidence for a specific commit, not a coverage guarantee. Generate the current per-case inventory with the commands above rather than relying on a static list that can become stale.
+For the 3.12.1 baseline there were 329 unit executions and 215 browser executions; the quality-evidence regression adds one unit execution. Counts are evidence for a specific commit, not a coverage guarantee. The [dated 544-execution inventory](audits/2026-10-27-tests.md) records the prior CI results and the limits of its automatic review. Generate the current per-case inventory with the commands above rather than relying on a static list that can become stale.
 
 ## Redundancy and reliability
 
