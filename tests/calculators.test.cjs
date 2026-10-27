@@ -64,28 +64,38 @@ test('rechaza importes vacíos, escenarios inválidos y desbordamientos', () => 
     years: 10,
     inflation: 2,
   };
-  for (const patch of [
-    { capital: '' },
-    { capital: -1 },
-    { annualReturn: -100 },
-    { inflation: -100 },
-    { years: 2.5 },
-    { years: 0 },
-    { years: 10000, annualReturn: 100 },
+  for (const [patch, message] of [
+    [{ capital: '' }, /capital inicial/],
+    [{ capital: -1 }, /capital inicial/],
+    [{ annualReturn: -100 }, /rentabilidad anual/],
+    [{ inflation: -100 }, /inflación anual/],
+    [{ years: 2.5 }, /número entero de años/],
+    [{ years: 0 }, /plazo en años/],
+    [{ years: 10000, annualReturn: 100 }, /supera el rango de cálculo/],
   ]) {
-    assert.throws(() => compoundInterest({ ...valid, ...patch }));
+    assert.throws(() => compoundInterest({ ...valid, ...patch }), message);
   }
-  assert.throws(() =>
-    mortgage({
-      price: 10,
-      downPayment: 11,
-      annualRate: 3,
-      years: 10,
-      costs: 0,
-    }),
+  assert.throws(
+    () =>
+      mortgage({
+        price: 10,
+        downPayment: 11,
+        annualRate: 3,
+        years: 10,
+        costs: 0,
+      }),
+    /entrada no puede superar el precio/,
   );
-  assert.throws(() =>
-    mortgage({ price: '', downPayment: 0, annualRate: 3, years: 10, costs: 0 }),
+  assert.throws(
+    () =>
+      mortgage({
+        price: '',
+        downPayment: 0,
+        annualRate: 3,
+        years: 10,
+        costs: 0,
+      }),
+    /precio de la vivienda/,
   );
 });
 
