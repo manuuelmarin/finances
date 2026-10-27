@@ -107,8 +107,8 @@ const FinanceChartRenderer = (() => {
     const values = rows
       .flatMap((r) => fields.map((f) => value(r, f.key)))
       .filter(finite);
-    const low = values.reduce((a, b) => Math.min(a, b), 0);
-    const high = values.reduce((a, b) => Math.max(a, b), 0);
+    const low = values.reduce((a, b) => Math.min(a, b), Infinity);
+    const high = values.reduce((a, b) => Math.max(a, b), -Infinity);
     if (finite(reference?.value)) values.push(reference.value);
     const baseline = bars || fields.some((f) => f.area);
     const format = (n) =>
@@ -120,14 +120,20 @@ const FinanceChartRenderer = (() => {
       type: 'value',
       scale: !baseline,
       min:
-        finite(reference?.value) && reference.value < low
-          ? reference.value - Math.max(Math.abs(reference.value) * 0.08, 1)
+        finite(reference?.value) && reference.value <= low
+          ? Math.min(
+              baseline ? 0 : Infinity,
+              reference.value - Math.max(Math.abs(reference.value) * 0.08, 1),
+            )
           : baseline && values.every((v) => v >= 0)
             ? 0
             : undefined,
       max:
-        finite(reference?.value) && reference.value > high
-          ? reference.value + Math.max(Math.abs(reference.value) * 0.08, 1)
+        finite(reference?.value) && reference.value >= high
+          ? Math.max(
+              baseline ? 0 : -Infinity,
+              reference.value + Math.max(Math.abs(reference.value) * 0.08, 1),
+            )
           : baseline && values.length && values.every((v) => v <= 0)
             ? 0
             : undefined,

@@ -2290,3 +2290,44 @@ test('@responsive @safari expanded city charts keep the selected movement detail
   await page.keyboard.press('Escape');
   await expect(city.locator('.transaction-selection')).toBeVisible();
 });
+
+test('@responsive @safari fund contribution losses are red and gains green with exact values', async ({
+  page,
+}) => {
+  const seed = structuredClone(snapshot);
+  for (const price of seed.tables.tPrecios)
+    price['VL EUR'] =
+      price.Producto === 'FICTITIOUS-ALPHA'
+        ? price.Fecha === '2026-01-01'
+          ? 100
+          : 50
+        : price.Fecha === '2026-01-01'
+          ? 80
+          : 150;
+  await setup(page, seed);
+  await navigate(page, 'investments');
+  const chart = page.locator('#portfolio-analysis-charts .chart-card').filter({
+    has: page.getByRole('heading', {
+      name: 'Contribución al resultado',
+      exact: true,
+    }),
+  });
+  const data = (await chartSeries(chart))[0].data;
+  expect(data.some((d) => d.value < 0)).toBeTruthy();
+  expect(data.some((d) => d.value > 0)).toBeTruthy();
+  const colors = await chart.evaluate(
+    (node) => FinanceChartRenderer.palette(node).colors,
+  );
+  for (const item of data)
+    expect(item.itemStyle.color).toBe(
+      colors[item.value < 0 ? 'chart-red' : 'chart-mint'],
+    );
+  await chart.locator('.chart-data > summary').click();
+  for (const item of data)
+    await expect(chart.locator('tbody')).toContainText(
+      new Intl.NumberFormat('es-ES', {
+        style: 'currency',
+        currency: 'EUR',
+      }).format(item.value),
+    );
+});

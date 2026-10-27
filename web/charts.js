@@ -307,6 +307,7 @@ const FinanceCharts = (() => {
       const source = getSvg();
       if (!source) return null;
       const clone = source.cloneNode(true);
+      const exportTheme = FinanceChartRenderer.palette(article);
       const presentation = [
         'fill',
         'fill-opacity',
@@ -337,7 +338,7 @@ const FinanceCharts = (() => {
           if (value) copies[index].setAttribute(property, value);
         }
         if (original.tagName.toLowerCase() === 'text')
-          copies[index].setAttribute('fill', '#263442');
+          copies[index].setAttribute('fill', exportTheme.text);
       });
       clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
       clone.setAttribute('width', source.viewBox.baseVal.width || 1000);
@@ -389,7 +390,7 @@ const FinanceCharts = (() => {
         y: 0,
         width: baseWidth,
         height: exportHeight,
-        fill: '#fff',
+        fill: exportTheme.surface,
       });
       clone.insertBefore(background, clone.firstChild);
       titleLines.forEach((line, i) =>
@@ -400,7 +401,7 @@ const FinanceCharts = (() => {
               x: baseWidth / 2,
               y: baseHeight + 18 + i * 22,
               'text-anchor': 'middle',
-              fill: '#263442',
+              fill: exportTheme.text,
               'font-size': 18,
             },
             line,
@@ -415,7 +416,7 @@ const FinanceCharts = (() => {
               x: baseWidth / 2,
               y: baseHeight + titleLines.length * 22 + 16,
               'text-anchor': 'middle',
-              fill: '#344054',
+              fill: exportTheme.muted,
               'font-size': 14,
             },
             source.dataset.range,
@@ -434,7 +435,7 @@ const FinanceCharts = (() => {
             width: 10,
             height: 10,
             rx: 2,
-            fill: item.color || '#667085',
+            fill: item.color || exportTheme.muted,
           }),
         );
         itemLines[index].forEach((line, lineIndex) =>
@@ -444,7 +445,7 @@ const FinanceCharts = (() => {
               {
                 x: x + 15,
                 y: y + lineIndex * 17,
-                fill: '#263442',
+                fill: exportTheme.text,
                 'font-size': 12,
               },
               line,

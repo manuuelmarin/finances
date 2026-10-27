@@ -93,3 +93,35 @@ test('capital steps, reference limits, losses and horizontal comparisons retain 
   assert.equal(bars.series[0].data[0].itemStyle.color, '#aa0000');
   assert.equal(bars.xAxis.scale, false);
 });
+test('references expand both ends without losing bar and area zero baselines', () => {
+  for (const [values, reference] of [
+    [[120, 180], 50],
+    [[120, 180], 0],
+    [[-180, -120], -50],
+    [[-180, -120], 0],
+    [[120, 180], 120],
+    [[-180, -120], -120],
+  ]) {
+    for (const [shape, area] of [
+      ['step', false],
+      ['step', true],
+      ['bar', false],
+    ]) {
+      const o = R.plotOption(
+        {
+          rows: values.map((v, i) => ({ label: String(i), v })),
+          fields: [{ key: 'v', label: 'Valor', shape, area }],
+          reference: { value: reference },
+          unit: 'EUR',
+        },
+        theme,
+      );
+      if (reference <= Math.min(...values)) assert.ok(o.yAxis.min < reference);
+      if (reference >= Math.max(...values)) assert.ok(o.yAxis.max > reference);
+      if (shape === 'bar' || area) {
+        if (values.every((v) => v > 0)) assert.ok(o.yAxis.min <= 0);
+        if (values.every((v) => v < 0)) assert.ok(o.yAxis.max >= 0);
+      }
+    }
+  }
+});

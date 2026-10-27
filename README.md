@@ -6,7 +6,7 @@ Personal finance PWA for cash, investments, budgets and goals. GitHub Pages serv
 
 [Open app](https://manuuelmarin.github.io/finances/) · [Install / update](https://manuuelmarin.github.io/finances/install.html) · [TODOs](TODO.md) · [History](History.md)
 
-**App 3.12.0 · API 3.3.0 · workbook model 3.**
+**App 3.12.1 · API 3.3.0 · workbook model 3.**
 
 ## End to end
 
@@ -33,7 +33,7 @@ flowchart TD
     API <-->|"Verified, dated NAVs"| Provider["External price provider"]
 ```
 
-After a confirmed write, the app automatically refreshes every view from one coherent snapshot. Failed or stale reads are retried without resending the confirmed operation; explicit reporting filters remain selected. PWA 3.12.0 remains compatible with backend/Bridge 3.10.4–3.11.0, so these interface changes need no private Google update.
+After a confirmed write, the app automatically refreshes every view from one coherent snapshot. Failed or stale reads are retried without resending the confirmed operation; explicit reporting filters remain selected. PWA 3.12.1 remains compatible with backend/Bridge 3.10.4–3.11.0, so these interface changes need no private Google update.
 
 Account cards compare the report-date balance with the opening balance for **Hoy, 1D, 7D, 15D, 1M, 3M, 6M and 1A**. Each opening is the preceding day's close, or the initial balance on the first tracking day. Movements on the opening date are included. Calendar-month/year offsets use the same day, clamped at month-end; missing history stays unknown. Hoy and 1D coincide when yesterday's net balance change is zero. Resolved and discarded requests remain in the collapsed activity history. Pending, uncertain and post-confirmation readback requests stay visible until resolved; no receipts or UUIDs are deleted.
 

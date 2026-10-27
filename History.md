@@ -196,8 +196,14 @@ Changes in repository order, from the first recorded build to the current app. V
 - Reuse free-text suggestions for creditors and category creation/correction. Filter subgroups by group and category names by group and subgroup; retain custom text, per-book suggestions and validated relational selectors.
 - Existing Google installations need only the PWA update; API 3.3.0 and workbook model 3 remain unchanged.
 
-## 3.12.0 · current
+## 3.12.0
 
 - Replace hand-drawn plots with a pinned, locally bundled Apache ECharts SVG renderer. Keep the financial projections separate from rendering, with exact input values, null gaps and existing date/series/keyboard/drill-down controls.
 - Use horizontal comparisons for cities, contributions, risk, reconciliation and goals; retain temporal lines, zero-baseline bars, numeric histograms, step capital and budget references. Use ring compositions for up to four groups and horizontal comparisons for larger compositions, preserving unknown and negative values in accessible details and exports.
 - Preserve accessible controls and tables, SVG/PNG/CSV exports, local themes and offline use. Existing Google installations need only the PWA update; API 3.3.0 and workbook model 3 remain unchanged.
+
+## 3.12.1 · current
+
+- Keep reference limits visible below positive values, at zero and above negative values, including filtered periods.
+- Color negative fund contributions red and nonnegative contributions green without changing their values.
+- Export SVG and PNG with the active theme’s background, text and series palette together.

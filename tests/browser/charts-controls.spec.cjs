@@ -71,7 +71,7 @@ test('charts expose accessible date bounds, reference line and export menu', asy
   const svgPath = await svgDownload.path();
   const svgText = fs.readFileSync(svgPath, 'utf8');
   expect(svgText).toMatch(/stroke="(?:#91d8bd|rgb\(145, 216, 189\))"/i);
-  expect(svgText).toContain('fill="#fff"');
+  expect(svgText).toContain('fill="#161f2a"');
   const pngDownloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Descargar PNG' }).click();
   const pngDownload = await pngDownloadPromise;
@@ -268,4 +268,121 @@ test('frequency charts expose integer counts without currency in axes, data, or 
   expect(countAxis.minInterval).toBe(1);
   expect(countAxis.min).toBe(0);
   await expect(page.locator('.chart-card svg')).toContainText('Recuento');
+});
+
+test('@responsive @safari reference limits remain inside the actual plot after filtering', async ({
+  page,
+}) => {
+  await page.setContent('<main id="host"></main>');
+  await page.addStyleTag({
+    path: path.join(__dirname, '../../web/styles.css'),
+  });
+  for (const name of [
+    'vendor/echarts.min.js',
+    'chart-renderer.js',
+    'charts.js',
+  ])
+    await page.addScriptTag({ path: path.join(__dirname, '../../web', name) });
+  for (const [values, reference] of [
+    [[120, 180], 50],
+    [[120, 180], 0],
+    [[-180, -120], -50],
+    [[-180, -120], 0],
+  ]) {
+    await page.evaluate(
+      ({ values, reference }) => {
+        const host = document.querySelector('#host');
+        FinanceCharts.clear(host);
+        FinanceCharts.plot(host, {
+          title: 'Presupuesto',
+          rows: [
+            { date: '2026-01-01', v: 0 },
+            ...values.map((v, i) => ({ date: `2026-01-0${i + 2}`, v })),
+          ],
+          fields: [{ key: 'v', label: 'Gasto', shape: 'step' }],
+          reference: { value: reference, label: 'Límite' },
+        });
+      },
+      { values, reference },
+    );
+    await page.getByLabel('Desde Presupuesto').fill('2026-01-02');
+    await page.getByLabel('Desde Presupuesto').dispatchEvent('change');
+    const bounds = await page
+      .locator('.finance-chart')
+      .evaluate((host, reference) => {
+        const engine = FinanceECharts.getInstanceByDom(host);
+        const option = engine.getOption();
+        return {
+          y: engine.convertToPixel({ yAxisIndex: 0 }, reference),
+          top: option.grid[0].top,
+          bottom: engine.getHeight() - option.grid[0].bottom,
+        };
+      }, reference);
+    expect(bounds.y).toBeGreaterThan(bounds.top);
+    expect(bounds.y).toBeLessThan(bounds.bottom);
+  }
+});
+
+test('@responsive @safari SVG and PNG exports keep coherent dark and light palettes', async ({
+  page,
+}) => {
+  await page.setContent('<main id="host"></main>');
+  await page.addStyleTag({
+    path: path.join(__dirname, '../../web/styles.css'),
+  });
+  for (const name of [
+    'vendor/echarts.min.js',
+    'chart-renderer.js',
+    'charts.js',
+  ])
+    await page.addScriptTag({ path: path.join(__dirname, '../../web', name) });
+  for (const theme of ['dark', 'light']) {
+    const palette = await page.evaluate((theme) => {
+      document.documentElement.dataset.theme = theme;
+      const host = document.querySelector('#host');
+      FinanceCharts.clear(host);
+      FinanceCharts.plot(host, {
+        title: 'Saldo',
+        rows: [
+          { label: 'A', v: 120 },
+          { label: 'B', v: 180 },
+        ],
+        fields: [{ key: 'v', label: 'Saldo' }],
+      });
+      return FinanceChartRenderer.palette(host);
+    }, theme);
+    await page.locator('.chart-menu summary').click();
+    const svgPromise = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Descargar SVG' }).click();
+    const text = fs.readFileSync(await (await svgPromise).path(), 'utf8');
+    expect(text).toContain(`fill="${palette.surface}"`);
+    expect(text).toContain(`fill="${palette.text}"`);
+    const pngPromise = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Descargar PNG' }).click();
+    const buffer = fs.readFileSync(await (await pngPromise).path());
+    const pixel = await page.evaluate(
+      (base64) =>
+        new Promise((resolve, reject) => {
+          const image = new Image();
+          image.onerror = reject;
+          image.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = image.width;
+            canvas.height = image.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(image, 0, 0);
+            resolve(Array.from(ctx.getImageData(0, 0, 1, 1).data));
+          };
+          image.src = 'data:image/png;base64,' + base64;
+        }),
+      buffer.toString('base64'),
+    );
+    const hex = palette.surface.replace('#', '');
+    expect(pixel).toEqual([
+      parseInt(hex.slice(0, 2), 16),
+      parseInt(hex.slice(2, 4), 16),
+      parseInt(hex.slice(4, 6), 16),
+      255,
+    ]);
+  }
 });

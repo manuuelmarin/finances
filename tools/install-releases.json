@@ -128,5 +128,10 @@
     "Code.gs": "fe9a2fa3682f8a46db7575d3761f2a5237a452ef9cdbbc6f8a52982e1a33e58a",
     "Bridge.html": "4a7ad3d1eca6b5105e4109442995425b4b9a77f5858122361d12d31a06038406",
     "appsscript.json": "6d9e30fcdbf21cec70850bceb611d2c88dc7d79139f0bd1ffe19f91a6b1d50f8"
+  },
+  "3.12.1": {
+    "Code.gs": "392a76680016da3bac29a1a37c5cea2fd2b588e5469e9cc8ac9fb24603f19ee0",
+    "Bridge.html": "430ee6e57185300bcad4dabec95a72e15c9a2649b29a3ad939e4049fc1b9872f",
+    "appsscript.json": "6d9e30fcdbf21cec70850bceb611d2c88dc7d79139f0bd1ffe19f91a6b1d50f8"
   }
 }
