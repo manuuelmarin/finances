@@ -2,6 +2,7 @@ const { test } = require('node:test'),
   assert = require('node:assert/strict'),
   crypto = require('node:crypto');
 const { runtime, serial } = require('./helpers/runtime.cjs');
+const { fixedClock } = require('./helpers/clock.cjs');
 const ISIN = 'ES0112611001',
   SECOND = 'IE00BYX5NK04',
   TITLE = 'AZVALOR INTERNACIONAL, FI';
@@ -697,14 +698,6 @@ test('la serie de cortes mensuales del proveedor no se importa como fechas diari
 function dailyRuntime(options = {}) {
   // Keep the mocked service and test expectations on the same deterministic clock.
   const instant = options.now ?? Date.parse('2026-10-19T12:00:00Z');
-  class FixtureDate extends Date {
-    constructor(...args) {
-      super(...(args.length ? args : [instant]));
-    }
-    static now() {
-      return instant;
-    }
-  }
   const freshDate = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Europe/Madrid',
   }).format(new Date(instant));
@@ -720,7 +713,7 @@ function dailyRuntime(options = {}) {
       }),
     ),
     triggers = [];
-  r.ctx.Date = FixtureDate;
+  r.ctx.Date = fixedClock(instant);
   r.ctx.PropertiesService = {
     getScriptProperties: () => ({
       getProperty: (key) => properties.get(key),

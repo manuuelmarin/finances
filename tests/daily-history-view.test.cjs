@@ -1,9 +1,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { runtime, serial } = require('./helpers/runtime.cjs');
+const { fixedClock } = require('./helpers/clock.cjs');
 
 test('daily Histórico uses exact NAV only on dates with an open holding', () => {
   const r = runtime();
+  r.ctx.Date = fixedClock(Date.parse('2026-10-19T12:00:00Z'));
   const state = {
     tables: {
       tProductos: [
@@ -68,6 +70,8 @@ test('daily Histórico uses exact NAV only on dates with an open holding', () =>
     [serial('2026-01-03'), null, 21],
     [serial('2026-01-04'), null, 22],
   ]);
+  assert.equal(today, serial('2026-10-19'));
+  assert.ok(rows.length >= 290);
   assert.equal(rows.at(-1)[0], today);
   assert.equal(rows.length, 3 + today - serial('2026-01-02') + 1);
   assert.deepEqual(rows.at(-1).slice(1), [null, null]);
