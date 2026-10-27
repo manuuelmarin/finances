@@ -1681,8 +1681,11 @@ test('@responsive @safari all 24 themes retain readable foregrounds and persist 
       const css = getComputedStyle(document.documentElement);
       const canvas = document.createElement('canvas');
       canvas.width = canvas.height = 1;
-      const c = canvas.getContext('2d');
+      const c = canvas.getContext('2d', { willReadFrequently: true });
+      const luminances = new Map();
       const luminance = (color) => {
+        if (luminances.has(color)) return luminances.get(color);
+        c.clearRect(0, 0, 1, 1);
         c.fillStyle = color;
         c.fillRect(0, 0, 1, 1);
         const rgb = [...c.getImageData(0, 0, 1, 1).data]
@@ -1691,7 +1694,9 @@ test('@responsive @safari all 24 themes retain readable foregrounds and persist 
             x /= 255;
             return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
           });
-        return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+        const value = rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+        luminances.set(color, value);
+        return value;
       };
       const contrast = (fg, bg) => {
         const resolve = (color) =>
