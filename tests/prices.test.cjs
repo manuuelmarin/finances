@@ -384,6 +384,14 @@ test('fallo parcial conserva el precio del fondo sin fuente y actualiza el fondo
   assert.equal(res.counts.failed, 1);
   assert.equal(r.state().technical.quotes.length, 2);
   assert.equal(r.state().tables.tPrecios.length, 2);
+  assert.equal(r.state().tables.tPrecios.at(-1).Producto, 'PRODUCT-A');
+  assert.equal(r.state().tables.tPrecios.at(-1)['VL EUR'], 345.19706);
+  assert.equal(
+    r
+      .state()
+      .tables.tPrecios.some((row) => row.Producto === added.results[0].id),
+    false,
+  );
 });
 test('producto sin ISIN informa el dato pendiente sin consulta a la red ni cambios financieros', () => {
   const r = runtime();
@@ -437,7 +445,10 @@ test('selección acotada y distinta: no admite más de veinte fondos, duplicados
     'INVALID_REQUEST',
   );
   assert.equal(
-    r.api({ ...envelope(r), products: Array(21).fill('Fondo A') }).error,
+    r.api({
+      ...envelope(r),
+      products: Array.from({ length: 21 }, (_, index) => 'Product-' + index),
+    }).error,
     'INVALID_REQUEST',
   );
   assert.equal(
@@ -447,7 +458,10 @@ test('selección acotada y distinta: no admite más de veinte fondos, duplicados
   assert.equal(
     r.api({
       action: 'quotePrices',
-      funds: Array(21).fill({ isin: ISIN, referenceName: TITLE }),
+      funds: Array.from({ length: 21 }, (_, index) => ({
+        isin: 'ES' + String(index).padStart(10, '0'),
+        referenceName: TITLE,
+      })),
     }).error,
     'INVALID_REQUEST',
   );
@@ -491,7 +505,7 @@ test('parser genérico funciona con otros ISIN válidos sin catálogo o identifi
   assert.equal(r.fetches.length, 5);
   assert.equal(r.writes.length, 0);
 });
-test('migración desde tres hojas técnicas añade fondos, cotizaciones y presupuestos sin cambiar entradas y conserva solicitudes anteriores', () => {
+test('migración añade las hojas técnicas de fondos y cotizaciones sin cambiar entradas ni solicitudes', () => {
   const r = runtime();
   r.init();
   r.transact([
@@ -528,12 +542,21 @@ test('ampliación de precios con tabla llena conserva los precios históricos y 
       Fuente: 'Fuente ficticia',
     }))
       r.setInput('tPrecios', i, field, value);
+  const historical = JSON.stringify(r.state().tables.tPrecios);
   const req = envelope(r),
     response = r.api(req);
   assert.equal(response.ok, true);
   assert.equal(response.results[0].status, 'updated');
   assert.equal(r.api(req).replayed, true);
   assert.equal(r.state().tables.tPrecios.length, cap + 1);
+  assert.equal(
+    JSON.stringify(
+      r
+        .state()
+        .tables.tPrecios.filter((row) => row.Fuente === 'Fuente ficticia'),
+    ),
+    historical,
+  );
   assert.ok(r.state().raw.tPrecios.length > cap);
   assert.equal(
     r.state().tables.tPrecios.filter((p) => p['VL EUR'] === 345.19706).length,
