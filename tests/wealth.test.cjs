@@ -604,11 +604,7 @@ test('investment value comparisons include pocket contributions, withdrawals and
     Participaciones: 5,
   };
   s.tables.tProductos[0].Valor = 55;
-  assert.equal(
-    comparisonsWithoutMetricChanges()[0].windows[0]
-      .change,
-    -45,
-  );
+  assert.equal(comparisonsWithoutMetricChanges()[0].windows[0].change, -45);
 });
 
 test('investment openings include all eight boundary dates, preserve missing prices and use zero before a new fund purchase', () => {
