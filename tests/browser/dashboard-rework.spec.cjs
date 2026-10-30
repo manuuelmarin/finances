@@ -205,6 +205,88 @@ async function setup(page, seedSnapshot = snapshot) {
   }, seedSnapshot);
 }
 
+test('@responsive @safari future-dated transfers wait until their day and salary allocation shows available planning', async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date('2026-10-30T10:00:00Z'));
+  const seed = structuredClone(snapshot);
+  seed.settings = {
+    start: '2026-10-01',
+    asof: '2026-11-01',
+    valuation: '2026-10-30',
+  };
+  seed.tables.tCuentas = [
+    { Cuenta: 'Bankinter', 'Saldo inicial': 1000, 'Saldo calculado': 590 },
+    { Cuenta: 'Unicaja', 'Saldo inicial': 100, 'Saldo calculado': 500 },
+  ];
+  seed.tables.tMovimientos = [
+    { ID: 'salary', Fecha: '2026-10-30', Tipo: 'Ingreso', Importe: 1800 },
+    { Fecha: '2026-10-30', Tipo: 'Gasto', Origen: 'Bankinter', Importe: 10 },
+    {
+      Fecha: '2026-10-31',
+      Tipo: 'Transferencia',
+      Origen: 'Bankinter',
+      Destino: 'Unicaja',
+      Importe: 400,
+    },
+  ];
+  seed.tables.tNominas = [{ Movimiento: 'salary', Neto: 1800 }];
+  seed.budgets = [{ month: '2026-10', category: 'Compra', amount: 300 }];
+  seed.intervalBudgets = [
+    {
+      title: 'Metro',
+      category: 'Metro',
+      start: '2026-10-01',
+      end: '2026-10-31',
+      amount: 100,
+    },
+  ];
+  seed.supportsCustomBudgets = true;
+  await setup(page, seed);
+  await navigate(page, 'accounts');
+  await expect(page.locator('#account-balance-date')).toContainText(
+    '30/10/2026',
+  );
+  await expect(
+    page.locator('[data-account="Bankinter"] .account-balance'),
+  ).toHaveText('990,00 €');
+  await expect(
+    page.locator('[data-account="Unicaja"] .account-balance'),
+  ).toHaveText('100,00 €');
+  const card = page.locator('[data-account="Bankinter"]');
+  await expect(card.locator('.comparison-cell[title]')).toHaveCount(0);
+  await card.locator('.balance-explanations summary').click();
+  await expect(card.locator('.balance-explanations')).toContainText(
+    '30/10/2026',
+  );
+  await navigate(page, 'budgets');
+  await expect(page.locator('#budget-month')).toHaveValue('2026-10');
+  const allocation = page.locator('#salary-allocation');
+  await expect(allocation).toContainText(/1\.?800,00/);
+  await expect(allocation).toContainText(/1\.?400,00/);
+  await expect(allocation).toContainText('Disponible para planificar');
+  await expect(allocation.locator('svg rect')).toHaveCount(3);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.clock.setFixedTime(new Date('2026-10-31T10:00:00Z'));
+  await page.evaluate(() =>
+    document.dispatchEvent(new Event('visibilitychange')),
+  );
+  await navigate(page, 'accounts');
+  await expect(page.locator('#account-balance-date')).toContainText(
+    '31/10/2026',
+  );
+  await expect(
+    page.locator('[data-account="Bankinter"] .account-balance'),
+  ).toHaveText('590,00 €');
+  await expect(
+    page.locator('[data-account="Unicaja"] .account-balance'),
+  ).toHaveText('500,00 €');
+});
+
 test('@responsive continuous month/day ranges control summary expenses and details', async ({
   page,
 }) => {
@@ -1432,8 +1514,13 @@ test('@responsive @safari account rolling changes show a full expense and preser
     await expect(cells.nth(1).locator('strong')).toHaveText('0,00 €');
     await expect(cells.nth(2).locator('strong')).toHaveText('-15,00 €');
     await expect(cells.nth(2)).toHaveClass(/comparison-negative/);
-    await expect(cells.nth(2)).toHaveAttribute(
-      'title',
+    await expect(cells.nth(2)).not.toHaveAttribute('title');
+    await page
+      .locator('[data-account="EFECTIVO"] .balance-explanations summary')
+      .click();
+    await expect(
+      page.locator('[data-account="EFECTIVO"] .balance-explanations'),
+    ).toContainText(
       'Saldo al 23/10/2026 − saldo al inicio del 16/10/2026: 168,00 €',
     );
     await expect(cells.nth(4).locator('strong')).toHaveText('—');
@@ -1475,14 +1562,12 @@ test('@responsive @safari today and yesterday cards include the correct days and
     const cells = page.locator('.account-balance-card .comparison-cell');
     await expect(cells.nth(0).locator('strong')).toHaveText(expected[0]);
     await expect(cells.nth(1).locator('strong')).toHaveText(expected[1]);
-    await expect(cells.nth(0)).toHaveAttribute(
-      'title',
-      /inicio del 15\/3\/2026/,
-    );
-    await expect(cells.nth(1)).toHaveAttribute(
-      'title',
-      /inicio del 14\/3\/2026/,
-    );
+    const explanations = page
+      .locator('.account-balance-card .balance-explanations')
+      .first();
+    await explanations.locator('summary').click();
+    await expect(explanations).toContainText(/inicio del 15\/3\/2026/);
+    await expect(explanations).toContainText(/inicio del 14\/3\/2026/);
   }
   const cells = page.locator('.account-balance-card .comparison-cell');
   const boxes = await cells.evaluateAll((nodes) =>

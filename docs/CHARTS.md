@@ -2,6 +2,10 @@
 
 The public app draws charts locally with Apache ECharts 6.1.0, using only the SVG renderer and the required line/bar/pie/grid/mark-line/graphic components. `tools/build-charts.cjs` bundles the exact npm lockfile dependencies, includes third-party license notices, and produces the public offline asset. No CDN or remote chart/export service receives book data. The raw bundle is about 544 KiB; HTTP compression reduces transfer size. The dependency increases the offline cache size in exchange for sharing axis/layout/rendering maintenance with an established engine.
 
+The salary planning bar is a small local SVG with a text legend. Its denominator is the most recent recorded net payroll on or before the earlier of the Madrid calendar date and the book's report date. It compares that amount to active monthly and interval spending limits; it is a planning allocation, not the account balance or actual spending. Duplicate categories and an all-categories limit overlapping other limits leave the available amount unknown. Limits can cover different time spans; an excess is shown explicitly and the bar scales to the larger total.
+
+Account comparison cards use the same earlier date when a book's report cut is in the future. They reconstruct each account through that date only if its reconstructed balance at the book cut agrees to the cent with the native calculated balance. Otherwise that account and its total remain unknown. The book's report date and other views remain unchanged.
+
 ## Design inventory
 
 | Screen / graph                                          | Representation and retained meaning                                                                                                                                                              |
