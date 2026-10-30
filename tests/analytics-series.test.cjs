@@ -1155,4 +1155,3 @@ test('a sold-out product does not mix a final TWR point into its NAV-only variat
   assert.equal(row.returnPct, null);
   assert.ok(Math.abs(row.totalReturnPct - 10) < 1e-8);
 });
-
