@@ -2,8 +2,11 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const P = require('../web/portfolio.js');
 const A = require('../web/analytics.js');
-const close = (a, b, tolerance = 1e-10) =>
+const close = (a, b, tolerance = 1e-10) => {
+  assert.ok(Number.isFinite(a), `non-finite actual: ${a}`);
+  assert.ok(Number.isFinite(b), `non-finite expected: ${b}`);
   assert.ok(Math.abs(a - b) < tolerance, `${a} != ${b}`);
+};
 const flow = (date, amount) => ({ date, amount });
 const fixture = () => ({
   settings: {
