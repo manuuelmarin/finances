@@ -1083,6 +1083,12 @@ test('lease impide ejecuciones concurrentes y un fallo incierto recupera UUID si
   assert.equal(r.ctx.updatePricesTest_().reason, 'RUNNING');
   assert.equal(r.fetches.length, 0);
   properties.delete('DAILY_PRICE_TEST_LEASE');
+  const requestIds = [];
+  const refresh = r.ctx.refreshPrices_;
+  r.ctx.refreshPrices_ = (config, request) => {
+    requestIds.push(request.requestId);
+    return refresh(config, request);
+  };
   r.options.failBeforeWrite = true;
   const first = r.ctx.updatePricesTest_();
   assert.equal(first.batches[0].error, 'WRITE_UNCERTAIN');
@@ -1090,6 +1096,9 @@ test('lease impide ejecuciones concurrentes y un fallo incierto recupera UUID si
   r.options.failBeforeWrite = false;
   const second = r.ctx.updatePricesTest_();
   assert.equal(second.complete, true);
+  assert.equal(requestIds.length, 2);
+  assert.equal(requestIds[1], requestIds[0]);
+  assert.equal(second.batches[0].requestId, requestIds[0]);
   assert.equal(r.state().technical.quotes.length, 1);
 });
 
@@ -1175,6 +1184,7 @@ test('historical preview is read-only; older NAV import is atomic, bound and rec
   assert.equal(preview.ok, true);
   assert.equal(preview.rows[0].status, 'new');
   assert.equal(r.writes.length, writes);
+  assert.deepEqual(r.state().tables, before.tables);
   const envelope = historyEnvelope(r, true),
     imported = r.api(envelope);
   assert.equal(imported.ok, true);
