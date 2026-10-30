@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { runtime } = require('./helpers/runtime.cjs');
+const { runtime, serial } = require('./helpers/runtime.cjs');
 const D = require('../web/domain.js');
 const expense = {
   process: 'gasto',
@@ -134,6 +134,14 @@ test('planned realization is atomic; invalid metadata fields and stale revisions
   ]);
   const planned = r.api({ action: 'read' }).planned[0];
   before = r.state();
+  const stale = r.api({
+    action: 'transact',
+    requestId: require('node:crypto').randomUUID(),
+    expectedRevision: 'stale-revision',
+    operations: [expense, { process: 'quitar_obligacion', id: planned.id }],
+  });
+  assert.equal(stale.error, 'CONFLICT');
+  assert.deepEqual(r.state(), before);
   assert.equal(
     r.transact([
       { ...expense, amount: -1 },
@@ -183,7 +191,12 @@ test('payroll correction changes date/account/net/breakdown atomically and prese
   assert.equal(r.transact([corrected]).ok, true);
   assert.equal(r.state().tables.tMovimientos[0].ID, id);
   assert.equal(r.state().tables.tMovimientos[0].Destino, 'Cuenta B');
+  assert.equal(r.state().tables.tMovimientos[0].Fecha, serial('2026-01-02'));
+  assert.equal(r.state().tables.tMovimientos[0].Importe, 90);
   assert.equal(r.state().tables.tNominas[0].Bruto, 110);
+  assert.equal(r.state().tables.tNominas[0].Cotización, 5);
+  assert.equal(r.state().tables.tNominas[0].IRPF, 10);
+  assert.equal(r.state().tables.tNominas[0]['Otras deducciones'], 5);
   const before = r.state();
   assert.equal(r.transact([{ ...corrected, amount: 91 }]).ok, false);
   assert.deepEqual(r.state(), before);
