@@ -66,7 +66,7 @@ test('límites inválidos rechazan el lote completo y no crean movimientos', () 
     const r = runtime();
     r.init();
     const before = r.state();
-    assert.equal(r.transact([limit(change)]).ok, false);
+    assert.equal(r.transact([limit(), limit(change)]).ok, false);
     assert.deepEqual(r.state(), before);
   }
 });
@@ -252,8 +252,17 @@ test('interval budgets reject malformed dates, negative limits and invalid categ
   ]) {
     const r = runtime();
     r.init();
+    const before = r.state();
     assert.equal(
       r.transact([
+        {
+          process: 'presupuesto_intervalo',
+          title: 'Válido',
+          start: '2026-08-18',
+          end: null,
+          category: 'Café',
+          amount: 50,
+        },
         {
           process: 'presupuesto_intervalo',
           title: 'Cafe',
@@ -266,7 +275,7 @@ test('interval budgets reject malformed dates, negative limits and invalid categ
       ]).ok,
       false,
     );
-    assert.equal(r.state().technical.intervalBudgets.length, 0);
+    assert.deepEqual(r.state(), before);
   }
   const r = runtime();
   r.init();
