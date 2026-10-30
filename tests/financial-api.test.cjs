@@ -364,12 +364,13 @@ test('venta excesiva o lote inválido se rechaza entero sin dejar efectivo huér
   const r = runtime();
   r.init();
   const count = r.writes.length;
+  const before = r.state();
   assert.equal(
     r.transact([expense(), trade({ process: 'venta', units: 6 })]).error,
     'INVALID_DATA',
   );
   assert.equal(r.writes.length, count);
-  assert.equal(r.state().tables.tMovimientos.length, 0);
+  assert.deepEqual(r.state(), before);
 });
 test('compra histórica conserva el histórico sin volver a crear caja y respeta la base', () => {
   const r = runtime();
