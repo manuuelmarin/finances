@@ -90,13 +90,16 @@ test('comprueba ISIN y dígito de control antes de acceder a la red; admite min�
   assert.equal(r.fetches.length, 1);
 });
 test('página de otra clase, cabecera equivocada o ficha vacía no pueden actualizar el fondo', () => {
-  for (const body of [
-    page({ isin: SECOND }),
-    page({ headerIsin: SECOND }),
-    '<h1>No disponible</h1>',
+  for (const [body, error] of [
+    [page({ isin: SECOND }), 'IDENTITY_MISMATCH'],
+    [page({ headerIsin: SECOND }), 'IDENTITY_MISMATCH'],
+    ['<h1>No disponible</h1>', 'SOURCE_FORMAT'],
   ]) {
     const r = runtime({ fetch: () => ({ body }) });
-    assert.equal(quote(r).ok, false);
+    const result = quote(r);
+    assert.equal(result.ok, false);
+    assert.equal(result.error, error);
+    assert.equal(result.price, undefined);
     assert.equal(r.writes.length, 0);
   }
 });
@@ -616,11 +619,14 @@ test('ficha principal sin identidad legible consulta la versión móvil oficial 
 });
 
 test('la variante móvil no permite sustituir ISIN, nombre, moneda o fecha por aproximación', () => {
-  for (const body of [
-    mobilePage({ isin: SECOND }),
-    mobilePage({ name: 'Otro fondo desconocido' }),
-    mobilePage().replace('345,197060 EUR', '345,197060 GBP'),
-    mobilePage().replace('02/10/2026', '31/02/2026'),
+  for (const [body, error] of [
+    [mobilePage({ isin: SECOND }), 'IDENTITY_MISMATCH'],
+    [mobilePage({ name: 'Otro fondo desconocido' }), 'NAME_MISMATCH'],
+    [
+      mobilePage().replace('345,197060 EUR', '345,197060 GBP'),
+      'UNSUPPORTED_CURRENCY',
+    ],
+    [mobilePage().replace('02/10/2026', '31/02/2026'), 'INVALID_DATE'],
   ]) {
     const r = runtime({
       fetch: (source) => ({
@@ -629,7 +635,11 @@ test('la variante móvil no permite sustituir ISIN, nombre, moneda o fecha por a
           : `<title>${TITLE} (${ISIN}) · Gestora</title>`,
       }),
     });
-    assert.equal(quote(r).ok, false);
+    const result = quote(r);
+    assert.equal(result.ok, false);
+    assert.equal(result.error, error);
+    assert.equal(result.price, undefined);
+    assert.equal(r.fetches.length, 2);
     assert.equal(r.writes.length, 0);
   }
 });
@@ -1209,6 +1219,10 @@ test('historical duplicates never replace NAV and conflicts reject entire chunk'
   assert.equal(r.api(historyEnvelope(r, true)).ok, true);
   const dup = r.api(historyEnvelope(r));
   assert.equal(dup.rows[0].status, 'duplicate');
+  const originalPrices = JSON.stringify(r.state().tables.tPrecios);
+  const duplicateImport = r.api(historyEnvelope(r, true));
+  assert.equal(duplicateImport.ok, true);
+  assert.equal(JSON.stringify(r.state().tables.tPrecios), originalPrices);
   const rows = [
       historicalRow({ price: 999 }),
       historicalRow({ date: '2026-09-16' }),
