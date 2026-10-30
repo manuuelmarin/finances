@@ -129,12 +129,13 @@ test('no elimina solicitudes sin confirmar; fallo previo se reintenta con el mis
 });
 test('validación rechazada se conserva para revisar; descartar no modifica Google', async () => {
   const { q, client, r } = setup();
+  const before = r.state();
   await q.saveSnapshot(await client.read());
   await q.enqueue([{ ...expense(1), amount: -1 }], 'Inválido');
   await q.run(client);
   assert.equal((await q.get()).queue[0].status, 'review');
   await q.discard((await q.get()).queue[0].envelope.requestId);
-  assert.equal(r.state().tables.tMovimientos.length, 0);
+  assert.deepEqual(r.state(), before);
   await q.clear();
   assert.equal((await q.get()).snapshot, null);
 });
