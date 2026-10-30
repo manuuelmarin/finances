@@ -196,10 +196,19 @@ test('does not look through the book start to find a nearby historical NAV', () 
 
 test('treats an empty investment portfolio as zero', () => {
   const snapshot = fixture();
+  snapshot.tables.tCuentas = [{ Cuenta: 'Cash', 'Saldo inicial': 0 }];
+  snapshot.tables.tDeudas = [];
+  snapshot.tables.tMovimientos = [];
+  snapshot.tables.tVinculos = [];
   snapshot.tables.tProductos = [];
+  assert.deepEqual(
+    FinanceWealth.valueAt(snapshot, '2026-03-31', FinanceAnalytics),
+    { value: 0, reason: null },
+  );
+  snapshot.tables.tProductos = fixture().tables.tProductos;
   assert.equal(
     FinanceWealth.valueAt(snapshot, '2026-03-31', FinanceAnalytics).value,
-    80,
+    12,
   );
 });
 
@@ -260,17 +269,19 @@ test('account comparisons preserve unknown current and historical balances', () 
   s.tables.tCuentas = [
     { Cuenta: 'A', 'Saldo inicial': 100, 'Saldo calculado': null },
   ];
-  assert.ok(
-    FinanceWealth.accountComparisons(s, FinanceAnalytics)[0].windows.every(
-      (row) => row.change === null,
+  assert.deepEqual(
+    FinanceWealth.accountComparisons(s, FinanceAnalytics)[0].windows.map(
+      (row) => row.change,
     ),
+    Array(8).fill(null),
   );
   s.tables.tCuentas[0]['Saldo inicial'] = null;
   s.tables.tCuentas[0]['Saldo calculado'] = 0;
-  assert.ok(
-    FinanceWealth.accountComparisons(s, FinanceAnalytics)[0].windows.every(
-      (row) => row.previous === null,
+  assert.deepEqual(
+    FinanceWealth.accountComparisons(s, FinanceAnalytics)[0].windows.map(
+      (row) => row.previous,
     ),
+    Array(8).fill(null),
   );
 });
 
@@ -568,7 +579,13 @@ test('investment value comparisons include pocket contributions, withdrawals and
       ],
     },
   };
-  let rows = FinanceWealth.investmentComparisons(s, FinanceAnalytics);
+  const comparisonsWithoutMetricChanges = () => {
+    const before = FinanceAnalytics.investmentMetrics(s, 'P');
+    const result = FinanceWealth.investmentComparisons(s, FinanceAnalytics);
+    assert.deepEqual(FinanceAnalytics.investmentMetrics(s, 'P'), before);
+    return result;
+  };
+  let rows = comparisonsWithoutMetricChanges();
   assert.equal(rows[0].product, 'Total');
   assert.equal(rows[1].name, 'Fondo');
   assert.equal(rows[1].windows[0].previous, 100);
@@ -578,7 +595,7 @@ test('investment value comparisons include pocket contributions, withdrawals and
   assert.equal(FinanceAnalytics.investmentMetrics(s).gain, 10);
   s.tables.tProductos[0].Valor = 165;
   s.tables.tPrecios.push({ Producto: 'P', Fecha: '2026-10-22', 'VL EUR': 11 });
-  rows = FinanceWealth.investmentComparisons(s, FinanceAnalytics);
+  rows = comparisonsWithoutMetricChanges();
   assert.equal(rows[0].windows[0].change, 65);
   s.tables.tOperaciones[0] = {
     Producto: 'P',
@@ -587,11 +604,7 @@ test('investment value comparisons include pocket contributions, withdrawals and
     Participaciones: 5,
   };
   s.tables.tProductos[0].Valor = 55;
-  assert.equal(
-    FinanceWealth.investmentComparisons(s, FinanceAnalytics)[0].windows[0]
-      .change,
-    -45,
-  );
+  assert.equal(comparisonsWithoutMetricChanges()[0].windows[0].change, -45);
 });
 
 test('investment openings include all eight boundary dates, preserve missing prices and use zero before a new fund purchase', () => {
