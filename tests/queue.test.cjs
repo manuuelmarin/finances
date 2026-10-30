@@ -147,7 +147,9 @@ test('cada implementación tiene un almacén separado; el bloqueo de pestañas e
   await q.saveSnapshot(await client.read());
   await q.enqueue([expense(1)], 'Uno');
   q.locks = { request: async (name, options, fn) => fn(null) };
-  await q.run(client);
+  const result = await q.run(client);
+  assert.equal(result.status, 'busy');
+  assert.equal((await q.get()).queue[0].status, 'pending');
   assert.equal(calls.length, 0);
 });
 test('el cliente nuevo conserva sobres compatibles con el backend anterior de pruebas', async () => {
