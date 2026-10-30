@@ -108,6 +108,7 @@ test('libro diferente o fallo al persistir bloquea todo envío', async () => {
     broken.enqueue([expense(2)], 'Dos'),
     /STORAGE_UNAVAILABLE/,
   );
+  await assert.rejects(broken.run(client), /STORAGE_UNAVAILABLE/);
   assert.equal(calls.length, 0);
 });
 test('no elimina solicitudes sin confirmar; fallo previo se reintenta con el mismo sobre', async () => {
@@ -150,7 +151,7 @@ test('cada implementación tiene un almacén separado; el bloqueo de pestañas e
   assert.equal(calls.length, 0);
 });
 test('el cliente nuevo conserva sobres compatibles con el backend anterior de pruebas', async () => {
-  const { q, client } = setup();
+  const { q, client, r } = setup();
   const snapshot = await client.read();
   delete snapshot.supportsBookBinding;
   await q.saveSnapshot(snapshot);
@@ -159,6 +160,9 @@ test('el cliente nuevo conserva sobres compatibles con el backend anterior de pr
     Object.hasOwn((await q.get()).queue[0].envelope, 'bookKey'),
     false,
   );
+  await q.run(client);
+  assert.equal((await q.get()).queue[0].status, 'confirmed');
+  assert.equal(r.state().tables.tMovimientos.length, 1);
 });
 
 test('fallo del puente después de aplicar conserva la incertidumbre y recupera el recibo sin reenviar', async () => {
@@ -398,12 +402,37 @@ test('recovered readback advances never-sent batches only from its own exact rec
     return read();
   };
   assert.equal((await q.run(client)).reason, 'POST_CONFIRM_READ_FAILED');
+  const receiptRevision = (await q.get()).queue[0].result.revision;
   assert.equal((await q.run(client)).reason, null);
+  assert.equal(calls[1].expectedRevision, receiptRevision);
   assert.deepEqual(
     (await q.get()).queue.map((q) => q.status),
     ['confirmed', 'confirmed'],
   );
   assert.equal(calls.length, 2);
+});
+
+test('a different readback revision does not advance a pending envelope', async () => {
+  const { q, client, calls } = setup();
+  await q.saveSnapshot(await client.read());
+  await q.enqueue([expense(2)], 'First');
+  await q.enqueue([expense(3)], 'Second');
+  const initialRevision = (await q.get()).queue[1].envelope.expectedRevision;
+  const read = client.read;
+  client.read = async () => {
+    if (calls.length === 1) throw Error('READ_TIMEOUT');
+    return read();
+  };
+  await q.run(client);
+  const fresh = await read();
+  await q.saveSnapshot({ ...fresh, revision: 'unrelated-revision' });
+  const pending = (await q.get()).queue[1];
+  assert.equal(pending.status, 'pending');
+  assert.equal(pending.envelope.expectedRevision, initialRevision);
+  client.read = async () => ({ ...fresh, revision: 'unrelated-revision' });
+  await q.run(client);
+  assert.equal(calls.length, 1);
+  assert.equal((await q.get()).queue[1].status, 'review');
 });
 
 test('missing and discarded items cannot be claimed and failures remain recoverable', async () => {
@@ -481,7 +510,12 @@ test('settled uncertainty releases only its own claim in the same saved update',
   await q.enqueue([expense(1)], 'Settled lost reply');
   const id = (await q.get()).queue[0].envelope.requestId;
   await q.claim(id);
+  await q.enqueue([expense(2)], 'Other claim');
+  const otherId = (await q.get()).queue[1].envelope.requestId;
+  await q.claim(otherId);
+  const otherClaim = (await q.get()).queue[1].claim;
   await q.status(id, 'uncertain', { ok: false, error: 'RESPONSE_UNCERTAIN' });
+  assert.deepEqual((await q.get()).queue[1].claim, otherClaim);
   const item = (await q.get()).queue[0];
   assert.equal(item.claim, undefined);
   assert.equal(item.result.error, 'RESPONSE_UNCERTAIN');
