@@ -275,6 +275,9 @@ test('estimated returns cross year-end flows and count net distributions exactly
   s.tables.tOperaciones[0].Fecha = '2026-01-05';
   s.tables.tOperaciones[1].Fecha = '2026-01-05';
   const exact = A.investmentTimeline(s).rows.at(-1);
+  assert.ok(Number.isFinite(exact.adjustedReturnPct));
+  assert.ok(Number.isFinite(exact.totalReturnPct));
+  assert.ok(Math.abs(exact.totalReturnPct - 35) < 1e-10);
   assert.ok(Math.abs(exact.adjustedReturnPct - exact.totalReturnPct) < 1e-10);
   s.tables.tOperaciones[0].Tipo = 'Venta';
   s.tables.tOperaciones[0].Fecha = '2026-01-01';
@@ -1152,3 +1155,4 @@ test('a sold-out product does not mix a final TWR point into its NAV-only variat
   assert.equal(row.returnPct, null);
   assert.ok(Math.abs(row.totalReturnPct - 10) < 1e-8);
 });
+
