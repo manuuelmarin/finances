@@ -430,6 +430,111 @@ const FinanceAnalytics = (() => {
       };
     });
   }
+  // Limits are intentions, not actual spending or cash. Never add overlapping
+  // limits for the same category, including an all-categories limit.
+  function salaryAllocation(snapshot, cut) {
+    if (!validDate(cut)) return { salary: null, reason: 'Sin fecha de corte.' };
+    const movements = snapshot?.tables?.tMovimientos || [];
+    const payrollRows = (snapshot?.tables?.tNominas || []).map((row) => {
+      const movement = row.Movimiento
+        ? movements.find((item) => item.ID === row.Movimiento)
+        : null;
+      return {
+        date: movement?.Fecha || row['Fecha cobro'],
+        net: finite(row.Neto) ? row.Neto : movement?.Importe,
+      };
+    });
+    if (payrollRows.some((row) => !validDate(row.date)))
+      return {
+        salary: null,
+        reason: 'Hay una nómina sin fecha válida; revisa el libro.',
+      };
+    const payroll = payrollRows
+      .filter((row) => validDate(row.date) && row.date <= cut)
+      .sort((a, b) => b.date.localeCompare(a.date));
+    if (!payroll.length)
+      return {
+        salary: null,
+        reason: 'No hay una nómina registrada hasta esta fecha.',
+      };
+    const latest = payroll.filter((row) => row.date === payroll[0].date);
+    if (latest.some((row) => !finite(row.net) || row.net < 0))
+      return {
+        salary: null,
+        date: payroll[0].date,
+        reason: 'La última nómina no tiene un importe neto válido.',
+      };
+    const salary = latest.reduce((sum, row) => sum + cents(row.net), 0) / 100;
+    if (!Number.isSafeInteger(cents(salary)) || salary <= 0)
+      return {
+        salary: null,
+        date: payroll[0].date,
+        reason: 'La última nómina no tiene un neto positivo.',
+      };
+    const monthlyRecords = snapshot?.budgets || [];
+    const invalidMonths = monthlyRecords.some(
+      (row) => !validDate(String(row.month || '') + '-01'),
+    );
+    const monthly = monthlyRecords
+      .filter((row) => row.month === cut.slice(0, 7))
+      .map((row) => ({
+        ...row,
+        title: row.category || 'Total',
+        start: row.month + '-01',
+        end: null,
+      }));
+    const intervalRecords = snapshot?.intervalBudgets || [];
+    const invalidDates = intervalRecords.some(
+      (row) =>
+        !validDate(row.start) ||
+        (row.end && (!validDate(row.end) || row.end < row.start)),
+    );
+    const intervals = intervalRecords.filter(
+      (row) =>
+        validDate(row.start) &&
+        row.start <= cut &&
+        (!row.end || (validDate(row.end) && row.end >= cut)),
+    );
+    const records = [...monthly, ...intervals];
+    const invalid =
+      invalidDates ||
+      invalidMonths ||
+      records.some(
+        (row) =>
+          !finite(row.amount) ||
+          row.amount < 0 ||
+          !Number.isSafeInteger(cents(row.amount)),
+      );
+    const categories = records.map((row) => row.category || null);
+    const conflict = categories.some((category, index) =>
+      categories
+        .slice(index + 1)
+        .some((other) => !category || !other || category === other),
+    );
+    const totalCents = records.reduce(
+      (sum, row) => sum + (finite(row.amount) ? cents(row.amount) : 0),
+      0,
+    );
+    const safe = !invalid && !conflict && Number.isSafeInteger(totalCents);
+    const planned = safe ? totalCents / 100 : null;
+    return {
+      salary,
+      date: payroll[0].date,
+      payrollCount: latest.length,
+      records,
+      planned,
+      available: safe ? Math.max(0, cents(salary) - totalCents) / 100 : null,
+      excess: safe ? Math.max(0, totalCents - cents(salary)) / 100 : null,
+      reason:
+        invalidDates || invalidMonths
+          ? 'Hay límites con fechas no válidas.'
+          : invalid
+            ? 'Hay límites sin importe válido.'
+            : conflict
+              ? 'Hay límites solapados para las mismas categorías; revisa el reparto.'
+              : null,
+    };
+  }
   function spendingAnalysis(
     snapshot,
     month,
@@ -1037,6 +1142,7 @@ const FinanceAnalytics = (() => {
     investmentTimeline,
     investmentMetrics,
     salarySavings,
+    salaryAllocation,
     freeBudget,
     spendingAnalysis,
   };

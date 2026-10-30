@@ -46,6 +46,7 @@ const FinanceDashboard = (() => {
     range = 'all';
   const emergencySelection = new Map();
   const selectedPeriods = new Set();
+  let renderedCalendarDay = null;
   let planEditing = null,
     selectedPlans = null;
   const metric = (name) =>
@@ -178,7 +179,13 @@ const FinanceDashboard = (() => {
       to: spendTo,
     });
   }
-  function comparisonCell(label, value, unit, explanation = '') {
+  function comparisonCell(
+    label,
+    value,
+    unit,
+    explanation = '',
+    showTooltip = true,
+  ) {
     const node = el(
       'div',
       undefined,
@@ -189,7 +196,7 @@ const FinanceDashboard = (() => {
             ? 'comparison-positive'
             : 'comparison-negative'),
     );
-    node.title = explanation;
+    if (showTooltip) node.title = explanation;
     node.append(
       el('span', label),
       el(
@@ -1450,30 +1457,57 @@ const FinanceDashboard = (() => {
         ),
         el('strong', amount(row.current), 'account-balance'),
       );
+      if (!known(row.current) && row.currentReason)
+        card.append(el('p', row.currentReason, 'calculator-note'));
       const grid = el('div', undefined, 'comparison-grid');
-      for (const window of row.windows)
+      const explanations = [];
+      for (const window of row.windows) {
+        const explanation =
+          window.reason ||
+          (kind === 'account' ? 'Saldo al ' : 'Valor al ') +
+            displayDate(window.to) +
+            ' − ' +
+            (kind === 'account' ? 'saldo' : 'valor') +
+            ' al inicio del ' +
+            displayDate(window.from) +
+            ': ' +
+            amount(window.previous) +
+            (window.priceDate
+              ? ' · VL del ' + displayDate(window.priceDate)
+              : '');
+        explanations.push([window.label, explanation]);
         grid.append(
           comparisonCell(
             window.label,
             window.change,
             'EUR',
-            window.reason ||
-              (kind === 'account' ? 'Saldo al ' : 'Valor al ') +
-                displayDate(window.to) +
-                ' − ' +
-                (kind === 'account' ? 'saldo' : 'valor') +
-                ' al inicio del ' +
-                displayDate(window.from) +
-                ': ' +
-                amount(window.previous) +
-                (window.priceDate
-                  ? ' · VL del ' + displayDate(window.priceDate)
-                  : ''),
+            explanation,
+            false,
           ),
         );
+      }
       card.append(grid);
+      const details = el('details', undefined, 'balance-explanations');
+      details.append(el('summary', 'Ver fechas de comparación'));
+      const list = el('dl');
+      for (const [label, explanation] of explanations) {
+        list.append(el('dt', label), el('dd', explanation));
+      }
+      details.append(list);
+      card.append(details);
       target.append(card);
     }
+  }
+
+  function todayMadrid() {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Madrid',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date());
+    const part = (type) => parts.find((item) => item.type === type).value;
+    return `${part('year')}-${part('month')}-${part('day')}`;
   }
 
   function renderAccounts() {
@@ -1484,13 +1518,18 @@ const FinanceDashboard = (() => {
     $('account-cut').textContent = '';
     if (!current) return;
     $('account-month').value = accountMonth;
+    const cut = FinanceWealth.accountCut(current, todayMadrid());
     renderBalanceComparisons(
       $('account-comparisons'),
-      FinanceWealth.accountComparisons(current),
+      FinanceWealth.accountComparisons(current, FinanceAnalytics, cut),
       'account',
     );
     $('account-balance-date').textContent =
-      'Saldos al ' + displayDate(current.settings.asof);
+      'Saldos al ' +
+      displayDate(cut) +
+      (cut && cut < current.settings.asof
+        ? ' · Saldo reconstruido hasta hoy; el corte del libro es posterior.'
+        : '');
     const latestObserved = new Map();
     for (const o of current.observations || [])
       if (
@@ -1624,9 +1663,12 @@ const FinanceDashboard = (() => {
     }
     current = snapshot;
     api = handlers;
+    renderedCalendarDay = todayMadrid();
     if (current) {
       const reportMonth = current.settings.asof.slice(0, 7);
-      month ||= reportMonth;
+      month ||=
+        FinanceWealth.accountCut(current, renderedCalendarDay)?.slice(0, 7) ||
+        reportMonth;
       cashMonth ||= reportMonth;
       cashEndMonth ||= cashMonth;
       cashFrom ||= monthPeriod(cashMonth).from;
@@ -1814,6 +1856,104 @@ const FinanceDashboard = (() => {
       cashTo = to;
       renderSummary();
     });
+  function renderSalaryAllocation() {
+    const target = $('salary-allocation');
+    target.replaceChildren();
+    target.append(el('h2', 'Reparto de la última nómina'));
+    if (!current) {
+      target.append(
+        el('p', 'Abre tu libro para ver el reparto.', 'calculator-note'),
+      );
+      return;
+    }
+    const cut = FinanceWealth.accountCut(current, todayMadrid());
+    const allocation = FinanceAnalytics.salaryAllocation(current, cut);
+    if (!known(allocation.salary)) {
+      target.append(el('p', allocation.reason, 'calculator-note'));
+      return;
+    }
+    target.append(
+      el(
+        'p',
+        'Ingreso neto: ' +
+          amount(allocation.salary) +
+          ' · ' +
+          displayDate(allocation.date) +
+          (allocation.payrollCount > 1 ? ' · nóminas del mismo día' : ''),
+        'salary-allocation-total',
+      ),
+      el(
+        'p',
+        'Límites vigentes al ' +
+          displayDate(cut) +
+          '. Es una planificación, no el saldo de tus cuentas ni el gasto real; los límites pueden cubrir periodos distintos.',
+        'calculator-note',
+      ),
+    );
+    if (allocation.reason) {
+      target.append(el('p', allocation.reason, 'salary-allocation-warning'));
+      return;
+    }
+    const entries = allocation.records.map((row) => ({
+      label: row.title || row.category || 'Límite',
+      value: row.amount,
+    }));
+    entries.push({
+      label: 'Disponible para planificar',
+      value: allocation.available,
+      available: true,
+    });
+    const denominator = Math.max(allocation.salary, allocation.planned);
+    const ns = 'http://www.w3.org/2000/svg';
+    const graph = document.createElementNS(ns, 'svg');
+    graph.setAttribute('viewBox', '0 0 1000 24');
+    graph.setAttribute('preserveAspectRatio', 'none');
+    graph.setAttribute('role', 'img');
+    graph.setAttribute(
+      'aria-label',
+      'Reparto de la última nómina y límites vigentes',
+    );
+    graph.classList.add('salary-allocation-bar');
+    let x = 0;
+    const legend = el('ul', undefined, 'salary-allocation-legend');
+    entries.forEach((entry, index) => {
+      const width = denominator > 0 ? (1000 * entry.value) / denominator : 0;
+      const tone = entry.available ? 'available' : String(index % 6);
+      const rect = document.createElementNS(ns, 'rect');
+      rect.setAttribute('x', String(x));
+      rect.setAttribute('y', '0');
+      rect.setAttribute('width', String(width));
+      rect.setAttribute('height', '24');
+      rect.setAttribute('class', 'allocation-tone-' + tone);
+      graph.append(rect);
+      x += width;
+      const item = el('li');
+      item.append(
+        el('span', undefined, 'allocation-swatch allocation-tone-' + tone),
+        el('span', entry.label),
+        el(
+          'strong',
+          amount(entry.value) +
+            ' · ' +
+            percentage.format((100 * entry.value) / allocation.salary) +
+            ' %',
+        ),
+      );
+      legend.append(item);
+    });
+    target.append(graph, legend);
+    if (allocation.excess > 0)
+      target.append(
+        el(
+          'p',
+          'Los límites superan la última nómina en ' +
+            amount(allocation.excess) +
+            '. La barra se ajusta al total de límites.',
+          'salary-allocation-warning',
+        ),
+      );
+  }
+
   function renderBudgets() {
     const parent = $('budget-cards');
     parent.replaceChildren();
@@ -1837,6 +1977,7 @@ const FinanceDashboard = (() => {
         : !current.supportsCustomBudgets
           ? 'Este backend admite límites mensuales. Ejecuta prepareApplication desde la entrega vigente para habilitar intervalos personalizados.'
           : '';
+    renderSalaryAllocation();
     if (!current) return;
     if (current.supportsCustomBudgets) $('budget-note').textContent = '';
     const legacy = (current.budgets || [])
@@ -2777,5 +2918,23 @@ const FinanceDashboard = (() => {
         'Previsión basada en los planes seleccionados. No modifica los saldos del libro.',
     });
   }
+  function refreshCalendarDay() {
+    if (!current || todayMadrid() === renderedCalendarDay) return;
+    renderedCalendarDay = todayMadrid();
+    renderAccounts();
+    const nextMonth = FinanceWealth.accountCut(
+      current,
+      renderedCalendarDay,
+    )?.slice(0, 7);
+    if (nextMonth && !selectedPeriods.has('budgets') && month !== nextMonth) {
+      month = nextMonth;
+      $('budget-month').value = month;
+      renderBudgets();
+    } else renderSalaryAllocation();
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refreshCalendarDay();
+  });
+  window.setInterval(refreshCalendarDay, 60000);
   return { render };
 })();

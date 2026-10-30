@@ -486,6 +486,55 @@ test('account total comes first in the requested order and internal transfers ca
   );
 });
 
+test('future book cutoff does not move tomorrow’s transfer into today’s account balances', () => {
+  const s = {
+    settings: { start: '2026-10-01', asof: '2026-11-01' },
+    tables: {
+      tCuentas: [
+        { Cuenta: 'Bankinter', 'Saldo inicial': 1000, 'Saldo calculado': 590 },
+        { Cuenta: 'Unicaja', 'Saldo inicial': 100, 'Saldo calculado': 500 },
+      ],
+      tMovimientos: [
+        { Fecha: '2026-10-30', Origen: 'Bankinter', Importe: 10 },
+        {
+          Fecha: '2026-10-31',
+          Origen: 'Bankinter',
+          Destino: 'Unicaja',
+          Importe: 400,
+        },
+      ],
+    },
+  };
+  const cut = FinanceWealth.accountCut(s, '2026-10-30');
+  assert.equal(cut, '2026-10-30');
+  let rows = FinanceWealth.accountComparisons(s, FinanceAnalytics, cut);
+  assert.deepEqual(
+    rows.map((row) => [row.account, row.current]),
+    [
+      ['Total', 1090],
+      ['Unicaja', 100],
+      ['Bankinter', 990],
+    ],
+  );
+  assert.equal(rows[2].windows[0].change, -10);
+  assert.equal(rows[1].windows[0].change, 0);
+  assert.equal(rows[0].windows[0].to, '2026-10-30');
+  rows = FinanceWealth.accountComparisons(s, FinanceAnalytics, '2026-10-31');
+  assert.equal(rows[1].current, 500);
+  assert.equal(rows[2].current, 590);
+  assert.equal(rows[0].current, 1090);
+  s.tables.tCuentas[0]['Saldo calculado'] = 591;
+  rows = FinanceWealth.accountComparisons(s, FinanceAnalytics, cut);
+  assert.equal(rows[2].current, null);
+  assert.match(rows[2].currentReason, /reconstruir/);
+  assert.equal(rows[0].current, null);
+  assert.equal(FinanceWealth.accountCut(s, '2026-11-03'), '2026-11-01');
+  assert.deepEqual(
+    FinanceWealth.accountComparisons(s, FinanceAnalytics, '2026-11-02'),
+    [],
+  );
+});
+
 test('investment value comparisons include pocket contributions, withdrawals and price changes without altering returns', () => {
   const s = {
     settings: {

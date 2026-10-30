@@ -362,6 +362,10 @@ const FinanceWealth = (() => {
       {
         [key]: 'Total',
         current,
+        currentReason:
+          current === null
+            ? 'Falta el saldo de alguna cuenta o producto.'
+            : null,
         total: true,
         windows: rows[0].windows.map((window, index) =>
           comparisonWindow(
@@ -378,15 +382,37 @@ const FinanceWealth = (() => {
   }
 
   // Opening equals the preceding close, or the initial balance on book start.
-  function accountComparisons(snapshot, analytics = FinanceAnalytics) {
-    const windows = openingWindows(snapshot);
+  function accountCut(snapshot, today) {
+    const asof = snapshot?.settings?.asof;
+    if (!validDate(asof) || !validDate(today)) return null;
+    return asof < today ? asof : today;
+  }
+
+  function accountComparisons(snapshot, analytics = FinanceAnalytics, cut) {
+    const originalCut = snapshot?.settings?.asof;
+    if (
+      cut &&
+      (!validDate(cut) || !validDate(originalCut) || cut > originalCut)
+    )
+      return [];
+    const dated = cut
+      ? { ...snapshot, settings: { ...snapshot.settings, asof: cut } }
+      : snapshot;
+    const windows = openingWindows(dated);
     if (!windows.length) return [];
-    const { start, asof } = snapshot.settings;
+    const { start, asof } = dated.settings;
+    const earlier = asof < originalCut;
+    const projected = earlier
+      ? analytics.cashTimeline(dated, asof.slice(0, 7)).at(-1)
+      : null;
+    const nativeCut = earlier
+      ? analytics.cashTimeline(snapshot, originalCut.slice(0, 7)).at(-1)
+      : null;
     const months = new Map();
     for (const { from } of windows) {
       const month = dayBefore(from).slice(0, 7);
       if (from > start && !months.has(month))
-        months.set(month, analytics.cashTimeline(snapshot, month));
+        months.set(month, analytics.cashTimeline(dated, month));
     }
     const order = [
       'unicaja',
@@ -404,31 +430,45 @@ const FinanceWealth = (() => {
     };
     const rows = [...(snapshot.tables?.tCuentas || [])]
       .sort((a, b) => rank(a.Cuenta) - rank(b.Cuenta))
-      .map((account) => ({
-        account: account.Cuenta,
-        current: finite(account['Saldo calculado'])
-          ? account['Saldo calculado']
-          : null,
-        windows: windows.map(({ label, from }) => {
-          const baselineDate = dayBefore(from);
-          const row = months
-            .get(baselineDate.slice(0, 7))
-            ?.find((row) => row.date === baselineDate);
-          const previous =
-            from === start
-              ? account['Saldo inicial']
-              : row?.accounts[account.Cuenta];
-          const current = account['Saldo calculado'];
-          return comparisonWindow(
-            { label, from },
-            previous,
-            current,
-            start,
-            asof,
-          );
-        }),
-      }));
-    return withTotal(rows, 'account', snapshot);
+      .map((account) => {
+        const native = account['Saldo calculado'];
+        const reconstructed = nativeCut?.accounts[account.Cuenta];
+        const current = !finite(native)
+          ? null
+          : !earlier
+            ? native
+            : finite(reconstructed) &&
+                Math.round(native * 100) === Math.round(reconstructed * 100) &&
+                finite(projected?.accounts[account.Cuenta])
+              ? projected.accounts[account.Cuenta]
+              : null;
+        return {
+          account: account.Cuenta,
+          current,
+          currentReason:
+            earlier && current === null
+              ? 'No se puede reconstruir el saldo hasta hoy con los datos del libro.'
+              : null,
+          windows: windows.map(({ label, from }) => {
+            const baselineDate = dayBefore(from);
+            const row = months
+              .get(baselineDate.slice(0, 7))
+              ?.find((row) => row.date === baselineDate);
+            const previous =
+              from === start
+                ? account['Saldo inicial']
+                : row?.accounts[account.Cuenta];
+            return comparisonWindow(
+              { label, from },
+              previous,
+              current,
+              start,
+              asof,
+            );
+          }),
+        };
+      });
+    return withTotal(rows, 'account', dated);
   }
 
   // Market value changes include contributions and withdrawals. They are not
@@ -505,6 +545,7 @@ const FinanceWealth = (() => {
     compare,
     comparisons,
     accountComparisons,
+    accountCut,
     investmentComparisons,
     valueAt,
     subtractMonths,

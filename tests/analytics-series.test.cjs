@@ -2,6 +2,78 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const A = require('../web/analytics.js');
 
+test('salary planning uses the latest earned payroll and refuses overlapping limits', () => {
+  const s = {
+    tables: {
+      tMovimientos: [
+        { ID: 'old', Fecha: '2026-09-30', Importe: 1600 },
+        { ID: 'latest', Fecha: '2026-10-30', Importe: 1800 },
+        { ID: 'future', Fecha: '2026-11-01', Importe: 2000 },
+      ],
+      tNominas: [
+        { Movimiento: 'old', Neto: 1600 },
+        { Movimiento: 'latest', Neto: 1800 },
+        { Movimiento: 'future', Neto: 2000 },
+      ],
+    },
+    budgets: [{ month: '2026-10', category: 'Comida', amount: 300 }],
+    intervalBudgets: [
+      {
+        title: 'Transporte',
+        category: 'Transporte',
+        start: '2026-10-01',
+        end: '2026-10-31',
+        amount: 100,
+      },
+      {
+        title: 'Futuro',
+        category: 'Viaje',
+        start: '2026-11-01',
+        end: null,
+        amount: 50,
+      },
+    ],
+  };
+  let result = A.salaryAllocation(s, '2026-10-30');
+  assert.equal(result.salary, 1800);
+  assert.equal(result.date, '2026-10-30');
+  assert.deepEqual(
+    result.records.map((r) => r.title),
+    ['Comida', 'Transporte'],
+  );
+  assert.equal(result.planned, 400);
+  assert.equal(result.available, 1400);
+  assert.equal(result.excess, 0);
+  s.intervalBudgets.push({
+    title: 'Duplicado',
+    category: 'Comida',
+    start: '2026-10-01',
+    end: null,
+    amount: 10,
+  });
+  result = A.salaryAllocation(s, '2026-10-30');
+  assert.equal(result.planned, null);
+  assert.equal(result.available, null);
+  assert.match(result.reason, /solapados/);
+  s.intervalBudgets.pop();
+  s.budgets.push({ month: '2026-10', category: null, amount: 1000 });
+  assert.equal(A.salaryAllocation(s, '2026-10-30').available, null);
+  s.budgets = [{ month: '2026-10', category: 'Comida', amount: 2000 }];
+  s.intervalBudgets = [];
+  result = A.salaryAllocation(s, '2026-10-30');
+  assert.equal(result.available, 0);
+  assert.equal(result.excess, 200);
+  assert.equal(A.salaryAllocation(s, '2026-09-01').salary, null);
+  s.intervalBudgets = [{ title: 'Inválido', start: '2026-02-30', amount: 10 }];
+  result = A.salaryAllocation(s, '2026-10-30');
+  assert.equal(result.available, null);
+  assert.match(result.reason, /fechas no válidas/);
+  s.tables.tNominas.push({ Movimiento: null, Neto: 1000 });
+  result = A.salaryAllocation(s, '2026-10-30');
+  assert.equal(result.salary, null);
+  assert.match(result.reason, /nómina sin fecha/);
+});
+
 test('readback checks known balances using full cash amounts while leaving unknown native balances unchanged', () => {
   const s = {
     settings: { start: '2026-01-01', asof: '2026-01-02' },
