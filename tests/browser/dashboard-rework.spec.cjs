@@ -232,6 +232,17 @@ test('@responsive @safari future-dated transfers wait until their day and salary
   ];
   seed.tables.tNominas = [{ Movimiento: 'salary', Neto: 1800 }];
   seed.budgets = [{ month: '2026-10', category: 'Compra', amount: 300 }];
+  seed.budgets.push(
+    ...[
+      ['Supermercado', 300],
+      ['Restaurantes', 100],
+      ['Transporte', 30],
+      ['Suscripciones', 50],
+      ['Alquiler', 650],
+      ['Salud', 50],
+      ['Wellness', 200],
+    ].map(([category, amount]) => ({ month: '2026-11', category, amount })),
+  );
   seed.intervalBudgets = [
     {
       title: 'Metro',
@@ -266,6 +277,13 @@ test('@responsive @safari future-dated transfers wait until their day and salary
   await expect(allocation).toContainText(/1\.?400,00/);
   await expect(allocation).toContainText('Disponible para planificar');
   await expect(allocation.locator('svg rect')).toHaveCount(3);
+  await page.locator('#budget-month').fill('2026-11');
+  await expect(allocation).toContainText('Límites de 2026-11');
+  await expect(allocation).toContainText('420,00');
+  await expect(allocation).toContainText('Supermercado');
+  await expect(allocation).not.toContainText('Metro');
+  await expect(allocation.locator('svg rect')).toHaveCount(8);
+  await page.locator('#budget-month').fill('2026-10');
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,

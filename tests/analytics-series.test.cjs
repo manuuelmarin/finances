@@ -74,6 +74,67 @@ test('salary planning uses the latest earned payroll and refuses overlapping lim
   assert.match(result.reason, /nómina sin fecha/);
 });
 
+test('salary allocation follows the selected month without counting future payroll', () => {
+  const s = {
+    tables: {
+      tMovimientos: [
+        { ID: 'now', Fecha: '2026-10-30', Importe: 1808.16 },
+        { ID: 'future', Fecha: '2026-11-30', Importe: 2000 },
+      ],
+      tNominas: [
+        { Movimiento: 'now', Neto: 1808.16 },
+        { Movimiento: 'future', Neto: 2000 },
+      ],
+    },
+    budgets: [
+      { month: '2026-10', category: 'Antiguo', amount: 10 },
+      ...[
+        ['Supermercado', 300],
+        ['Restaurantes', 100],
+        ['Transporte', 30],
+        ['Suscripciones', 50],
+        ['Alquiler', 650],
+        ['Salud', 50],
+        ['Wellness', 200],
+      ].map(([category, amount]) => ({ month: '2026-11', category, amount })),
+    ],
+    intervalBudgets: [],
+  };
+  let result = A.salaryAllocation(s, '2026-10-30', '2026-11');
+  assert.equal(result.salary, 1808.16);
+  assert.equal(result.date, '2026-10-30');
+  assert.equal(result.records.length, 7);
+  assert.equal(result.planned, 1380);
+  assert.equal(result.available, 428.16);
+  assert.equal(
+    A.salaryAllocation(s, '2026-10-30', '2026-10').available,
+    1798.16,
+  );
+  s.intervalBudgets.push({
+    category: 'Viaje',
+    title: 'Viaje',
+    start: '2026-10-15',
+    end: '2026-11-15',
+    amount: 200,
+  });
+  result = A.salaryAllocation(s, '2026-10-30', '2026-11');
+  assert.equal(result.available, null);
+  assert.match(result.reason, /más de un mes/);
+  s.intervalBudgets = [
+    { category: 'Ocio', start: '2026-11-01', end: '2026-11-10', amount: 10 },
+    { category: 'Ocio', start: '2026-11-11', end: '2026-11-20', amount: 20 },
+  ];
+  assert.equal(
+    A.salaryAllocation(s, '2026-10-30', '2026-11').available,
+    398.16,
+  );
+  s.intervalBudgets[1].start = '2026-11-10';
+  assert.match(
+    A.salaryAllocation(s, '2026-10-30', '2026-11').reason,
+    /solapados/,
+  );
+});
+
 test('readback checks known balances using full cash amounts while leaving unknown native balances unchanged', () => {
   const s = {
     settings: { start: '2026-01-01', asof: '2026-01-02' },

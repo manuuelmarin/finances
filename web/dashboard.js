@@ -1867,7 +1867,7 @@ const FinanceDashboard = (() => {
       return;
     }
     const cut = FinanceWealth.accountCut(current, todayMadrid());
-    const allocation = FinanceAnalytics.salaryAllocation(current, cut);
+    const allocation = FinanceAnalytics.salaryAllocation(current, cut, month);
     if (!known(allocation.salary)) {
       target.append(el('p', allocation.reason, 'calculator-note'));
       return;
@@ -1882,13 +1882,7 @@ const FinanceDashboard = (() => {
           (allocation.payrollCount > 1 ? ' · nóminas del mismo día' : ''),
         'salary-allocation-total',
       ),
-      el(
-        'p',
-        'Límites vigentes al ' +
-          displayDate(cut) +
-          '. Es una planificación, no el saldo de tus cuentas ni el gasto real; los límites pueden cubrir periodos distintos.',
-        'calculator-note',
-      ),
+      el('p', 'Límites de ' + month, 'calculator-note'),
     );
     if (allocation.reason) {
       target.append(el('p', allocation.reason, 'salary-allocation-warning'));
@@ -1911,7 +1905,7 @@ const FinanceDashboard = (() => {
     graph.setAttribute('role', 'img');
     graph.setAttribute(
       'aria-label',
-      'Reparto de la última nómina y límites vigentes',
+      'Reparto de la última nómina para ' + month,
     );
     graph.classList.add('salary-allocation-bar');
     let x = 0;

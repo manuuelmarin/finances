@@ -432,8 +432,20 @@ const FinanceAnalytics = (() => {
   }
   // Limits are intentions, not actual spending or cash. Never add overlapping
   // limits for the same category, including an all-categories limit.
-  function salaryAllocation(snapshot, cut) {
+  function salaryAllocation(snapshot, cut, selectedMonth = cut?.slice(0, 7)) {
     if (!validDate(cut)) return { salary: null, reason: 'Sin fecha de corte.' };
+    if (!validDate(String(selectedMonth || '') + '-01'))
+      return { salary: null, reason: 'Selecciona un mes válido.' };
+    const monthStart = selectedMonth + '-01';
+    const monthEnd = new Date(
+      Date.UTC(
+        Number(selectedMonth.slice(0, 4)),
+        Number(selectedMonth.slice(5)),
+        0,
+      ),
+    )
+      .toISOString()
+      .slice(0, 10);
     const movements = snapshot?.tables?.tMovimientos || [];
     const payrollRows = (snapshot?.tables?.tNominas || []).map((row) => {
       const movement = row.Movimiento
@@ -476,12 +488,12 @@ const FinanceAnalytics = (() => {
       (row) => !validDate(String(row.month || '') + '-01'),
     );
     const monthly = monthlyRecords
-      .filter((row) => row.month === cut.slice(0, 7))
+      .filter((row) => row.month === selectedMonth)
       .map((row) => ({
         ...row,
         title: row.category || 'Total',
         start: row.month + '-01',
-        end: null,
+        end: monthEnd,
       }));
     const intervalRecords = snapshot?.intervalBudgets || [];
     const invalidDates = intervalRecords.some(
@@ -492,8 +504,11 @@ const FinanceAnalytics = (() => {
     const intervals = intervalRecords.filter(
       (row) =>
         validDate(row.start) &&
-        row.start <= cut &&
-        (!row.end || (validDate(row.end) && row.end >= cut)),
+        row.start <= monthEnd &&
+        (!row.end || (validDate(row.end) && row.end >= monthStart)),
+    );
+    const spanningIntervals = intervals.some(
+      (row) => row.start < monthStart || !row.end || row.end > monthEnd,
     );
     const records = [...monthly, ...intervals];
     const invalid =
@@ -507,15 +522,25 @@ const FinanceAnalytics = (() => {
       );
     const categories = records.map((row) => row.category || null);
     const conflict = categories.some((category, index) =>
-      categories
-        .slice(index + 1)
-        .some((other) => !category || !other || category === other),
+      categories.slice(index + 1).some((other, offset) => {
+        const next = records[index + offset + 1];
+        const first = records[index];
+        return (
+          (!category || !other || category === other) &&
+          first.start <= (next.end || monthEnd) &&
+          next.start <= (first.end || monthEnd)
+        );
+      }),
     );
     const totalCents = records.reduce(
       (sum, row) => sum + (finite(row.amount) ? cents(row.amount) : 0),
       0,
     );
-    const safe = !invalid && !conflict && Number.isSafeInteger(totalCents);
+    const safe =
+      !invalid &&
+      !conflict &&
+      !spanningIntervals &&
+      Number.isSafeInteger(totalCents);
     const planned = safe ? totalCents / 100 : null;
     return {
       salary,
@@ -532,7 +557,9 @@ const FinanceAnalytics = (() => {
             ? 'Hay límites sin importe válido.'
             : conflict
               ? 'Hay límites solapados para las mismas categorías; revisa el reparto.'
-              : null,
+              : spanningIntervals
+                ? 'Hay límites que abarcan más de un mes; ajusta sus fechas para calcular este reparto mensual.'
+                : null,
     };
   }
   function spendingAnalysis(
