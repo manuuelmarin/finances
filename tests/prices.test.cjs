@@ -90,13 +90,16 @@ test('comprueba ISIN y dígito de control antes de acceder a la red; admite min�
   assert.equal(r.fetches.length, 1);
 });
 test('página de otra clase, cabecera equivocada o ficha vacía no pueden actualizar el fondo', () => {
-  for (const body of [
-    page({ isin: SECOND }),
-    page({ headerIsin: SECOND }),
-    '<h1>No disponible</h1>',
+  for (const [body, error] of [
+    [page({ isin: SECOND }), 'IDENTITY_MISMATCH'],
+    [page({ headerIsin: SECOND }), 'IDENTITY_MISMATCH'],
+    ['<h1>No disponible</h1>', 'SOURCE_FORMAT'],
   ]) {
     const r = runtime({ fetch: () => ({ body }) });
-    assert.equal(quote(r).ok, false);
+    const result = quote(r);
+    assert.equal(result.ok, false);
+    assert.equal(result.error, error);
+    assert.equal(result.price, undefined);
     assert.equal(r.writes.length, 0);
   }
 });
@@ -384,6 +387,14 @@ test('fallo parcial conserva el precio del fondo sin fuente y actualiza el fondo
   assert.equal(res.counts.failed, 1);
   assert.equal(r.state().technical.quotes.length, 2);
   assert.equal(r.state().tables.tPrecios.length, 2);
+  assert.equal(r.state().tables.tPrecios.at(-1).Producto, 'PRODUCT-A');
+  assert.equal(r.state().tables.tPrecios.at(-1)['VL EUR'], 345.19706);
+  assert.equal(
+    r
+      .state()
+      .tables.tPrecios.some((row) => row.Producto === added.results[0].id),
+    false,
+  );
 });
 test('producto sin ISIN informa el dato pendiente sin consulta a la red ni cambios financieros', () => {
   const r = runtime();
@@ -437,7 +448,10 @@ test('selección acotada y distinta: no admite más de veinte fondos, duplicados
     'INVALID_REQUEST',
   );
   assert.equal(
-    r.api({ ...envelope(r), products: Array(21).fill('Fondo A') }).error,
+    r.api({
+      ...envelope(r),
+      products: Array.from({ length: 21 }, (_, index) => 'Product-' + index),
+    }).error,
     'INVALID_REQUEST',
   );
   assert.equal(
@@ -447,7 +461,10 @@ test('selección acotada y distinta: no admite más de veinte fondos, duplicados
   assert.equal(
     r.api({
       action: 'quotePrices',
-      funds: Array(21).fill({ isin: ISIN, referenceName: TITLE }),
+      funds: Array.from({ length: 21 }, (_, index) => ({
+        isin: 'ES' + String(index).padStart(10, '0'),
+        referenceName: TITLE,
+      })),
     }).error,
     'INVALID_REQUEST',
   );
@@ -491,7 +508,7 @@ test('parser genérico funciona con otros ISIN válidos sin catálogo o identifi
   assert.equal(r.fetches.length, 5);
   assert.equal(r.writes.length, 0);
 });
-test('migración desde tres hojas técnicas añade fondos, cotizaciones y presupuestos sin cambiar entradas y conserva solicitudes anteriores', () => {
+test('migración añade las hojas técnicas de fondos y cotizaciones sin cambiar entradas ni solicitudes', () => {
   const r = runtime();
   r.init();
   r.transact([
@@ -528,12 +545,21 @@ test('ampliación de precios con tabla llena conserva los precios históricos y 
       Fuente: 'Fuente ficticia',
     }))
       r.setInput('tPrecios', i, field, value);
+  const historical = JSON.stringify(r.state().tables.tPrecios);
   const req = envelope(r),
     response = r.api(req);
   assert.equal(response.ok, true);
   assert.equal(response.results[0].status, 'updated');
   assert.equal(r.api(req).replayed, true);
   assert.equal(r.state().tables.tPrecios.length, cap + 1);
+  assert.equal(
+    JSON.stringify(
+      r
+        .state()
+        .tables.tPrecios.filter((row) => row.Fuente === 'Fuente ficticia'),
+    ),
+    historical,
+  );
   assert.ok(r.state().raw.tPrecios.length > cap);
   assert.equal(
     r.state().tables.tPrecios.filter((p) => p['VL EUR'] === 345.19706).length,
@@ -593,11 +619,14 @@ test('ficha principal sin identidad legible consulta la versión móvil oficial 
 });
 
 test('la variante móvil no permite sustituir ISIN, nombre, moneda o fecha por aproximación', () => {
-  for (const body of [
-    mobilePage({ isin: SECOND }),
-    mobilePage({ name: 'Otro fondo desconocido' }),
-    mobilePage().replace('345,197060 EUR', '345,197060 GBP'),
-    mobilePage().replace('02/10/2026', '31/02/2026'),
+  for (const [body, error] of [
+    [mobilePage({ isin: SECOND }), 'IDENTITY_MISMATCH'],
+    [mobilePage({ name: 'Otro fondo desconocido' }), 'NAME_MISMATCH'],
+    [
+      mobilePage().replace('345,197060 EUR', '345,197060 GBP'),
+      'UNSUPPORTED_CURRENCY',
+    ],
+    [mobilePage().replace('02/10/2026', '31/02/2026'), 'INVALID_DATE'],
   ]) {
     const r = runtime({
       fetch: (source) => ({
@@ -606,7 +635,11 @@ test('la variante móvil no permite sustituir ISIN, nombre, moneda o fecha por a
           : `<title>${TITLE} (${ISIN}) · Gestora</title>`,
       }),
     });
-    assert.equal(quote(r).ok, false);
+    const result = quote(r);
+    assert.equal(result.ok, false);
+    assert.equal(result.error, error);
+    assert.equal(result.price, undefined);
+    assert.equal(r.fetches.length, 2);
     assert.equal(r.writes.length, 0);
   }
 });
@@ -1060,13 +1093,26 @@ test('lease impide ejecuciones concurrentes y un fallo incierto recupera UUID si
   assert.equal(r.ctx.updatePricesTest_().reason, 'RUNNING');
   assert.equal(r.fetches.length, 0);
   properties.delete('DAILY_PRICE_TEST_LEASE');
+  const requestIds = [];
+  const refresh = r.ctx.refreshPrices_;
+  r.ctx.refreshPrices_ = (config, request) => {
+    requestIds.push(request.requestId);
+    return refresh(config, request);
+  };
   r.options.failBeforeWrite = true;
   const first = r.ctx.updatePricesTest_();
   assert.equal(first.batches[0].error, 'WRITE_UNCERTAIN');
+  const afterFailure = JSON.parse(properties.get('DAILY_PRICE_TEST_STATE'));
+  assert.equal(afterFailure.batches['0']?.attempt ?? 0, 0);
   assert.equal(properties.has('DAILY_PRICE_TEST_LEASE'), false);
   r.options.failBeforeWrite = false;
   const second = r.ctx.updatePricesTest_();
   assert.equal(second.complete, true);
+  assert.equal(requestIds.length, 2);
+  assert.equal(requestIds[1], requestIds[0]);
+  assert.equal(second.batches[0].requestId, requestIds[0]);
+  const afterSuccess = JSON.parse(properties.get('DAILY_PRICE_TEST_STATE'));
+  assert.equal(afterSuccess.batches['0'].attempt, 1);
   assert.equal(r.state().technical.quotes.length, 1);
 });
 
@@ -1152,6 +1198,7 @@ test('historical preview is read-only; older NAV import is atomic, bound and rec
   assert.equal(preview.ok, true);
   assert.equal(preview.rows[0].status, 'new');
   assert.equal(r.writes.length, writes);
+  assert.deepEqual(r.state().tables, before.tables);
   const envelope = historyEnvelope(r, true),
     imported = r.api(envelope);
   assert.equal(imported.ok, true);
@@ -1172,6 +1219,10 @@ test('historical duplicates never replace NAV and conflicts reject entire chunk'
   assert.equal(r.api(historyEnvelope(r, true)).ok, true);
   const dup = r.api(historyEnvelope(r));
   assert.equal(dup.rows[0].status, 'duplicate');
+  const originalPrices = JSON.stringify(r.state().tables.tPrecios);
+  const duplicateImport = r.api(historyEnvelope(r, true));
+  assert.equal(duplicateImport.ok, true);
+  assert.equal(JSON.stringify(r.state().tables.tPrecios), originalPrices);
   const rows = [
       historicalRow({ price: 999 }),
       historicalRow({ date: '2026-09-16' }),
