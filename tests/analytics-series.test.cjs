@@ -529,6 +529,9 @@ test('sale and reinvestment preserve net contributions without calling them curr
   assert.equal(rows[2].capital, 2);
   assert.equal(rows[2].value, 22);
   assert.equal(rows[2].returnPct, null);
+  const metrics = A.investmentMetrics(s, 'P');
+  assert.equal(metrics.currentCost, null);
+  assert.equal(metrics.capitalKind, 'netContributions');
 });
 test('salary ratio and monthly free budget use matching own expense and avoid overlapping limits', () => {
   const s = fixture();
@@ -570,7 +573,10 @@ test('pre-base operations and invalid calendar dates expose inconsistent data ra
   assert.deepEqual(timeline.coverage.invalidProducts, ['P']);
   assert.equal(timeline.rows.at(-1).value, null);
   s.tables.tOperaciones[0].Fecha = '2026-02-31';
-  assert.equal(A.investmentTimeline(s).firstDate, '2026-01-02');
+  const invalidDate = A.investmentTimeline(s);
+  assert.equal(invalidDate.firstDate, '2026-01-02');
+  assert.deepEqual(invalidDate.coverage.invalidProducts, ['P']);
+  assert.equal(invalidDate.rows.at(-1).value, null);
 });
 test('registered base units close at native value without counting prior cash movements', () => {
   const s = fixture();
@@ -775,6 +781,10 @@ test('goal availability totals assignments without moving money and preserves mi
   assert.equal(rows.find((r) => r.origin === 'P').free, null);
   assert.equal(rows.find((r) => r.origin === 'P').available, null);
   assert.equal(JSON.stringify(s), before);
+});
+
+test('goal progress identifies expired deadlines and unknown monthly pace', () => {
+  const s = fixture();
   assert.equal(
     A.goalProgress(s, { Meta: 200, Asignado: 100, Fecha: '2025-12-31' })
       .expired,
@@ -831,13 +841,15 @@ test('forecast uses current known cash and selected dated plans without creating
   assert.equal(A.cashForecast(s).notices.length, 1);
   assert.equal(JSON.stringify(s), before);
   s.tables.tCuentas[0]['Saldo calculado'] = null;
-  assert.ok(A.cashForecast(s).rows.every((r) => r.projected === null));
+  assert.deepEqual(
+    A.cashForecast(s, ['out', 'in']).rows.map((r) => r.projected),
+    [null, null, null],
+  );
   s.tables.tCuentas[0]['Saldo calculado'] = 180;
   s.planned[0].account = 'Missing';
-  assert.ok(
-    A.cashForecast(s, ['out', 'in'])
-      .rows.slice(1)
-      .every((r) => r.projected === null),
+  assert.deepEqual(
+    A.cashForecast(s, ['out', 'in']).rows.map((r) => r.projected),
+    [220, null, null],
   );
 });
 test('cashless fund transfer carries signed net contribution basis and neutralizes only product market flow', () => {
