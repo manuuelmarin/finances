@@ -156,6 +156,7 @@ test('fees, taxes and distributions are cash flows once; incomplete inputs stay 
   );
   s.tables.tOperaciones[0].Precio = null;
   const a = P.analyze(s, A.investmentTimeline(s));
+  assert.ok(a.xirrRows.length > 0);
   assert.ok(a.xirrRows.every((r) => r.value === null));
 });
 test('missing flow valuations report the exact cut without silently extending TWR', () => {
@@ -255,6 +256,7 @@ test('missing weeks are omitted, partial boundary weeks excluded, and selected f
   const s = weeklyFixture(16);
   s.tables.tPrecios = s.tables.tPrecios.filter((q) => q.Fecha !== '2025-02-14');
   const a = P.risk(s, '2024-12-30', '2025-04-16', []);
+  assert.ok(a.observations.length > 0);
   assert.ok(
     a.observations.every(
       (o) => Date.parse(o.to) - Date.parse(o.from) === 7 * 86400000,
