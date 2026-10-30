@@ -2,7 +2,7 @@
 
 La revisión parte del [inventario de 544 ejecuciones originales](2026-10-27-tests.md): 329 de lógica y 215 de navegador, agrupadas en 460 casos distintos. Los perfiles de navegador se mantienen separados como ejecuciones; una prueba ejecutada en varios perfiles no es por sí sola redundante. La continuación documentada el 30 de octubre ya comprendía 83 casos.
 
-Se examinó el resto del inventario por archivo y caso, leyendo escenarios, entradas, aserciones y efectos, y se conservaron los casos que cubren condiciones o capas distintas. Se revisaron también las pruebas posteriores identificadas en los archivos actuales. Ninguna se ha eliminado por semejanza de nombre o código. El inventario enlazado contiene el detalle de cada caso original; los títulos y el listado actual pueden obtenerse con `npm test` y `npm run test:browser -- --list`.
+Se revisaron casos adicionales por archivo y se aplicaron las mejoras descritas a continuación. El registro no recoge una valoración individual y verificable de todos los casos, por lo que no permite certificar una revisión manual exhaustiva de los 460. Ninguna prueba se ha eliminado por semejanza de nombre o código. El inventario enlazado contiene cada caso original; el listado actual puede obtenerse con `npm test` y `npm run test:browser -- --list`.
 
 ## Mejoras
 
