@@ -1092,6 +1092,8 @@ test('lease impide ejecuciones concurrentes y un fallo incierto recupera UUID si
   r.options.failBeforeWrite = true;
   const first = r.ctx.updatePricesTest_();
   assert.equal(first.batches[0].error, 'WRITE_UNCERTAIN');
+  const afterFailure = JSON.parse(properties.get('DAILY_PRICE_TEST_STATE'));
+  assert.equal(afterFailure.batches['0']?.attempt ?? 0, 0);
   assert.equal(properties.has('DAILY_PRICE_TEST_LEASE'), false);
   r.options.failBeforeWrite = false;
   const second = r.ctx.updatePricesTest_();
@@ -1099,6 +1101,8 @@ test('lease impide ejecuciones concurrentes y un fallo incierto recupera UUID si
   assert.equal(requestIds.length, 2);
   assert.equal(requestIds[1], requestIds[0]);
   assert.equal(second.batches[0].requestId, requestIds[0]);
+  const afterSuccess = JSON.parse(properties.get('DAILY_PRICE_TEST_STATE'));
+  assert.equal(afterSuccess.batches['0'].attempt, 1);
   assert.equal(r.state().technical.quotes.length, 1);
 });
 
