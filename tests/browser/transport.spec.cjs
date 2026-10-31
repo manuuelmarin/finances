@@ -114,7 +114,7 @@ test('offline queued and uncertain envelopes survive reopening; receipt survives
   expect(result.item.envelope).toEqual(envelope);
   expect(result.item.result.receipt).toBe('fictional-receipt');
   expect(result.item.awaitingRead).toBe(true);
-  await reopened.evaluate(async () => {
+  const uncertainEnvelope = await reopened.evaluate(async () => {
     // Recover the confirmed write's read before starting an unrelated write.
     window.raceSnapshot = { ...window.raceSnapshot, revision: 'r2' };
     await window.raceQueue.run({
@@ -130,6 +130,7 @@ test('offline queued and uncertain envelopes survive reopening; receipt survives
         throw Error('RESPONSE_UNCERTAIN');
       },
     });
+    return (await window.raceQueue.get()).queue[1].envelope;
   });
   await reopened.reload();
   await initialize(reopened, 'reopen');
@@ -138,6 +139,11 @@ test('offline queued and uncertain envelopes survive reopening; receipt survives
       async () => (await window.raceQueue.get()).queue[1].status,
     ),
   ).toBe('uncertain');
+  expect(
+    await reopened.evaluate(
+      async () => (await window.raceQueue.get()).queue[1].envelope,
+    ),
+  ).toEqual(uncertainEnvelope);
 });
 
 test.describe('public service worker upgrade', () => {
