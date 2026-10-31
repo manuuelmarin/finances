@@ -446,6 +446,9 @@ test('fund migration rejects active restoration and cancel+restore recovers form
   assert.equal(r.api(envelope).replayed, true);
   assert.equal(r.state().tables.tOperaciones.length, 2);
   const before = r.state();
+  const migrations = JSON.parse(JSON.stringify(before.technical.migrations));
+  assert.ok(migrations.length > 0);
+  assert.ok(migrations.every((row) => row[1] === 'fund-transfer-v1'));
   assert.equal(
     r.transact([{ process: 'restaurar_formulas_fondos' }]).ok,
     false,
@@ -460,12 +463,13 @@ test('fund migration rejects active restoration and cancel+restore recovers form
     true,
   );
   assert.deepEqual(r.formulas(), formulas);
-  assert.ok(
-    r
-      .state()
-      .technical.migrations.every(
-        (row) => row[1] === 'restored-fund-transfer-v1',
-      ),
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(r.state().technical.migrations)),
+    migrations.map((row) => [
+      row[0],
+      'restored-fund-transfer-v1',
+      ...row.slice(2),
+    ]),
   );
   assert.equal(r.transact([op]).ok, true);
   assert.equal(r.api({ action: 'read' }).fundTransfers.length, 1);
