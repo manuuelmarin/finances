@@ -51,6 +51,110 @@ const envelope = (r) => ({
 const quote = (r, isin = ISIN, referenceName = TITLE) =>
   r.api({ action: 'quotePrices', funds: [{ isin, referenceName }] }).results[0];
 
+test('parallel price requests preserve individual identity checks and reuse the verified cache', () => {
+  const r = runtime({
+    fetch: (address) => ({
+      body:
+        address === url(ISIN) ? page() : page({ isin: ISIN, headerIsin: ISIN }),
+    }),
+  });
+  const batches = [];
+  r.ctx.UrlFetchApp.fetchAll = (requests) => {
+    batches.push(Array.from(requests, (request) => request.url));
+    return requests.map((request) =>
+      r.ctx.UrlFetchApp.fetch(request.url, request),
+    );
+  };
+  const request = {
+    action: 'quotePrices',
+    funds: [
+      { isin: ISIN, referenceName: TITLE },
+      { isin: SECOND, referenceName: TITLE },
+      { isin: 'ES0112611002', referenceName: TITLE },
+    ],
+  };
+  const first = r.api(request);
+  assert.equal(batches.length, 1);
+  assert.deepEqual(batches[0], [url(ISIN), url(SECOND)]);
+  assert.equal(first.results[0].ok, true);
+  assert.equal(first.results[1].error, 'IDENTITY_MISMATCH');
+  assert.equal(first.results[1].price, undefined);
+  assert.equal(first.results[2].error, 'INVALID_ISIN');
+  assert.equal(r.fetches.length, 2);
+  const second = r.api(request);
+  assert.equal(second.results[0].cached, true);
+  assert.equal(second.results[1].error, 'IDENTITY_MISMATCH');
+  assert.equal(batches.length, 1);
+  assert.equal(r.fetches.length, 3);
+});
+
+test('a failed parallel request falls back to individually verified quotes', () => {
+  const r = runtime({
+    fetch: (address) => ({
+      body: page({ isin: new URL(address).searchParams.get('isin') }),
+    }),
+  });
+  let batches = 0;
+  r.ctx.UrlFetchApp.fetchAll = () => {
+    batches++;
+    throw Error('private transport detail');
+  };
+  const result = r.api({
+    action: 'quotePrices',
+    funds: [
+      { isin: ISIN, referenceName: TITLE },
+      { isin: SECOND, referenceName: TITLE },
+    ],
+  });
+  assert.equal(batches, 1);
+  assert.equal(result.complete, true);
+  assert.deepEqual(
+    result.results.map((row) => row.isin),
+    [ISIN, SECOND],
+  );
+  assert.equal(r.fetches.length, 2);
+  assert.equal(
+    JSON.stringify(result).includes('private transport detail'),
+    false,
+  );
+});
+
+test('parallel price batches remain bounded and retain the official mobile fallback', () => {
+  const ids = [
+    'ES0112611001',
+    'IE00BYX5NK04',
+    'IE00BYX5NX33',
+    'ES0175902008',
+    'IE0031786696',
+  ];
+  const r = runtime({
+    fetch: (address) => {
+      const isin = new URL(address).searchParams.get('isin');
+      if (isin === ISIN && !address.includes('/m/es/'))
+        return { body: `<title>${TITLE} (${ISIN}) · Gestora</title>` };
+      return {
+        body: address.includes('/m/es/') ? mobilePage() : page({ isin }),
+      };
+    },
+  });
+  const batches = [];
+  r.ctx.UrlFetchApp.fetchAll = (requests) => {
+    batches.push(requests.length);
+    return requests.map((request) =>
+      r.ctx.UrlFetchApp.fetch(request.url, request),
+    );
+  };
+  const result = r.api({
+    action: 'quotePrices',
+    funds: ids.map((isin) => ({ isin, referenceName: TITLE })),
+  });
+  assert.equal(result.complete, true);
+  assert.deepEqual(batches, [4]);
+  assert.equal(result.results[0].responseInfo.attempts.length, 2);
+  assert.ok(result.results[0].url.includes('/m/es/'));
+  assert.equal(r.fetches.length, 6);
+});
+
 test('consulta genérica de un fondo fuera de la cartera conserva seis decimales, fecha VL y moneda', () => {
   const r = runtime({ fetch: () => ({ body: page() }) }),
     result = quote(r);

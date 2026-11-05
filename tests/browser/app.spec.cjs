@@ -578,12 +578,19 @@ test('cambio de implementación conserva y separa pendientes; no se envían al o
   await expect(page.locator('#finance-queue')).toContainText(
     'Pendiente de enviar',
   );
+  await navigate(page, 'investments');
+  await expect(page.locator('#investment-product')).toContainText(
+    'Fondo ficticio',
+  );
   await navigate(page, 'connection');
   await page.locator('#setup-toggle').click();
   await page
     .locator('#deployment-url')
     .fill('https://script.google.com/macros/s/other-fixture/exec');
   await page.locator('#setup-save').click();
+  await expect(page.locator('#investment-product')).not.toContainText(
+    'Fondo ficticio',
+  );
   await navigate(page, 'home');
   await expect(page.locator('#finance-new')).toBeEnabled();
   await expect(page.locator('#finance-queue')).not.toContainText(
@@ -605,6 +612,11 @@ test('un envío de precios confirmado con fallos nunca se presenta como cotizaci
   await navigate(page, 'home');
   await expect(page.locator('#finance-history')).toContainText(
     'Solicitud confirmada con precios pendientes',
+  );
+  await navigate(page, 'connection');
+  await page.locator('#performance-panel summary').click();
+  await expect(page.locator('#performance-results')).toContainText(
+    'Consulta y confirmación de precios',
   );
 });
 test.describe('PWA instalable', () => {
@@ -634,6 +646,7 @@ test.describe('PWA instalable', () => {
       true,
     );
     expect(urls.some((url) => url.endsWith('/chart-renderer.js'))).toBe(true);
+    expect(urls.some((url) => url.endsWith('/performance.js'))).toBe(true);
     await context.setOffline(true);
     await page.reload();
     await expect(page.locator('#home-title')).toBeVisible();
@@ -861,12 +874,17 @@ test('@responsive panel concentra cifras y ofrece gráficos accesibles sin ocult
   await expect(page.locator('#dashboard-charts .asset-breakdown')).toHaveCount(
     1,
   );
+  await expect(page.locator('#investment-charts .chart-card')).toHaveCount(0);
+  await navigate(page, 'investments');
   await expect(page.locator('#investment-charts .chart-card')).toHaveCount(4);
   await expect(
     page.locator('#investment-charts h3', { hasText: 'Evolución por fondo' }),
   ).toHaveCount(1);
+  await navigate(page, 'book');
   await expect(page.locator('#spending-charts .chart-card')).toHaveCount(5);
+  await navigate(page, 'salary');
   await expect(page.locator('#salary-charts .chart-card')).toHaveCount(2);
+  await navigate(page, 'home');
   await expect(page.locator('#finance-kpis')).not.toContainText(/presupuesto/i);
   await page.locator('#dashboard-charts .chart-data summary').last().click();
   await expect(

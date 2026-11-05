@@ -335,6 +335,7 @@ test('conectar, comprobar y registrar reutilizan una sola ventana con el backend
   const google = await first;
   await expect(page.locator('#status')).toHaveText('Conexión verificada');
   await expect(page.locator('#sheet-count')).toHaveText('10');
+  await navigate(page, 'home');
   await expect(page.locator('#finance-kpis > article')).toHaveCount(3);
   await diagnostic(page);
   await page.locator('#backend-check').click();
