@@ -44,7 +44,8 @@
     visibilityTimer = null,
     lastSuccessfulReadAt = 0,
     renderSequence = 0,
-    renderedSnapshot = undefined;
+    renderedSnapshot = undefined,
+    renderedBookKey = null;
   const store = new FinanceSync.BrowserStore();
   const el = (tag, text, cls) => {
     const e = document.createElement(tag);
@@ -1342,10 +1343,19 @@
       );
     $('finance-warning').textContent = warnings.join(' ');
     $('finance-warning').hidden = !warnings.length;
-    if (snapshotChanged) renderRegister();
+    if (snapshotChanged) {
+      if (renderedBookKey && renderedBookKey !== snapshot?.bookKey) {
+        $('finance-register').replaceChildren();
+        $('finance-register-note').textContent = '';
+      }
+      const registerContainerView = $('register-panel').closest('.view');
+      if (registerContainerView && !registerContainerView.hidden)
+        renderRegister();
+    }
     renderQueue(data.queue);
     FinanceDashboard.render(snapshot, { review: showReview }, snapshotChanged);
     renderedSnapshot = signature;
+    renderedBookKey = snapshot?.bookKey || null;
   }
   function renderQueue(items) {
     const parent = $('finance-queue');

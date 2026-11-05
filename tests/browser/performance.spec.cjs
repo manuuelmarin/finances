@@ -11,6 +11,8 @@ test('@responsive queue updates keep the current chart until new data is confirm
     window.originalChart = document.querySelector(
       '#dashboard-charts .chart-card',
     );
+    window.originalRegister =
+      document.querySelector('#finance-register').firstElementChild;
   });
   const gate = controls.gateNextSubmitReply();
   await expense(page);
@@ -37,6 +39,17 @@ test('@responsive queue updates keep the current chart until new data is confirm
         document.querySelector('#dashboard-charts .chart-card'),
     ),
   ).toBe(false);
+  expect(
+    await page.evaluate(
+      () =>
+        window.originalRegister ===
+        document.querySelector('#finance-register').firstElementChild,
+    ),
+  ).toBe(true);
+  await navigate(page, 'book');
+  await expect(page.locator('#finance-register')).toContainText(
+    'Fictional recurring coffee',
+  );
   await navigate(page, 'investments');
   await expect(
     page.locator('#investment-charts .chart-card').first(),

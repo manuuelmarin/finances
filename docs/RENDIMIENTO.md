@@ -17,6 +17,8 @@ La comprobación de revisión bajo bloqueo, el UUID, los recibos y la lectura po
 
 ## Qué simplificar y qué conserva una función
 
+La infraestructura es considerable para una aplicación personal: esta propuesta contiene unos 14.400 renglones en 23 archivos JavaScript de `web/` y 7.600 en 13 módulos Apps Script, sin contar la librería gráfica ni las pruebas. Es una señal de coste de mantenimiento, no una medida directa de lentitud. El puente privado, la cola, las revisiones y los recibos cubren acceso desde varios dispositivos, desconexiones y respuestas perdidas; las pruebas y la compilación no añaden esperas al uso normal.
+
 | Alternativa                                      | Ventajas                                                                                                             | Costes y riesgos que hay que resolver                                                                                                                               |
 | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Sheets + PWA optimizada                          | Conserva libro editable, acceso desde dispositivos y recuperación existente; elimina trabajo redundante de interfaz. | Los viajes a Google y el recálculo de Sheets siguen existiendo.                                                                                                     |
