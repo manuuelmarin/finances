@@ -1215,7 +1215,8 @@
           if (
             data.queue.some(
               (item) =>
-                ['pending', 'uncertain', 'review'].includes(item.status) &&
+                (item.awaitingRead ||
+                  ['pending', 'uncertain', 'review'].includes(item.status)) &&
                 (item.envelope.operations || []).some((op) =>
                   refs.has(op.account + '\u0000' + op.bankRef),
                 ),
