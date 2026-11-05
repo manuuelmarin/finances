@@ -6,7 +6,7 @@ Personal finance PWA for cash, investments, budgets and goals. GitHub Pages serv
 
 [Open app](https://manuuelmarin.github.io/finances/) · [Install / update](https://manuuelmarin.github.io/finances/install.html) · [TODOs](TODO.md) · [History](History.md)
 
-**App 3.12.1 · API 3.3.0 · workbook model 3.**
+**App 3.12.2 · API 3.3.0 · workbook model 3.**
 
 ## End to end
 
@@ -33,7 +33,11 @@ flowchart TD
     API <-->|"Verified, dated NAVs"| Provider["External price provider"]
 ```
 
-After a confirmed write, the app automatically refreshes every view from one coherent snapshot. Failed or stale reads are retried without resending the confirmed operation; explicit reporting filters remain selected. PWA 3.12.1 remains compatible with backend/Bridge 3.10.4–3.11.0, so these interface changes need no private Google update.
+After a confirmed write, the app automatically refreshes every view from one coherent snapshot. Failed or stale reads are retried without resending the confirmed operation; explicit reporting filters remain selected. Existing features remain compatible with older supported backends. The bank-statement importer requires updating the private Apps Script files to 3.12.2 and running preparation first; it is disabled when the capability is unavailable.
+
+Investment charts offer period buttons and exact custom dates. The investment tools provide contribution-led target allocation and reviewed country/sector/asset-class exposure files (both optionally saved on this device), an exact-observation simulation against recorded funds, and a breakdown of recorded distributions. Exposure percentages in each imported file must refer to the entire product, not just its equity portion; missing exposure stays unknown. Simulations require actual prices on every external-flow date and at the last common valuation, and reject nonzero initial holdings.
+
+Bank CSV imports are parsed locally. The user maps columns, reviews possible matches and chooses categories before queuing up to 20 entries. Each row must have a stable bank-provided reference unique to the account. References and movement IDs are committed in the same private transaction to prevent re-importing the same operation; ambiguous potential matches need explicit review. Only simple income and expenses are supported, never automatically inferred transfers or investment trades.
 
 Account cards compare the report-date balance with the opening balance for **Hoy, 1D, 7D, 15D, 1M, 3M, 6M and 1A**. Each opening is the preceding day's close, or the initial balance on the first tracking day. Movements on the opening date are included. Calendar-month/year offsets use the same day, clamped at month-end; missing history stays unknown. Hoy and 1D coincide when yesterday's net balance change is zero. Resolved and discarded requests remain in the collapsed activity history. Pending, uncertain and post-confirmation readback requests stay visible until resolved; no receipts or UUIDs are deleted.
 

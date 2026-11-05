@@ -3,6 +3,45 @@ const { test, expect } = require('@playwright/test');
 const fs = require('node:fs');
 const path = require('node:path');
 
+test('@responsive chart period buttons filter real dates and keep custom controls in sync', async ({
+  page,
+}) => {
+  await page.setContent('<main id="host"></main>');
+  for (const file of [
+    'vendor/echarts.min.js',
+    'chart-renderer.js',
+    'charts.js',
+  ])
+    await page.addScriptTag({ path: path.join(__dirname, '../../web', file) });
+  await page.evaluate(() => {
+    FinanceCharts.plot(document.querySelector('#host'), {
+      title: 'Periodo',
+      rows: [
+        { date: '2025-01-01', value: 10 },
+        { date: '2026-02-28', value: 20 },
+        { date: '2026-03-31', value: 30 },
+      ],
+      fields: [{ key: 'value', label: 'Valor' }],
+    });
+  });
+  const chart = page.locator('.chart-card');
+  const oneMonth = chart.getByRole('button', { name: '1M · Periodo' });
+  await oneMonth.click();
+  await expect(oneMonth).toHaveAttribute('aria-pressed', 'true');
+  await expect(chart.getByLabel('Desde Periodo')).toHaveValue('2026-02-28');
+  await expect(chart.getByLabel('Hasta Periodo')).toHaveValue('2026-03-31');
+  await chart.locator('.chart-data > summary').click();
+  await expect(chart.locator('tbody tr')).toHaveCount(2);
+  await chart.getByRole('button', { name: 'Todo · Periodo' }).click();
+  await expect(chart.locator('tbody tr')).toHaveCount(3);
+  await chart.getByLabel('Desde Periodo').fill('2025-02-01');
+  await chart.getByLabel('Desde Periodo').dispatchEvent('change');
+  await expect(oneMonth).toHaveAttribute('aria-pressed', 'false');
+  await expect(
+    chart.getByRole('button', { name: 'Todo · Periodo' }),
+  ).toHaveAttribute('aria-pressed', 'false');
+});
+
 test('charts expose accessible date bounds, reference line and export menu', async ({
   page,
 }) => {

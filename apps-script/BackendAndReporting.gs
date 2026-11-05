@@ -191,6 +191,11 @@ function publicSnapshot_(s) {
     tables: data,
     observations,
     prices: priceSnapshot_(s),
+    bankImports: (s.technical.bankImports || []).map((row) => ({
+      account: row[1],
+      reference: row[2],
+      movement: row[3],
+    })),
     supportsBudgets: true,
     supportsPlanning: !!s.tech.planned,
     fundTransfers: (s.technical.transfers || [])
@@ -217,6 +222,7 @@ function publicSnapshot_(s) {
       payrollCorrection: true,
       contextualCorrection: true,
       fundTransfers: true,
+      bankImports: !!s.tech.bankImports,
     },
     archives: {
       accounts: (s.technical.archives || [])
@@ -540,6 +546,7 @@ function financialApi_(request) {
           'planned',
           'transfers',
           'migrations',
+          'bankImports',
         ].some((k) => applied.state.technical[k].length && !before.tech[k])
       )
         before = initializeBackendUnlocked_(config);

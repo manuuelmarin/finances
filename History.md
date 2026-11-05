@@ -202,7 +202,14 @@ Changes in repository order, from the first recorded build to the current app. V
 - Use horizontal comparisons for cities, contributions, risk, reconciliation and goals; retain temporal lines, zero-baseline bars, numeric histograms, step capital and budget references. Use ring compositions for up to four groups and horizontal comparisons for larger compositions, preserving unknown and negative values in accessible details and exports.
 - Preserve accessible controls and tables, SVG/PNG/CSV exports, local themes and offline use. Existing Google installations need only the PWA update; API 3.3.0 and workbook model 3 remain unchanged.
 
-## 3.12.1 · current
+## 3.12.2 · proposed
+
+- Add date presets to the existing accessible chart controls.
+- Add read-only allocation, imported exposure, fund-reference simulation and investment-income panels.
+- Add reviewed bank CSV imports with account-scoped references and atomic receipt recovery. Update and prepare the private backend before using the importer.
+- Record the conservative list of original test cases awaiting documented individual review.
+
+## 3.12.1
 
 - Keep reference limits visible below positive values, at zero and above negative values, including filtered periods.
 - Color negative fund contributions red and nonnegative contributions green without changing their values.

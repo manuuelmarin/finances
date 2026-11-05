@@ -1,6 +1,6 @@
 # 09. Country, sector and asset exposure
 
-Status: **Proposed — awaiting owner selection.** This document authorizes no implementation or financial write.
+Status: **Partially implemented in the 3.12.2 proposal.** The UI accepts reviewed dated JSON metadata by ISIN for countries, sectors and asset classes and leaves missing exposure unknown. Metadata may be saved on the current device; synchronized storage and source ingestion are not implemented.
 
 Priority: **High** · Relative effort: **Medium–high**. Estimates describe the current Sheets/Apps Script/PWA architecture, not delivery dates.
 

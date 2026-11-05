@@ -659,6 +659,28 @@ const FinanceCharts = (() => {
       const firstDay = Date.parse(dateRows[0].date + 'T00:00:00Z');
       const lastDay = Date.parse(dateRows.at(-1).date + 'T00:00:00Z');
       const spanDays = Math.round((lastDay - firstDay) / day);
+      const presets = html('div', undefined, 'chart-presets');
+      presets.setAttribute('role', 'group');
+      presets.setAttribute('aria-label', 'Periodo de ' + title);
+      const lastDate = dateRows.at(-1).date;
+      const firstDate = dateRows[0].date;
+      const subtractMonths = (months) => {
+        const [year, month, date] = lastDate.split('-').map(Number);
+        const target = new Date(Date.UTC(year, month - 1 - months, 1));
+        const daysInMonth = new Date(
+          Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0),
+        ).getUTCDate();
+        target.setUTCDate(Math.min(date, daysInMonth));
+        return target.toISOString().slice(0, 10);
+      };
+      const ranges = [
+        ['1M', subtractMonths(1)],
+        ['3M', subtractMonths(3)],
+        ['6M', subtractMonths(6)],
+        ['Año', lastDate.slice(0, 4) + '-01-01'],
+        ['1A', subtractMonths(12)],
+        ['Todo', firstDate],
+      ].map(([label, start]) => [label, start < firstDate ? firstDate : start]);
       const offset = (date) =>
         Math.max(
           0,
@@ -708,7 +730,22 @@ const FinanceCharts = (() => {
       rangeError.setAttribute('role', 'alert');
       rangeError.hidden = true;
       dates.append(rangeError);
+      article.insertBefore(presets, stage);
       article.append(dates);
+      let activePreset = null;
+      const presetButtons = ranges.map(([label, start]) => {
+        const button = html('button', label, 'chart-preset');
+        button.type = 'button';
+        button.setAttribute('aria-label', label + ' · ' + title);
+        button.addEventListener('click', () => {
+          activePreset = label;
+          from.value = start;
+          to.value = lastDate;
+          sync();
+        });
+        presets.append(button);
+        return { button, start, label };
+      });
       const sync = () => {
         const start = from.value,
           end = to.value;
@@ -722,6 +759,16 @@ const FinanceCharts = (() => {
         from.setAttribute('aria-invalid', String(invalid));
         to.setAttribute('aria-invalid', String(invalid));
         if (invalid) return;
+        const matches = presetButtons.filter(
+          (item) => item.start === start && end === lastDate,
+        );
+        const chosen =
+          matches.find((item) => item.label === activePreset) ||
+          matches.find((item) => item.label === 'Todo') ||
+          matches[0];
+        activePreset = chosen?.label || null;
+        for (const item of presetButtons)
+          item.button.setAttribute('aria-pressed', String(item === chosen));
         lo.value = offset(start);
         hi.value = offset(end);
         lo.setAttribute('aria-valuetext', dateLabel(start));

@@ -113,7 +113,7 @@ const TABLE_SCHEMA_ = [
 ];
 
 const API_VERSION_ = '3.3.0';
-const BUILD_VERSION_ = '3.12.1';
+const BUILD_VERSION_ = '3.12.2';
 const DAILY_HISTORY_MARKER_ = 'Finanzas · Histórico generado';
 const DAILY_HISTORY_MAX_DAYS_ = 36525;
 const API_TRANSPORT_ = 'finances.rpc.json.v1';
@@ -263,6 +263,7 @@ const PROCESS_FIELDS_ = {
     'recoverable',
     'location',
     'recurring',
+    'bankRef',
     'alias',
   ],
   ingreso: [
@@ -272,6 +273,7 @@ const PROCESS_FIELDS_ = {
     'category',
     'amount',
     'location',
+    'bankRef',
     'alias',
   ],
   nomina: [
@@ -507,6 +509,10 @@ const TECH_SCHEMA_ = {
       'Activo',
       'Fecha registro',
     ],
+  ],
+  bankImports: [
+    '_Finanzas_Extractos',
+    ['ID', 'Cuenta', 'Referencia', 'Movimiento', 'Fecha registro'],
   ],
 };
 const DATE_FIELDS_ = ['Fecha', 'Fecha base', 'Fecha saldo'];

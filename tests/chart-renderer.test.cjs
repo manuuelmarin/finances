@@ -8,6 +8,33 @@ const theme = {
   line: '#ddd',
   font: 'sans-serif',
 };
+test('stacked fund areas preserve exact component values and gaps', () => {
+  const rows = [
+    { date: '2026-01-01', a: 60, b: 40 },
+    { date: '2026-02-01', a: null, b: null },
+  ];
+  const option = R.plotOption(
+    {
+      rows,
+      fields: [
+        { key: 'a', label: 'A', stack: 'funds', area: true },
+        { key: 'b', label: 'B', stack: 'funds', area: true },
+      ],
+    },
+    theme,
+  );
+  assert.deepEqual(
+    option.series.map((series) => series.stack),
+    ['funds', 'funds'],
+  );
+  assert.deepEqual(
+    option.series.map((series) => series.data.map((point) => point.value[1])),
+    [
+      [60, null],
+      [40, null],
+    ],
+  );
+});
 test('vector renderer preserves every exact dated value and null gap without financial transforms', () => {
   const rows = [
     { date: '2026-01-01', v: 301.123456 },

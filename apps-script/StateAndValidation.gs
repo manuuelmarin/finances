@@ -10,7 +10,14 @@ function revision_(s) {
     tables,
     settings: s.settings,
     ...Object.fromEntries(
-      ['archives', 'templates', 'planned', 'transfers', 'migrations']
+      [
+        'archives',
+        'templates',
+        'planned',
+        'transfers',
+        'migrations',
+        'bankImports',
+      ]
         .filter((k) => s.technical[k]?.length)
         .map((k) => [k, s.technical[k]]),
     ),
@@ -413,13 +420,24 @@ function validateFinancialState_(s) {
     debts = by('tDeudas', 'ID'),
     goals = by('tObjetivos', 'ID'),
     links = by('tVinculos', 'Movimiento');
-  ['archives', 'templates', 'planned'].forEach((kind) => {
+  ['archives', 'templates', 'planned', 'bankImports'].forEach((kind) => {
     const rows = s.technical[kind] || [];
     check_(
       new Set(rows.map((r) => r[0])).size === rows.length,
       'ID de metadatos duplicado.',
     );
     rows.forEach((r) => text_(r[0], 'ID de metadatos'));
+  });
+  (s.technical.bankImports || []).forEach((r) => {
+    text_(r[1], 'Cuenta del extracto');
+    text_(r[2], 'Referencia del extracto');
+    text_(r[3], 'Movimiento del extracto');
+    check_(
+      r[2].length <= 200 &&
+        r[2].trim() === r[2] &&
+        r[0] === hash_([r[1], r[2]]),
+      'Referencia bancaria inconsistente.',
+    );
   });
   (s.technical.archives || []).forEach((r) => {
     check_(

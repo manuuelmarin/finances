@@ -127,6 +127,19 @@ function applyOperations_(
         p === 'gasto' ? null : a,
         required(o, 'category'),
       );
+      if (!blank_(o.bankRef)) {
+        text_(o.bankRef, 'Referencia del extracto');
+        check_(
+          o.bankRef.trim() === o.bankRef && o.bankRef.length <= 200,
+          'Referencia del extracto inválida.',
+        );
+        const refId = hash_([a, o.bankRef]);
+        check_(
+          !(s.technical.bankImports || []).some((entry) => entry[0] === refId),
+          'Esta referencia bancaria ya se ha registrado para la cuenta.',
+        );
+        s.technical.bankImports.push([refId, a, o.bankRef, id, now]);
+      }
       if (p === 'nomina')
         putRow_(
           s,
@@ -936,6 +949,13 @@ function applyOperations_(
       if (o.kind === 'cuenta')
         s.technical.observations.forEach((r) => {
           if (r[1] === old) r[1] = value;
+        });
+      if (o.kind === 'cuenta')
+        (s.technical.bankImports || []).forEach((r) => {
+          if (r[1] === old) {
+            r[1] = value;
+            r[0] = hash_([value, r[2]]);
+          }
         });
       if (o.kind === 'subcategoria')
         s.technical.budgets.forEach((r) => {

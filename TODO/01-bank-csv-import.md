@@ -1,6 +1,6 @@
 # 01. Bank CSV import with reconciliation
 
-Status: **Proposed — awaiting owner selection.** This document authorizes no implementation or financial write.
+Status: **Partially implemented in the 3.12.2 proposal.** CSV import supports reviewed income/expense rows with an explicit account-scoped bank reference, 20 rows per request, preview and transactional receipt recovery. Files without stable references, additional bank formats and MyInvestor fund lots remain pending. The private Apps Script deployment must be updated and prepared separately.
 
 Priority: **High** · Relative effort: **Medium**. Estimates describe the current Sheets/Apps Script/PWA architecture, not delivery dates.
 

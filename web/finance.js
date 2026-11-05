@@ -61,7 +61,7 @@
       EMBEDDED_CONTEXT:
         'Abre Finanzas en su propia ventana para acceder a tu libro.',
       UPDATE_REQUIRED:
-        'Actualiza Apps Script con el instalador 3.12.1 y publica una nueva versión.',
+        'Actualiza Apps Script con el instalador 3.12.2 y publica una nueva versión.',
       POPUP_BLOCKED:
         'Permite abrir la ventana de Google y vuelve a pulsar Abrir mi libro.',
       NOT_CONNECTED: 'Abre Google para leer o enviar los pendientes.',
@@ -1199,6 +1199,43 @@
         ? 'Solo se comparan saldos con el mismo corte. Las observaciones no crean ajustes automáticos.'
         : '';
   }
+  const bankImport = FinanceBankImport.bind({
+    snapshot: () => snapshot,
+    review: (operations, expectedRevision) => {
+      showReview(
+        operations,
+        'Importar movimientos del extracto',
+        async (bookQueue) => {
+          const data = await bookQueue.get();
+          if (data.snapshot?.revision !== expectedRevision)
+            throw Error('CONFLICT');
+          const refs = new Set(
+            operations.map((op) => op.account + '\u0000' + op.bankRef),
+          );
+          if (
+            data.queue.some(
+              (item) =>
+                ['pending', 'uncertain', 'review'].includes(item.status) &&
+                (item.envelope.operations || []).some((op) =>
+                  refs.has(op.account + '\u0000' + op.bankRef),
+                ),
+            )
+          )
+            throw Error(
+              'Hay una fila de este extracto en una solicitud pendiente. Revisa Actividad.',
+            );
+          await bookQueue.enqueue(
+            operations,
+            'Extracto bancario',
+            'transact',
+            null,
+            expectedRevision,
+          );
+        },
+        'Se enviarán juntos los movimientos seleccionados. Cada referencia bancaria queda vinculada al movimiento en el libro para evitar reimportaciones.',
+      );
+    },
+  });
   async function render() {
     const epoch = configurationEpoch,
       renderingQueue = queue;
@@ -1207,6 +1244,7 @@
     snapshot = data.snapshot;
     awaitingRead = data.queue.some((item) => item.awaitingRead);
     priceHistory?.refresh(snapshot);
+    bankImport?.refresh(snapshot);
     enabled();
     for (const label of document.querySelectorAll('[data-finance-environment]'))
       label.textContent = snapshot
