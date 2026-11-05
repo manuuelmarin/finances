@@ -5,7 +5,7 @@
   const labels = {
     connect: 'Conexión con Google',
     read: 'Lectura del libro',
-    before: 'Lectura previa al envío',
+    before: 'Lectura de sincronización',
     send: 'Envío y confirmación',
     prices: 'Consulta y confirmación de precios',
     receipt: 'Consulta del recibo',
