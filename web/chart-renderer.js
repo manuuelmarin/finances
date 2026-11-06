@@ -159,6 +159,7 @@ const FinanceChartRenderer = (() => {
         id: f.key,
         name: f.label,
         type: f.shape === 'bar' ? 'bar' : 'line',
+        ...(f.stack ? { stack: f.stack } : {}),
         data: rows.map((r, index) => {
           const y = value(r, f.key);
           const v = numeric || temporal ? [position(r, index), y] : y;

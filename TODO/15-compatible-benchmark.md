@@ -1,6 +1,6 @@
 # 15. Compatible performance benchmark
 
-Status: **Proposed — awaiting owner selection.** This document authorizes no implementation or financial write.
+Status: **Partially implemented in the 3.12.2 proposal.** A cash-flow-matched simulation can use one or several products already registered in the book and only shared actual price dates. Indexed return comparison against external sources remains unimplemented.
 
 Priority: **Medium** · Relative effort: **Medium–high**. Estimates describe the current Sheets/Apps Script/PWA architecture, not delivery dates.
 

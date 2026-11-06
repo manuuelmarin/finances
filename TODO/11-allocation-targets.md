@@ -1,6 +1,6 @@
 # 11. Target allocation and contribution-led rebalancing
 
-Status: **Proposed — awaiting owner selection.** This document authorizes no implementation or financial write.
+Status: **Partially implemented in the 3.12.2 proposal.** Product-level targets and contribution simulations are available, with explicit saving to the current browser. Group targets, excluded products and synchronized configuration are not implemented.
 
 Priority: **High** · Relative effort: **Medium**. Estimates describe the current Sheets/Apps Script/PWA architecture, not delivery dates.
 

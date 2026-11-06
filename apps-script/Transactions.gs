@@ -226,46 +226,51 @@ function mutationRequests_(before, after, requestId, now, result) {
       audit.push([requestId, now, kind, row[0], 'null', canonical_(row)]),
     );
   });
-  ['archives', 'templates', 'planned', 'transfers', 'migrations'].forEach(
-    (kind) => {
-      const oldRows = before.technical[kind] || [],
-        nextRows = after.technical[kind] || [];
-      nextRows.forEach((row, i) => {
-        if (canonical_(row) === canonical_(oldRows[i])) return;
-        check_(
-          !!before.tech[kind],
-          'Prepara los metadatos con la entrega vigente.',
-        );
-        if (i < oldRows.length)
-          requests.push({
-            updateCells: {
-              start: {
-                sheetId: before.tech[kind].id,
-                rowIndex: i + 1,
-                columnIndex: 0,
-              },
-              rows: [{ values: row.map(cellValue_) }],
-              fields: 'userEnteredValue',
+  [
+    'archives',
+    'templates',
+    'planned',
+    'transfers',
+    'migrations',
+    'bankImports',
+  ].forEach((kind) => {
+    const oldRows = before.technical[kind] || [],
+      nextRows = after.technical[kind] || [];
+    nextRows.forEach((row, i) => {
+      if (canonical_(row) === canonical_(oldRows[i])) return;
+      check_(
+        !!before.tech[kind],
+        'Prepara los metadatos con la entrega vigente.',
+      );
+      if (i < oldRows.length)
+        requests.push({
+          updateCells: {
+            start: {
+              sheetId: before.tech[kind].id,
+              rowIndex: i + 1,
+              columnIndex: 0,
             },
-          });
-        audit.push([
-          requestId,
-          now,
-          kind,
-          row[0],
-          canonical_(oldRows[i] || null),
-          canonical_(row),
-        ]);
-      });
-      if (nextRows.length > oldRows.length)
-        appendTechnical_(
-          requests,
-          before.tech[kind],
-          oldRows,
-          nextRows.slice(oldRows.length),
-        );
-    },
-  );
+            rows: [{ values: row.map(cellValue_) }],
+            fields: 'userEnteredValue',
+          },
+        });
+      audit.push([
+        requestId,
+        now,
+        kind,
+        row[0],
+        canonical_(oldRows[i] || null),
+        canonical_(row),
+      ]);
+    });
+    if (nextRows.length > oldRows.length)
+      appendTechnical_(
+        requests,
+        before.tech[kind],
+        oldRows,
+        nextRows.slice(oldRows.length),
+      );
+  });
   const previousBudgets = before.technical.budgets || [];
   const nextBudgets = after.technical.budgets || [];
   nextBudgets.forEach((row, i) => {

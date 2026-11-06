@@ -861,7 +861,10 @@ test('@responsive panel concentra cifras y ofrece gráficos accesibles sin ocult
   await expect(page.locator('#dashboard-charts .asset-breakdown')).toHaveCount(
     1,
   );
-  await expect(page.locator('#investment-charts .chart-card')).toHaveCount(3);
+  await expect(page.locator('#investment-charts .chart-card')).toHaveCount(4);
+  await expect(
+    page.locator('#investment-charts h3', { hasText: 'Evolución por fondo' }),
+  ).toHaveCount(1);
   await expect(page.locator('#spending-charts .chart-card')).toHaveCount(5);
   await expect(page.locator('#salary-charts .chart-card')).toHaveCount(2);
   await expect(page.locator('#finance-kpis')).not.toContainText(/presupuesto/i);

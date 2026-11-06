@@ -515,7 +515,10 @@ test('migración desde tres hojas técnicas añade fondos, cotizaciones y presup
     JSON.stringify(r.state().technical.requests),
     JSON.stringify(before.technical.requests),
   );
-  assert.equal(r.book().sheets.length, 23);
+  assert.equal(r.book().sheets.length, 24);
+  assert.ok(
+    r.book().sheets.some((s) => s.properties.title === '_Finanzas_Extractos'),
+  );
 });
 test('ampliación de precios con tabla llena conserva los precios históricos y guarda el nuevo una sola vez', () => {
   const r = configured(),

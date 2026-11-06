@@ -231,10 +231,18 @@ const FinanceSync = (() => {
           : 'POST_CONFIRM_CALCULATIONS_STALE')
       );
     }
-    async enqueue(operations, label, action = 'transact', products) {
+    async enqueue(
+      operations,
+      label,
+      action = 'transact',
+      products,
+      expectedRevision,
+    ) {
       return this.store.update(this.key, (data) => {
         if (!data.snapshot?.revision || !data.bookKey)
           throw Error('READ_REQUIRED');
+        if (expectedRevision && data.snapshot.revision !== expectedRevision)
+          throw Error('CONFLICT');
         const envelope = {
           action,
           requestId: this.uuid(),

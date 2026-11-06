@@ -1,6 +1,6 @@
 # Proposed improvements
 
-Twenty stable proposal IDs for owner review. **12, 13 and 14 were selected by the owner and implemented in the portfolio-analysis branch; the remaining items are proposals.** The interface corrections requested separately are not contingent on selecting this backlog. Choose by number (for example, “implement 03 and 18”); retain IDs when reprioritizing.
+Twenty stable proposal IDs for owner review. **12, 13 and 14 are implemented. The proposed 3.12.2 update partially implements 01, 09, 11 and 15**, with limitations described in each document. The remaining items are proposals. Choose by number (for example, “implement 03 and 18”); retain IDs when reprioritizing.
 
 | ID  | Proposal                                                                            | Priority      | Relative effort |
 | --- | ----------------------------------------------------------------------------------- | ------------- | --------------- |

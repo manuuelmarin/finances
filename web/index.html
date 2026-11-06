@@ -31,6 +31,9 @@
     <script src="vendor/echarts.min.js" defer></script>
     <script src="chart-renderer.js" defer></script>
     <script src="charts.js" defer></script>
+    <script src="investment-tools.js" defer></script>
+    <script src="investment-lab.js" defer></script>
+    <script src="bank-import.js" defer></script>
     <script src="insights.js" defer></script>
     <script src="wealth.js" defer></script>
     <script src="months.js" defer></script>
@@ -302,6 +305,58 @@
             </button>
           </div>
         </div>
+        <details id="bank-import" class="section-details">
+          <summary>Importar extracto bancario</summary>
+          <p>
+            Revisa cada movimiento y su categoría antes de enviarlo. Se admiten
+            archivos UTF-8 con una referencia única por operación; los envíos
+            tienen un máximo de 20 filas.
+          </p>
+          <p>
+            <a href="./bank-template.csv" download
+              >Descargar plantilla CSV de ejemplo</a
+            >
+          </p>
+          <div class="form-grid">
+            <label class="field"
+              >Cuenta<select id="bank-account"></select
+            ></label>
+            <label class="field"
+              >Separador de columnas<select id="bank-separator">
+                <option value=";">Punto y coma (;)</option>
+                <option value=",">Coma (,)</option>
+              </select></label
+            >
+            <label class="field"
+              >Separador decimal<select id="bank-decimal">
+                <option value=",">Coma (,)</option>
+                <option value=".">Punto (.)</option>
+              </select></label
+            >
+            <label class="field"
+              >Formato de fecha<select id="bank-date-format">
+                <option value="dmy">DD/MM/AAAA</option>
+                <option value="iso">AAAA-MM-DD</option>
+              </select></label
+            >
+            <label class="field"
+              >Extracto CSV<input
+                id="bank-file"
+                type="file"
+                accept=".csv,text/csv"
+            /></label>
+          </div>
+          <div id="bank-mapping" class="form-grid"></div>
+          <div class="button-row">
+            <button type="button" id="bank-preview">
+              Previsualizar extracto</button
+            ><button type="button" id="bank-review" disabled>
+              Revisar movimientos
+            </button>
+          </div>
+          <p id="bank-import-status" role="status" aria-live="polite"></p>
+          <div id="bank-preview-rows"></div>
+        </details>
         <div data-register-slot="book">
           <section
             id="register-panel"
@@ -527,6 +582,10 @@
           </h2>
           <p id="portfolio-analysis-note" class="calculator-note"></p>
           <div id="portfolio-analysis-charts" class="charts-grid"></div>
+          <h2 class="section-title portfolio-analysis-title">
+            Herramientas de cartera
+          </h2>
+          <div id="investment-lab"></div>
         </section>
       </section>
       <section
@@ -1597,7 +1656,7 @@
           </p>
           <p class="calculator-note">
             Para acumular precios cada día sin abrir la app, instala la entrega
-            de Google 3.12.1 y ejecuta
+            de Google 3.12.2 y ejecuta
             <code>enableDailyPrices</code> una vez desde el editor del proyecto
             conectado. Actúa sobre el entorno ya configurado. Para detenerla,
             ejecuta <code>disableDailyPrices</code>.
@@ -1633,7 +1692,7 @@
       </section>
       <footer class="workspace-footer">
         <p id="app-version" class="app-version">
-          App 3.12.1 · <span data-finance-environment>Sin conectar</span
+          App 3.12.2 · <span data-finance-environment>Sin conectar</span
           ><span id="pwa-status" hidden></span>
         </p>
       </footer>

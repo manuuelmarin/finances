@@ -801,6 +801,7 @@ const FinanceDashboard = (() => {
     const target = $('investment-charts');
     FinanceCharts.clear(target);
     FinanceCharts.clear($('portfolio-analysis-charts'));
+    FinanceCharts.clear($('investment-lab'));
     $('portfolio-analysis-note').textContent = '';
     $('investment-kpis').replaceChildren();
     $('investment-average-returns').replaceChildren();
@@ -1013,12 +1014,48 @@ const FinanceDashboard = (() => {
         description:
           'Peso sobre el valor de mercado conocido, al corte de valoración.',
       });
+    if (!product && (current.tables.tProductos || []).length) {
+      const funds = current.tables.tProductos;
+      FinanceCharts.plot(target, {
+        title: 'Evolución por fondo',
+        rows: chartRows.map((row) => ({
+          date: row.date,
+          carried: row.carried,
+          priceDates: row.priceDates,
+          productValues: row.productValues,
+          ...Object.fromEntries(
+            funds.map((fund) => [
+              'fund:' + fund.ID,
+              known(row.value) ? (row.productValues?.[fund.ID] ?? null) : null,
+            ]),
+          ),
+        })),
+        dateRange: chartRange,
+        fields: funds.map((fund, i) => ({
+          key: 'fund:' + fund.ID,
+          label: fund.Producto,
+          area: true,
+          stack: 'funds',
+          tone: [
+            'chart-mint',
+            'chart-blue',
+            'chart-lilac',
+            'chart-gold',
+            'chart-copper',
+            'chart-red',
+          ][i % 6],
+        })),
+        description:
+          'Valor de cada fondo apilado, con el último VL conocido en cada fecha. Cuando falta una valoración necesaria, el total y sus componentes se dejan sin dato.',
+      });
+    }
     $('prices-history-note').textContent = '';
     renderPortfolioAnalysis(
       { ...fullTimeline, rows: series.rows },
       chartRange,
       series.estimated,
     );
+    FinanceInvestmentLab.render(current, $('investment-lab'), product);
   }
   function renderPortfolioAnalysis(timeline, bounds, estimated) {
     const target = $('portfolio-analysis-charts');
