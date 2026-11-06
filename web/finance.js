@@ -14,6 +14,10 @@
     return;
   }
   const D = FinanceDomain;
+  const timed = (phase, task) =>
+    globalThis.FinancePerformance
+      ? globalThis.FinancePerformance.measure(phase, task)
+      : task();
   const money = new Intl.NumberFormat('es-ES', {
     style: 'currency',
     currency: 'EUR',
@@ -36,7 +40,12 @@
     historyFilter = 'all',
     recoveryRequested = false,
     recoveryAttempts = 0,
-    recoveryTimer = null;
+    recoveryTimer = null,
+    visibilityTimer = null,
+    lastSuccessfulReadAt = 0,
+    renderSequence = 0,
+    renderedSnapshot = undefined,
+    renderedBookKey = null;
   const store = new FinanceSync.BrowserStore();
   const el = (tag, text, cls) => {
     const e = document.createElement(tag);
@@ -61,7 +70,7 @@
       EMBEDDED_CONTEXT:
         'Abre Finanzas en su propia ventana para acceder a tu libro.',
       UPDATE_REQUIRED:
-        'Actualiza Apps Script con el instalador 3.12.2 y publica una nueva versión.',
+        'Actualiza Apps Script con el instalador 3.12.3 y publica una nueva versión.',
       POPUP_BLOCKED:
         'Permite abrir la ventana de Google y vuelve a pulsar Abrir mi libro.',
       NOT_CONNECTED: 'Abre Google para leer o enviar los pendientes.',
@@ -164,6 +173,9 @@
     }
     if (url === next && queue) return;
     const epoch = ++configurationEpoch;
+    clearTimeout(visibilityTimer);
+    visibilityTimer = null;
+    lastSuccessfulReadAt = 0;
     // Un borrador/revisión pertenece al libro del que se cargaron sus referencias.
     if (url && url !== next) {
       review = null;
@@ -200,7 +212,7 @@
     const readingClient = client,
       readingQueue = queue,
       epoch = configurationEpoch;
-    const result = await readingClient.read();
+    const result = await timed('read', () => readingClient.read());
     if (
       epoch !== configurationEpoch ||
       client !== readingClient ||
@@ -216,6 +228,7 @@
     )
       throw Error('CONFIGURATION_CHANGED');
     snapshot = data.snapshot;
+    lastSuccessfulReadAt = Date.now();
     const readPending = data.queue.some((item) => item.awaitingRead);
     if (readPending) {
       recoveryAttempts = 0;
@@ -276,7 +289,9 @@
           : 'Google está leyendo el libro. Mantén abierta su ventana…',
       );
     };
-    const handshake = reuse ? Promise.resolve() : opening.connect();
+    const handshake = reuse
+      ? Promise.resolve()
+      : timed('connect', () => opening.connect());
     let epoch;
     loading = true;
     enabled();
@@ -410,6 +425,7 @@
       const outcome = await queue.run(client, () => {
         void render();
       });
+      if (outcome.status !== 'busy') lastSuccessfulReadAt = Date.now();
       snapshot = (await saved()).snapshot;
       if (outcome.confirmed > 0) recoveryAttempts = 0;
       const needsRead = outcome.reason?.startsWith('POST_CONFIRM_');
@@ -1239,13 +1255,28 @@
   });
   async function render() {
     const epoch = configurationEpoch,
-      renderingQueue = queue;
+      renderingQueue = queue,
+      sequence = ++renderSequence;
     const data = await saved();
-    if (epoch !== configurationEpoch || renderingQueue !== queue) return;
+    if (
+      epoch !== configurationEpoch ||
+      renderingQueue !== queue ||
+      sequence !== renderSequence
+    )
+      return;
     snapshot = data.snapshot;
+    // A new read timestamp alone does not change the financial views. Compare
+    // the complete remaining snapshot, including calculated values and prices:
+    // the revision alone does not cover all of those values.
+    const signature = JSON.stringify(
+      snapshot ? { ...snapshot, checkedAt: undefined } : null,
+    );
+    const snapshotChanged = signature !== renderedSnapshot;
     awaitingRead = data.queue.some((item) => item.awaitingRead);
-    priceHistory?.refresh(snapshot);
-    bankImport?.refresh(snapshot);
+    if (snapshotChanged) {
+      priceHistory?.refresh(snapshot);
+      bankImport?.refresh(snapshot);
+    }
     enabled();
     for (const label of document.querySelectorAll('[data-finance-environment]'))
       label.textContent = snapshot
@@ -1312,9 +1343,19 @@
       );
     $('finance-warning').textContent = warnings.join(' ');
     $('finance-warning').hidden = !warnings.length;
-    renderRegister();
+    if (snapshotChanged) {
+      if (renderedBookKey && renderedBookKey !== snapshot?.bookKey) {
+        $('finance-register').replaceChildren();
+        $('finance-register-note').textContent = '';
+      }
+      const registerContainerView = $('register-panel').closest('.view');
+      if (registerContainerView && !registerContainerView.hidden)
+        renderRegister();
+    }
     renderQueue(data.queue);
-    FinanceDashboard.render(snapshot, { review: showReview });
+    FinanceDashboard.render(snapshot, { review: showReview }, snapshotChanged);
+    renderedSnapshot = signature;
+    renderedBookKey = snapshot?.bookKey || null;
   }
   function renderQueue(items) {
     const parent = $('finance-queue');
@@ -2819,9 +2860,45 @@
     recoveryAttempts = 0;
     scheduleRecovery();
   }
-  window.addEventListener('online', requestRecovery);
+  async function recoverWhenVisible() {
+    const activeQueue = queue,
+      epoch = configurationEpoch;
+    if (!activeQueue || !liveSession() || !navigator.onLine) return;
+    const data = await activeQueue.get();
+    if (epoch !== configurationEpoch || activeQueue !== queue) return;
+    clearTimeout(visibilityTimer);
+    const pending = data.queue.some(
+      (item) =>
+        item.awaitingRead || ['pending', 'uncertain'].includes(item.status),
+    );
+    // Always recover unresolved writes promptly. For an otherwise idle book,
+    // coalesce repeated focus changes but eventually check remote edits.
+    const delay = pending
+      ? 0
+      : Math.max(0, 30000 - (Date.now() - lastSuccessfulReadAt));
+    if (!delay) return requestRecovery();
+    visibilityTimer = setTimeout(() => {
+      visibilityTimer = null;
+      if (
+        epoch === configurationEpoch &&
+        activeQueue === queue &&
+        document.visibilityState === 'visible' &&
+        liveSession() &&
+        navigator.onLine
+      )
+        void recoverWhenVisible().catch((error) => status(errorText(error)));
+    }, delay);
+  }
+  window.addEventListener('online', () => {
+    void recoverWhenVisible().catch((error) => status(errorText(error)));
+  });
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') requestRecovery();
+    if (document.visibilityState === 'visible')
+      void recoverWhenVisible().catch((error) => status(errorText(error)));
+    else {
+      clearTimeout(visibilityTimer);
+      visibilityTimer = null;
+    }
   });
   const changes =
     typeof BroadcastChannel === 'function'

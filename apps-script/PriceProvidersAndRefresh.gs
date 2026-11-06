@@ -287,7 +287,37 @@ function parseFundPage_(html, isin, fetchedAt, today) {
     warning: ageDays > 4 ? 'PUBLICATION_DELAY' : null,
   };
 }
-function fetchFundQuote_(fund) {
+function cachedFundQuote_(isin) {
+  let cache = null,
+    quote = null;
+  try {
+    cache = CacheService.getScriptCache();
+    const stored = cache.get('nav-v3-' + isin);
+    quote = stored ? JSON.parse(stored) : null;
+    if (
+      quote &&
+      (quote.isin !== isin ||
+        !Number.isFinite(quote.price) ||
+        quote.price <= 0 ||
+        quote.price > 1e12 ||
+        quote.quoteCurrency !== 'EUR' ||
+        !/^[A-Z]{3}$/.test(quote.classCurrency || '') ||
+        quote.provider !== PRICE_PROVIDER_ ||
+        typeof quote.name !== 'string' ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(quote.date || '') ||
+        ![
+          PRICE_BASE_ + isin,
+          'https://www.quefondos.com/m/es/fondos/ficha/index.html?isin=' + isin,
+        ].includes(quote.url))
+    )
+      quote = null;
+    if (quote) serialDate_(quote.date);
+  } catch (ignored) {
+    quote = null;
+  }
+  return { cache, quote };
+}
+function fetchFundQuote_(fund, prefetchedPrimary, precheckedCache) {
   const checkedAt = new Date().toISOString();
   let isin,
     responseInfo = null;
@@ -295,38 +325,10 @@ function fetchFundQuote_(fund) {
     isin = normalizeIsin_(fund.isin);
     text_(fund.referenceName, 'Nombre de referencia');
     const key = 'nav-v3-' + isin;
-    let cache = null,
-      stored = null;
-    try {
-      cache = CacheService.getScriptCache();
-      stored = cache.get(key);
-    } catch (ignored) {}
-    let quote = null;
+    const cachedData = precheckedCache || cachedFundQuote_(isin),
+      cache = cachedData.cache;
+    let quote = cachedData.quote;
     // La caché nunca sustituye las comprobaciones de identidad y fecha.
-    try {
-      quote = stored ? JSON.parse(stored) : null;
-      if (
-        quote &&
-        (quote.isin !== isin ||
-          !Number.isFinite(quote.price) ||
-          quote.price <= 0 ||
-          quote.price > 1e12 ||
-          quote.quoteCurrency !== 'EUR' ||
-          !/^[A-Z]{3}$/.test(quote.classCurrency || '') ||
-          quote.provider !== PRICE_PROVIDER_ ||
-          typeof quote.name !== 'string' ||
-          !/^\d{4}-\d{2}-\d{2}$/.test(quote.date || '') ||
-          ![
-            PRICE_BASE_ + isin,
-            'https://www.quefondos.com/m/es/fondos/ficha/index.html?isin=' +
-              isin,
-          ].includes(quote.url))
-      )
-        quote = null;
-      if (quote) serialDate_(quote.date);
-    } catch (ignored) {
-      quote = null;
-    }
     const cached = !!quote;
     if (!quote) {
       const urls = [
@@ -337,11 +339,14 @@ function fetchFundQuote_(fund) {
       for (let index = 0; index < urls.length; index++) {
         let response;
         try {
-          response = UrlFetchApp.fetch(urls[index], {
-            method: 'get',
-            followRedirects: false,
-            muteHttpExceptions: true,
-          });
+          response =
+            index === 0 && prefetchedPrimary
+              ? prefetchedPrimary
+              : UrlFetchApp.fetch(urls[index], {
+                  method: 'get',
+                  followRedirects: false,
+                  muteHttpExceptions: true,
+                });
         } catch (error) {
           responseInfo = { url: urls[index], error: 'NETWORK_ERROR' };
           attempts.push(Object.assign({}, responseInfo));
@@ -459,28 +464,74 @@ function fetchFundQuote_(fund) {
 }
 function fetchFundQuotesBatch_(funds) {
   const started = Date.now();
-  return funds.map((fund) => {
-    if (Date.now() - started > 120000)
-      return {
-        ok: false,
-        isin: fund.isin,
-        referenceName: fund.referenceName,
-        error: 'TIME_BUDGET',
-        message:
-          'Se alcanzó el límite de tiempo del lote. El siguiente intento volverá a consultar este fondo.',
-        checkedAt: new Date().toISOString(),
-      };
-    if (!fund.isin)
-      return {
-        ok: false,
-        isin: null,
-        referenceName: fund.referenceName,
-        error: 'ISIN_REQUIRED',
-        message: 'Vincula el ISIN y nombre de referencia de este producto.',
-        checkedAt: new Date().toISOString(),
-      };
-    return fetchFundQuote_(fund);
-  });
+  const results = [];
+  // Small bounded batches reduce waiting without bypassing any per-fund checks.
+  for (let offset = 0; offset < funds.length; offset += 4) {
+    const group = funds.slice(offset, offset + 4),
+      candidates = new Set(),
+      responses = new Map(),
+      checked = new Map();
+    if (Date.now() - started <= 120000)
+      for (const fund of group) {
+        try {
+          const isin = normalizeIsin_(fund.isin);
+          text_(fund.referenceName, 'Nombre de referencia');
+          if (!checked.has(isin)) checked.set(isin, cachedFundQuote_(isin));
+          if (!checked.get(isin).quote) candidates.add(isin);
+        } catch (ignored) {
+          // The ordinary per-fund path returns the precise validation error.
+        }
+      }
+    const isins = [...candidates];
+    if (isins.length > 1 && typeof UrlFetchApp.fetchAll === 'function') {
+      try {
+        const fetched = UrlFetchApp.fetchAll(
+          isins.map((isin) => ({
+            url: PRICE_BASE_ + isin,
+            method: 'get',
+            followRedirects: false,
+            muteHttpExceptions: true,
+          })),
+        );
+        if (fetched.length === isins.length)
+          isins.forEach((isin, index) => responses.set(isin, fetched[index]));
+      } catch (ignored) {
+        // A batch-level failure falls back to the existing individual path.
+      }
+    }
+    for (const fund of group) {
+      if (Date.now() - started > 120000) {
+        results.push({
+          ok: false,
+          isin: fund.isin,
+          referenceName: fund.referenceName,
+          error: 'TIME_BUDGET',
+          message:
+            'Se alcanzó el límite de tiempo del lote. El siguiente intento volverá a consultar este fondo.',
+          checkedAt: new Date().toISOString(),
+        });
+      } else if (!fund.isin) {
+        results.push({
+          ok: false,
+          isin: null,
+          referenceName: fund.referenceName,
+          error: 'ISIN_REQUIRED',
+          message: 'Vincula el ISIN y nombre de referencia de este producto.',
+          checkedAt: new Date().toISOString(),
+        });
+      } else {
+        const normalized = validIsin_(fund.isin)
+          ? fund.isin.trim().toUpperCase()
+          : null;
+        const cachedData = checked.get(normalized);
+        checked.delete(normalized);
+        results.push(
+          fetchFundQuote_(fund, responses.get(normalized), cachedData),
+        );
+      }
+    }
+  }
+  return results;
 }
 function quotePrices_(request, config) {
   if (

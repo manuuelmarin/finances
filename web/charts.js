@@ -732,7 +732,8 @@ const FinanceCharts = (() => {
       dates.append(rangeError);
       article.insertBefore(presets, stage);
       article.append(dates);
-      let activePreset = null;
+      let activePreset = null,
+        initializing = true;
       const presetButtons = ranges.map(([label, start]) => {
         const button = html('button', label, 'chart-preset');
         button.type = 'button';
@@ -779,7 +780,7 @@ const FinanceCharts = (() => {
         );
         rows = next;
         cursor = Math.max(0, rows.length - 1);
-        draw();
+        if (!initializing) draw();
         updateTable(rows);
         onDateRangeChange?.({ from: start, to: end });
       };
@@ -804,6 +805,7 @@ const FinanceCharts = (() => {
         sync();
       });
       sync();
+      initializing = false;
     }
     if (showDataTable)
       updateTable = dataTable(

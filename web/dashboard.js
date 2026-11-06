@@ -49,6 +49,16 @@ const FinanceDashboard = (() => {
   let renderedCalendarDay = null;
   let planEditing = null,
     selectedPlans = null;
+  const dashboardViews = [
+    'home',
+    'book',
+    'investments',
+    'accounts',
+    'salary',
+    'budgets',
+  ];
+  const dirtyViews = new Set(dashboardViews);
+  let visibleView = 'home';
   const metric = (name) =>
     current?.summary?.metrics?.find((r) => r.label === name)?.value ?? null;
   function stat(parent, label, value, note = '', primary = false) {
@@ -810,6 +820,7 @@ const FinanceDashboard = (() => {
     $('investment-balance-date').textContent = '';
     $('prices-history-note').textContent = '';
     if (!current) {
+      $('investment-product').replaceChildren();
       target.append(
         el('p', 'Abre el libro para consultar tu cartera.', 'empty-state'),
       );
@@ -1553,6 +1564,7 @@ const FinanceDashboard = (() => {
     $('account-summary').replaceChildren();
     $('account-comparisons').replaceChildren();
     $('account-cut').textContent = '';
+    $('account-balance-date').textContent = '';
     if (!current) return;
     $('account-month').value = accountMonth;
     const cut = FinanceWealth.accountCut(current, todayMadrid());
@@ -1663,8 +1675,40 @@ const FinanceDashboard = (() => {
         '100 × (nómina neta − gasto propio del mes) / nómina neta. No incluye compras de inversión ni transferencias. Sin nómina positiva, no se calcula.',
     });
   }
-  function render(snapshot, handlers) {
-    if (current?.bookKey !== snapshot?.bookKey) {
+  function drawView(view) {
+    if (!dirtyViews.has(view)) return;
+    const draw = {
+      home: renderSummary,
+      book: renderSpending,
+      investments: renderInvestments,
+      accounts: () => {
+        renderAccounts();
+        renderPlans();
+      },
+      salary: renderSalary,
+      budgets: renderBudgets,
+    }[view];
+    if (!draw) return;
+    if (globalThis.FinancePerformance)
+      globalThis.FinancePerformance.measure(view, draw);
+    else draw();
+    dirtyViews.delete(view);
+  }
+  function render(snapshot, handlers, snapshotChanged = true) {
+    const previousBook = current?.bookKey;
+    if (previousBook && previousBook !== snapshot?.bookKey) {
+      // Remove the previous book's private data from hidden views as well.
+      current = null;
+      renderSummary();
+      renderSpending();
+      renderInvestments();
+      renderAccounts();
+      renderSalary();
+      renderBudgets();
+      renderPlans();
+    }
+    if (previousBook !== snapshot?.bookKey) {
+      renderedCalendarDay = null;
       selectedPeriods.clear();
       month = null;
       cashMonth = null;
@@ -1700,7 +1744,7 @@ const FinanceDashboard = (() => {
     }
     current = snapshot;
     api = handlers;
-    renderedCalendarDay = todayMadrid();
+    renderedCalendarDay ||= todayMadrid();
     if (current) {
       const reportMonth = current.settings.asof.slice(0, 7);
       month ||=
@@ -1714,13 +1758,8 @@ const FinanceDashboard = (() => {
       spendMonth ||= reportMonth;
       $('budget-month').value = month;
     }
-    renderSummary();
-    renderSpending();
-    renderInvestments();
-    renderAccounts();
-    renderSalary();
-    renderBudgets();
-    renderPlans();
+    if (snapshotChanged) dashboardViews.forEach((view) => dirtyViews.add(view));
+    drawView(visibleView);
     $('settings-environment').textContent = current
       ? current.environment === 'production'
         ? 'Libro principal'
@@ -2952,7 +2991,6 @@ const FinanceDashboard = (() => {
   function refreshCalendarDay() {
     if (!current || todayMadrid() === renderedCalendarDay) return;
     renderedCalendarDay = todayMadrid();
-    renderAccounts();
     const nextMonth = FinanceWealth.accountCut(
       current,
       renderedCalendarDay,
@@ -2960,9 +2998,15 @@ const FinanceDashboard = (() => {
     if (nextMonth && !selectedPeriods.has('budgets') && month !== nextMonth) {
       month = nextMonth;
       $('budget-month').value = month;
-      renderBudgets();
-    } else renderSalaryAllocation();
+    }
+    dirtyViews.add('accounts');
+    dirtyViews.add('budgets');
+    drawView(visibleView);
   }
+  window.addEventListener('finances:navigate', (event) => {
+    visibleView = event.detail.view;
+    drawView(visibleView);
+  });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') refreshCalendarDay();
   });

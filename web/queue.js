@@ -356,13 +356,17 @@ const FinanceSync = (() => {
       });
     }
     async run(client, notify = () => {}) {
+      const timed = (phase, task) =>
+        globalThis.FinancePerformance
+          ? globalThis.FinancePerformance.measure(phase, task)
+          : task();
       const work = async (exclusive = false) => {
         if (this.running) return { status: 'busy', reason: 'OTHER_WINDOW' };
         const outcome = { status: 'confirmed', reason: null, confirmed: 0 };
         let claimedId = null;
         this.running = true;
         try {
-          const fresh = await client.read();
+          const fresh = await timed('before', () => client.read());
           if (!fresh.ok) throw Error(fresh.error || 'READ_FAILED');
           await this.saveSnapshot(fresh);
           notify();
@@ -392,7 +396,9 @@ const FinanceSync = (() => {
             let result;
             if (item.originalStatus === 'uncertain') {
               try {
-                result = await client.requestStatus(item.envelope);
+                result = await timed('receipt', () =>
+                  client.requestStatus(item.envelope),
+                );
               } catch (error) {
                 outcome.status = 'unconfirmed';
                 outcome.reason = error.message || 'STATUS_FAILED';
@@ -432,7 +438,10 @@ const FinanceSync = (() => {
               await this.status(item.envelope.requestId, 'uncertain');
               notify();
               try {
-                result = await client.submit(clone(item.envelope));
+                result = await timed(
+                  item.envelope.action === 'refreshPrices' ? 'prices' : 'send',
+                  () => client.submit(clone(item.envelope)),
+                );
               } catch (error) {
                 outcome.status = 'unconfirmed';
                 outcome.reason = error.message || 'SUBMIT_FAILED';
@@ -473,7 +482,7 @@ const FinanceSync = (() => {
             notify();
             let after;
             try {
-              after = await client.read();
+              after = await timed('after', () => client.read());
               if (!after.ok) throw Error(after.error || 'READ_FAILED');
             } catch (error) {
               outcome.reason = 'POST_CONFIRM_READ_FAILED';

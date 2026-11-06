@@ -21,6 +21,7 @@
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="icon-192.png" />
     <link rel="stylesheet" href="themes.css" />
+    <script src="performance.js" defer></script>
     <script src="connection.js" defer></script>
     <script src="api.js" defer></script>
     <script src="calculators.js" defer></script>
@@ -1522,6 +1523,22 @@
             </div>
           </div>
         </section>
+        <details id="performance-panel" class="section-details">
+          <summary>Tiempo de conexión y pantallas</summary>
+          <p class="calculator-note">
+            Tiempos de esta sesión, medidos en este dispositivo. No incluyen
+            importes ni se envían fuera de la aplicación. La conexión inicial
+            incluye la primera lectura; después se muestran por separado.
+          </p>
+          <ul id="performance-results"></ul>
+          <button
+            id="performance-clear"
+            class="button button-secondary"
+            type="button"
+          >
+            Borrar mediciones
+          </button>
+        </details>
         <details id="activity-panel" class="section-details">
           <summary>
             Actividad y sincronización
@@ -1692,7 +1709,7 @@
       </section>
       <footer class="workspace-footer">
         <p id="app-version" class="app-version">
-          App 3.12.2 · <span data-finance-environment>Sin conectar</span
+          App 3.12.3 · <span data-finance-environment>Sin conectar</span
           ><span id="pwa-status" hidden></span>
         </p>
       </footer>

@@ -7,6 +7,7 @@ const assets = [
   'styles.css',
   'themes.css',
   'chart-controls.css',
+  'performance.js',
   'connection.js',
   'api.js',
   'calculators.js',
