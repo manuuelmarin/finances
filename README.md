@@ -81,6 +81,8 @@ node tools/serve.cjs
 
 Open `http://127.0.0.1:4173`. Run `npm run check` and `npm run audit` before a PR. Tests use fictional data; private Google and physical-device acceptance remain separate. Capacity tests cover every editable table and longer histories; portfolio tests check that splitting identical holdings preserves return and risk results. Browser suites cover the current installer, channel, recovery and mobile flows. See [test suite and evidence](docs/TESTING.md) for inventory commands, browser profiles and diagnostic screenshots. Deployment publishes the exact public files produced and tested by `quality`.
 
+ESLint temporarily uses a scoped npm override for `minimatch` 11 to address [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249). Remove it when ESLint and its config-array dependency both use a patched version.
+
 | Directory      | Purpose                                          |
 | -------------- | ------------------------------------------------ |
 | `web/`         | UI, charts, API client, queue and PWA            |
