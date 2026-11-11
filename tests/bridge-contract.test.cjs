@@ -80,6 +80,7 @@ test('la carga inicial privada lleva el mismo snapshot que read, sin escribir y 
     JSON.parse(JSON.stringify(result.snapshot.tables)),
     r.api({ action: 'read' }).tables,
   );
+  assert.ok(r.readBooks.length > 0);
   assert.ok(r.readBooks.every((id) => id === 'fixture-book'));
   assert.equal(r.writes.length, writes);
   assert.equal(template.appOrigin, 'https://manuuelmarin.github.io');

@@ -98,6 +98,7 @@ test('conexión acepta producción solo tras configuración de dos libros distin
   });
   assert.equal(result.ok, true);
   assert.equal(result.environment, 'production');
+  assert.ok(calls.length > 0);
   assert.ok(calls.every((c) => c.id === 'fixture-production'));
   assert.equal(
     runBackend({

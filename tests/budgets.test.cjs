@@ -476,9 +476,12 @@ test('unobserved intervals never become zero expense or a fabricated cumulative 
   );
   const partial = { ...intervalRecord, start: '2025-12-18' };
   assert.equal(A.intervalBudget(intervalSnapshot, partial).spent, null);
-  assert.ok(
-    A.budgetEvolution(intervalSnapshot, partial).every(
-      (row) => row.expense === null,
-    ),
+  const evolution = A.budgetEvolution(intervalSnapshot, partial);
+  assert.deepEqual(
+    evolution.map(({ date, expense }) => ({ date, expense })),
+    ['2026-01-01', '2026-01-02', '2026-01-03', '2026-01-20'].map((date) => ({
+      date,
+      expense: null,
+    })),
   );
 });

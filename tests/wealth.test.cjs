@@ -261,7 +261,10 @@ test('account comparisons subtract opening balances and allow zero and book-star
   const firstDay = FinanceWealth.accountComparisons(s, FinanceAnalytics)[0]
     .windows;
   assert.equal(firstDay[0].change, -70);
-  assert.ok(firstDay.slice(1).every((row) => row.change === null));
+  assert.deepEqual(
+    firstDay.slice(1).map((row) => row.change),
+    Array(7).fill(null),
+  );
 });
 
 test('account comparisons preserve unknown current and historical balances', () => {

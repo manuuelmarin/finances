@@ -85,11 +85,20 @@ test('el constructor rechaza manifiestos duplicados, inseguros o incompletos', (
   );
   const valid = manifest;
   try {
-    for (const scripts of [
-      [...valid.scripts, valid.scripts[0]],
-      [...valid.scripts.slice(0, -1), '../outside.gs'],
-      [...valid.scripts.slice(0, -1), 'other.txt'],
-      valid.scripts.slice(0, -1),
+    for (const [scripts, reason] of [
+      [
+        [...valid.scripts, valid.scripts[0]],
+        /manifest contains duplicate paths/,
+      ],
+      [
+        [...valid.scripts.slice(0, -1), '../outside.gs'],
+        /Invalid Apps Script module path/,
+      ],
+      [
+        [...valid.scripts.slice(0, -1), 'other.txt'],
+        /Invalid Apps Script module path/,
+      ],
+      [valid.scripts.slice(0, -1), /Manifest must include every Apps Script/],
     ]) {
       fs.writeFileSync(manifestPath, JSON.stringify({ scripts }));
       const result = spawnSync(
@@ -101,7 +110,8 @@ test('el constructor rechaza manifiestos duplicados, inseguros o incompletos', (
           env: { ...process.env, INSTALL_MODULES_MANIFEST: manifestPath },
         },
       );
-      assert.notEqual(result.status, 0);
+      assert.equal(result.status, 1);
+      assert.match(result.stderr, reason);
     }
   } finally {
     fs.rmSync(manifestPath, { force: true });

@@ -114,7 +114,9 @@ for (const withIsin of [false, true]) {
       analytics.cashTimeline(after, after.settings.asof.slice(0, 7)).at(-1)
         .accounts['Cuenta A'],
     ).toBe(balance - 10);
-    expect(server.api(envelope).ok).toBe(true);
+    const replay = server.api(envelope);
+    expect(replay.ok).toBe(true);
+    expect(replay.replayed).toBe(true);
     expect(server.api({ action: 'read' }).tables.tOperaciones).toHaveLength(
       after.tables.tOperaciones.length,
     );

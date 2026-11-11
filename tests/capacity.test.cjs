@@ -183,6 +183,20 @@ test('all eleven financial input tables grow across unequal boundaries without c
   const r = runtime();
   assert.equal(r.init().ok, true);
   const config = { id: 'fixture-book', environment: 'test' };
+  const expectedTables = [
+    'tMovimientos',
+    'tProductos',
+    'tOperaciones',
+    'tPrecios',
+    'tCuentas',
+    'tDeudas',
+    'tVinculos',
+    'tNominas',
+    'tObjetivos',
+    'tAsignaciones',
+    'tCategorias',
+  ];
+  assert.deepEqual(Object.keys(r.state().tables).sort(), expectedTables.sort());
   const original = JSON.stringify(r.state().tables);
   for (const extra of [1, 101]) {
     const before = r.state();
