@@ -782,7 +782,10 @@
               ? `${selectedCount} ${selectedCount === 1 ? 'seleccionado' : 'seleccionados'}`
               : 'Ninguno',
         );
-        summary.setAttribute('aria-label', 'Filtrar ' + title);
+        summary.setAttribute(
+          'aria-label',
+          'Filtrar ' + title + ': ' + summary.textContent,
+        );
         const checklist = el('div', undefined, 'column-multiselect-options');
         const actionsBar = el('div', undefined, 'column-multiselect-actions');
         const updateSelection = (next, focusValue, focusAction) => {

@@ -644,6 +644,7 @@ test('@responsive @safari el multiselector permite quitar y recuperar todo sin r
   expect(await list.evaluate((node) => node.scrollTop)).toBe(listTop);
   await none.click();
   await expect(summary).toHaveText('Ninguno');
+  await expect(summary).toHaveAccessibleName('Filtrar Subcategoría: Ninguno');
   await expect(none).toBeFocused();
   await expect(register.locator('tbody')).toContainText(
     'No hay registros para esta selección',
@@ -669,6 +670,7 @@ test('@responsive @safari el multiselector permite quitar y recuperar todo sin r
   );
   await all.click();
   await expect(summary).toHaveText('Todos');
+  await expect(summary).toHaveAccessibleName('Filtrar Subcategoría: Todos');
   await expect(all).toBeFocused();
   await expect(register.locator('tbody')).toContainText(
     'Registro ficticio Alquiler',
