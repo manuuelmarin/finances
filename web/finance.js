@@ -560,6 +560,10 @@
     if (activeColumnMenu && !activeColumnMenu.dropdown.contains(event.target))
       closeColumnMenu();
   });
+  document.addEventListener('focusin', (event) => {
+    if (activeColumnMenu && !activeColumnMenu.dropdown.contains(event.target))
+      closeColumnMenu();
+  });
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && activeColumnMenu) {
       event.preventDefault();

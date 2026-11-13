@@ -678,6 +678,14 @@ test('@responsive @safari el multiselector permite quitar y recuperar todo sin r
   await all.press('Escape');
   await expect(filter).toHaveJSProperty('open', false);
   await expect(summary).toBeFocused();
+  const origin = register.locator('[data-filter-key="Origen-values"]');
+  await origin.locator('summary').click();
+  await expect(origin.locator('.column-multiselect-options')).toHaveAttribute(
+    'style',
+    /left:/,
+  );
+  await register.getByRole('button', { name: 'Limpiar filtros' }).focus();
+  await expect(origin).toHaveJSProperty('open', false);
 });
 
 test('el resumen del filtro refleja opciones nuevas tras actualizar el libro', async ({
