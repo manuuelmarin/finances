@@ -1,5 +1,5 @@
 'use strict';
-const CACHE = "finances-89b4a5911fb2f3b4";
+const CACHE = "finances-78c70a9264539a5f";
 const ASSETS = ["index.html","styles.css","themes.css","chart-controls.css","performance.js","connection.js","api.js","calculators.js","app.js","domain.js","queue.js","finance.js","history.js","history-template.csv","analytics.js","portfolio.js","investment-tools.js","investment-lab.js","bank-import.js","bank-template.csv","insights.js","wealth.js","months.js","dashboard.js","charts.js","chart-renderer.js","vendor/echarts.min.js","vendor/echarts-LICENSE.txt","pwa.js","config.json","manifest.webmanifest","icon.svg","icon-maskable.svg","icon-192.png","icon-512.png","icon-maskable-192.png","icon-maskable-512.png","install.html","install.js"];
 const urls = () => ASSETS.map(file => new URL(file, self.registration.scope).href);
 self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(urls().map(url => new Request(url, { cache: 'reload' }))))); });

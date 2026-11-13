@@ -1007,7 +1007,6 @@
         const summary = dropdown.querySelector('summary'),
           panel = dropdown.querySelector('.column-multiselect-options'),
           list = dropdown.querySelector('.column-multiselect-list');
-        list.scrollTop = previousOptionsTop;
         openColumnMenu(
           dropdown,
           summary,
@@ -1016,6 +1015,7 @@
           state,
           state.openFilterKey,
         );
+        list.scrollTop = previousOptionsTop;
         const value = state.focusFilterValue;
         const focus = state.focusFilterAction
           ? dropdown.querySelector(
