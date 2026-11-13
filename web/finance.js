@@ -498,6 +498,76 @@
     }
   }
   const tableState = new Map();
+  let activeColumnMenu = null;
+  function closeColumnMenu(restoreFocus = false) {
+    const active = activeColumnMenu;
+    if (!active) return;
+    activeColumnMenu = null;
+    if (active.state.openFilterKey === active.key)
+      active.state.openFilterKey = null;
+    if (active.dropdown.isConnected) active.dropdown.open = false;
+    if (restoreFocus && active.summary.isConnected)
+      active.summary.focus({ preventScroll: true });
+  }
+  function positionColumnMenu() {
+    const active = activeColumnMenu;
+    if (!active) return;
+    const { dropdown, summary, panel, wrap } = active;
+    if (!dropdown.isConnected || !dropdown.open) {
+      activeColumnMenu = null;
+      return;
+    }
+    const anchor = summary.getBoundingClientRect(),
+      container = wrap.getBoundingClientRect(),
+      margin = 8,
+      gap = 4,
+      width = Math.min(Math.max(anchor.width, 248), innerWidth - margin * 2);
+    if (
+      anchor.right <= container.left ||
+      anchor.left >= container.right ||
+      anchor.bottom <= 0 ||
+      anchor.top >= innerHeight
+    ) {
+      closeColumnMenu();
+      return;
+    }
+    panel.style.width = `${Math.max(0, width)}px`;
+    const actions = panel.querySelector('.column-multiselect-actions'),
+      list = panel.querySelector('.column-multiselect-list'),
+      desired = Math.max(
+        0,
+        Math.min(
+          320,
+          innerHeight - margin * 2,
+          actions.getBoundingClientRect().height + list.scrollHeight + 2,
+        ),
+      ),
+      below = Math.max(0, innerHeight - anchor.bottom - gap - margin),
+      above = Math.max(0, anchor.top - gap - margin),
+      upwards = below < desired && above > below;
+    panel.style.maxHeight = `${Math.min(desired, upwards ? above : below)}px`;
+    const height = panel.getBoundingClientRect().height;
+    panel.style.left = `${Math.max(margin, Math.min(anchor.left, innerWidth - width - margin))}px`;
+    panel.style.top = `${upwards ? anchor.top - height - gap : anchor.bottom + gap}px`;
+  }
+  function openColumnMenu(dropdown, summary, panel, wrap, state, key) {
+    if (activeColumnMenu?.dropdown !== dropdown) closeColumnMenu();
+    activeColumnMenu = { dropdown, summary, panel, wrap, state, key };
+    state.openFilterKey = key;
+    positionColumnMenu();
+  }
+  document.addEventListener('pointerdown', (event) => {
+    if (activeColumnMenu && !activeColumnMenu.dropdown.contains(event.target))
+      closeColumnMenu();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && activeColumnMenu) {
+      event.preventDefault();
+      closeColumnMenu(true);
+    }
+  });
+  document.addEventListener('scroll', positionColumnMenu, true);
+  window.addEventListener('resize', positionColumnMenu);
   function cell(key, value) {
     if (
       key === 'Recurrente' &&
@@ -534,6 +604,15 @@
     return displayValue(key, value, snapshot);
   }
   function table(parent, rows, columns, name, actions = true) {
+    const previousWrap = parent.querySelector('.table-scroll'),
+      previousLeft = previousWrap?.scrollLeft || 0,
+      previousTop = previousWrap?.scrollTop || 0,
+      previousOptionsTop =
+        parent.querySelector(
+          '.column-multiselect[open] .column-multiselect-list',
+        )?.scrollTop || 0;
+    if (activeColumnMenu && parent.contains(activeColumnMenu.dropdown))
+      activeColumnMenu = null;
     parent.replaceChildren();
     const state = tableState.get(name) || { filters: {}, sort: null };
     tableState.set(name, state);
@@ -632,6 +711,7 @@
         state.filters = {};
         state.openFilterKey = null;
         state.focusFilterValue = undefined;
+        state.focusFilterAction = undefined;
         table(parent, rows, columns, name, actions);
         parent.querySelector('.table-tools button')?.focus();
       }),
@@ -680,8 +760,6 @@
         const dropdown = el('details', undefined, 'column-multiselect');
         dropdown.dataset.filterKey = key + '-values';
         dropdown.open = state.openFilterKey === key;
-        dropdown.style.position = 'relative';
-        dropdown.style.minWidth = '120px';
         const selected = state.filters[key]?.values;
         const values = [
           ...new Set(rows.map((row) => categoryFilterValue(key, row[key]))),
@@ -692,67 +770,75 @@
             { numeric: true },
           ),
         );
-        const allSelected =
-          selected === undefined || selected.length === values.length;
+        const selectedCount = Array.isArray(selected)
+          ? values.filter((value) => selected.includes(value)).length
+          : values.length;
+        const allSelected = selectedCount === values.length;
         const summary = el(
           'summary',
           allSelected
             ? 'Todos'
-            : `${selected.length} ${selected.length === 1 ? 'seleccionado' : 'seleccionados'}`,
+            : selectedCount
+              ? `${selectedCount} ${selectedCount === 1 ? 'seleccionado' : 'seleccionados'}`
+              : 'Ninguno',
         );
         summary.setAttribute('aria-label', 'Filtrar ' + title);
-        summary.style.display = 'flex';
-        summary.style.alignItems = 'center';
-        summary.style.minHeight = '44px';
-        summary.style.padding = '8px';
-        summary.style.border = '1px solid var(--line)';
-        summary.style.borderRadius = '6px';
-        summary.style.background = 'var(--bg)';
-        summary.style.cursor = 'pointer';
         const checklist = el('div', undefined, 'column-multiselect-options');
-        checklist.style.position = 'absolute';
-        checklist.style.top = '100%';
-        checklist.style.left = '0';
-        checklist.style.zIndex = '5';
-        checklist.style.minWidth = '180px';
-        checklist.style.maxHeight = '200px';
-        checklist.style.overflowY = 'auto';
-        checklist.style.padding = '6px';
-        checklist.style.border = '1px solid var(--line)';
-        checklist.style.borderRadius = '6px';
-        checklist.style.background = 'var(--panel, var(--bg))';
+        const actionsBar = el('div', undefined, 'column-multiselect-actions');
+        const updateSelection = (next, focusValue, focusAction) => {
+          if (next === undefined) delete state.filters[key];
+          else state.filters[key] = { values: next };
+          state.openFilterKey = key;
+          state.focusFilterValue = focusValue;
+          state.focusFilterAction = focusAction;
+          limit = 50;
+          table(parent, rows, columns, name, actions);
+        };
+        const selectAll = button('Seleccionar todo', () =>
+          updateSelection(undefined, undefined, 'all'),
+        );
+        selectAll.dataset.filterAction = 'all';
+        selectAll.setAttribute('aria-label', 'Seleccionar todo en ' + title);
+        const selectNone = button('Quitar selección', () =>
+          updateSelection([], undefined, 'none'),
+        );
+        selectNone.dataset.filterAction = 'none';
+        selectNone.setAttribute('aria-label', 'Quitar selección en ' + title);
+        actionsBar.append(selectAll, selectNone);
+        const list = el('div', undefined, 'column-multiselect-list');
         for (const value of values) {
           const item = el('label', undefined, 'column-multiselect-option');
-          item.style.display = 'flex';
-          item.style.alignItems = 'center';
-          item.style.gap = '8px';
-          item.style.minHeight = '38px';
-          item.style.padding = '4px 6px';
           const checkbox = el('input');
           checkbox.type = 'checkbox';
           checkbox.value = value;
-          checkbox.checked = selected?.includes(value) || allSelected;
+          checkbox.checked =
+            !Array.isArray(selected) || selected.includes(value);
           checkbox.dataset.filterValue = value;
           checkbox.setAttribute(
             'aria-label',
             title + ': ' + categoryFilterLabel(key, value),
           );
           checkbox.addEventListener('change', () => {
-            const next = new Set(state.filters[key]?.values || values);
+            const next = new Set(Array.isArray(selected) ? selected : values);
             if (checkbox.checked) next.add(value);
             else next.delete(value);
-            state.filters[key] = { values: [...next] };
-            state.openFilterKey = key;
-            state.focusFilterValue = value;
-            limit = 50;
-            table(parent, rows, columns, name, actions);
+            updateSelection(
+              values.every((option) => next.has(option))
+                ? undefined
+                : [...next],
+              value,
+            );
           });
           item.append(checkbox, el('span', categoryFilterLabel(key, value)));
-          checklist.append(item);
+          list.append(item);
         }
+        checklist.append(actionsBar, list);
         dropdown.addEventListener('toggle', () => {
           if (!dropdown.isConnected) return;
-          state.openFilterKey = dropdown.open ? key : null;
+          if (dropdown.open)
+            openColumnMenu(dropdown, summary, checklist, wrap, state, key);
+          else if (activeColumnMenu?.dropdown === dropdown) closeColumnMenu();
+          else if (state.openFilterKey === key) state.openFilterKey = null;
         });
         dropdown.append(summary, checklist);
         filterCell.append(dropdown);
@@ -903,19 +989,39 @@
       el('p', 'Desliza la tabla para ver más columnas.', 'table-scroll-hint'),
       wrap,
     );
+    wrap.scrollLeft = previousLeft;
+    wrap.scrollTop = previousTop;
     if (state.openFilterKey) {
       const dropdown = parent.querySelector(
         `[data-filter-key="${state.openFilterKey}-values"]`,
       );
       if (dropdown) {
         dropdown.open = true;
+        const summary = dropdown.querySelector('summary'),
+          panel = dropdown.querySelector('.column-multiselect-options'),
+          list = dropdown.querySelector('.column-multiselect-list');
+        list.scrollTop = previousOptionsTop;
+        openColumnMenu(
+          dropdown,
+          summary,
+          panel,
+          wrap,
+          state,
+          state.openFilterKey,
+        );
         const value = state.focusFilterValue;
-        if (value !== undefined) {
-          [...dropdown.querySelectorAll('input[type="checkbox"]')]
-            .find((input) => input.value === value)
-            ?.focus();
-          state.focusFilterValue = undefined;
-        }
+        const focus = state.focusFilterAction
+          ? dropdown.querySelector(
+              `[data-filter-action="${state.focusFilterAction}"]`,
+            )
+          : value !== undefined
+            ? [...dropdown.querySelectorAll('input[type="checkbox"]')].find(
+                (input) => input.value === value,
+              )
+            : null;
+        focus?.focus({ preventScroll: true });
+        state.focusFilterValue = undefined;
+        state.focusFilterAction = undefined;
       }
     }
     if (filtered.length > limit)

@@ -310,8 +310,11 @@
   margin-top: 8px;
   line-height: 1.5;
 }
+.column-multiselect {
+  min-width: 120px;
+}
 .column-multiselect > summary {
-  min-height: 40px;
+  min-height: 44px;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -322,10 +325,65 @@
   color: var(--text);
   white-space: nowrap;
   cursor: pointer;
+  list-style: none;
 }
-.column-multiselect label {
-  white-space: nowrap;
+.column-multiselect > summary::-webkit-details-marker {
+  display: none;
+}
+.column-multiselect > summary::after {
+  content: '▾';
+  margin-left: auto;
+  color: var(--muted);
+}
+.column-multiselect[open] > summary::after {
+  content: '▴';
+}
+.column-multiselect-options {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  box-shadow: 0 12px 32px #0003;
+}
+.column-multiselect-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 4px;
+  border-bottom: 1px solid var(--line);
+}
+.column-multiselect-actions .text-button {
+  flex: 1 1 auto;
+  justify-content: center;
+  padding-inline: 6px;
+  font-size: 0.75rem;
+  text-align: center;
+}
+.column-multiselect-list {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+}
+.column-multiselect .column-multiselect-option {
+  min-height: 42px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
   font-size: 0.83rem;
+}
+.column-multiselect-option:hover {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-raised));
+}
+.column-multiselect-option input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
 }
 
 /* The renderer owns the vector drawing; native controls keep keyboard access. */
