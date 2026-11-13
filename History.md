@@ -215,8 +215,9 @@ Changes in repository order, from the first recorded build to the current app. V
 - Color negative fund contributions red and nonnegative contributions green without changing their values.
 - Export SVG and PNG with the active theme’s background, text and series palette together.
 
-## 3.12.3 · proposed
+## 3.12.3
 
 - Update queue status without rebuilding unchanged financial views; render the active screen and refresh other screens when opened.
 - Coalesce idle focus reads while recovering unresolved writes immediately, and expose local timing diagnostics without recording financial data.
 - Fetch uncached fund pages in bounded batches while retaining individual identity, date, currency, fallback and conflict checks. Update the private backend to use this price optimization.
+- Keep categorical table filters accessible outside the scrolling table, with controls to select or clear every option and preserved scroll position. This interface update does not require another Apps Script installation.

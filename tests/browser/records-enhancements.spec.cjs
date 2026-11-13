@@ -593,3 +593,138 @@ test('filtros de categoría mantienen varias cuentas seleccionadas con lógica O
     'Compra tercera cuenta',
   );
 });
+
+test('@responsive @safari el multiselector permite quitar y recuperar todo sin recortar el menú', async ({
+  page,
+}) => {
+  await setupRecords(page, (seed) => {
+    for (const [index, category] of [
+      'Alquiler',
+      'Compras y mejoras',
+      'Deporte',
+      'Inversiones',
+      'Ocio',
+      'Restaurantes',
+      'Salud',
+      'Supermercado',
+      'Transporte',
+      'Viajes',
+      'Vivienda',
+    ].entries())
+      seed.tables.tMovimientos.push({
+        ...seed.tables.tMovimientos[0],
+        ID: 'CATEGORY-' + index,
+        Concepto: 'Registro ficticio ' + category,
+        Subcategoría: category,
+      });
+  });
+  const register = page.locator('#finance-register');
+  const wrap = register.locator('.table-scroll');
+  const filter = register.locator('[data-filter-key="Subcategoría-values"]');
+  const summary = filter.locator('summary');
+  const all = filter.getByRole('button', {
+    name: 'Seleccionar todo en Subcategoría',
+  });
+  const none = filter.getByRole('button', {
+    name: 'Quitar selección en Subcategoría',
+  });
+  await summary.click();
+  const list = filter.locator('.column-multiselect-list');
+  const last = filter.getByRole('checkbox', {
+    name: 'Subcategoría: Vivienda',
+    exact: true,
+  });
+  await last.scrollIntoViewIfNeeded();
+  const listTop = await list.evaluate((node) => node.scrollTop);
+  expect(listTop).toBeGreaterThan(0);
+  const horizontal = await wrap.evaluate((node) => node.scrollLeft);
+  if (page.viewportSize().width < 600) expect(horizontal).toBeGreaterThan(0);
+  await expect(filter.locator('.column-multiselect-options')).toBeVisible();
+  await last.uncheck();
+  expect(await list.evaluate((node) => node.scrollTop)).toBe(listTop);
+  await none.click();
+  await expect(summary).toHaveText('Ninguno');
+  await expect(summary).toHaveAccessibleName('Filtrar Subcategoría: Ninguno');
+  await expect(none).toBeFocused();
+  await expect(register.locator('tbody')).toContainText(
+    'No hay registros para esta selección',
+  );
+  expect(await wrap.evaluate((node) => node.scrollLeft)).toBe(horizontal);
+  const accessible = await all.evaluate((node) => {
+    const bounds = node.getBoundingClientRect();
+    const target = document.elementFromPoint(
+      bounds.left + bounds.width / 2,
+      bounds.top + bounds.height / 2,
+    );
+    return !!target && (target === node || node.contains(target));
+  });
+  expect(accessible).toBe(true);
+  await capture(page, 'register-category-filter');
+  await filter
+    .getByRole('checkbox', { name: 'Subcategoría: Café', exact: true })
+    .check();
+  await expect(summary).toHaveText('1 seleccionado');
+  await expect(register.locator('tbody')).toContainText('Café de prueba');
+  await expect(register.locator('tbody')).not.toContainText(
+    'Registro ficticio Alquiler',
+  );
+  await all.click();
+  await expect(summary).toHaveText('Todos');
+  await expect(summary).toHaveAccessibleName('Filtrar Subcategoría: Todos');
+  await expect(all).toBeFocused();
+  await expect(register.locator('tbody')).toContainText(
+    'Registro ficticio Alquiler',
+  );
+  await all.press('Escape');
+  await expect(filter).toHaveJSProperty('open', false);
+  await expect(summary).toBeFocused();
+  const origin = register.locator('[data-filter-key="Origen-values"]');
+  await origin.locator('summary').click();
+  await expect(origin.locator('.column-multiselect-options')).toHaveAttribute(
+    'style',
+    /left:/,
+  );
+  await register.getByRole('button', { name: 'Limpiar filtros' }).focus();
+  await expect(origin).toHaveJSProperty('open', false);
+});
+
+test('el resumen del filtro refleja opciones nuevas tras actualizar el libro', async ({
+  page,
+}) => {
+  await setupRecords(page, (seed) => {
+    seed.tables.tMovimientos.push({
+      ...seed.tables.tMovimientos[0],
+      ID: 'OTHER-CATEGORY',
+      Concepto: 'Ingreso ficticio',
+      Subcategoría: 'Nómina',
+    });
+  });
+  const register = page.locator('#finance-register');
+  const filter = register.locator('[data-filter-key="Subcategoría-values"]');
+  await filter.locator('summary').click();
+  await filter
+    .getByRole('checkbox', { name: 'Subcategoría: Nómina', exact: true })
+    .uncheck();
+  await expect(filter.locator('summary')).toHaveText('1 seleccionado');
+  await page.evaluate(() => {
+    const record = window.recordsFixture.tables.tMovimientos[0];
+    window.recordsFixture.tables.tMovimientos = [
+      { ...record, Concepto: 'Nueva categoría ficticia', Subcategoría: 'Cine' },
+    ];
+  });
+  await page.locator('#finance-refresh').click();
+  await expect(register.locator('tbody')).toContainText(
+    'No hay registros para esta selección',
+  );
+  await expect(filter.locator('summary')).toHaveText('Ninguno');
+  await filter.locator('summary').click();
+  await expect(
+    filter.getByRole('checkbox', { name: 'Subcategoría: Cine', exact: true }),
+  ).not.toBeChecked();
+  await filter
+    .getByRole('button', { name: 'Seleccionar todo en Subcategoría' })
+    .click();
+  await expect(register.locator('tbody')).toContainText(
+    'Nueva categoría ficticia',
+  );
+});
