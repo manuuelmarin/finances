@@ -2351,6 +2351,12 @@ dialog .inline-link {
   max-width: 100%;
   overflow: auto;
 }
+#investment-reconciliation input {
+  width: 9rem;
+  min-height: 44px;
+  font-size: 1rem;
+  text-align: right;
+}
 .goal-ratio {
   display: block;
   color: var(--accent);

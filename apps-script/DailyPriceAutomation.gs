@@ -1,3 +1,9 @@
+// Dos comprobaciones durante el día capturan publicaciones posteriores a la
+// última ventana nocturna; se conservan las tres comprobaciones de cierre.
+const DAILY_PRICE_HOURS_ = [10, 14, 20, 21, 22];
+const DAILY_PRICE_SCHEDULE_ = 'hourly-10-14-20-22-v2';
+const DAILY_PRICE_LEGACY_SCHEDULE_ = 'hourly-20-22-v1';
+
 function deactivateDailyPricesTest_() {
   authorizedConfig_();
   return locked_(() => {
@@ -28,7 +34,7 @@ function deactivateDailyPricesTest_() {
 function financeDailyPricesTest_(event) {
   const config = dailyPriceTriggerConfig_(event),
     hour = Number(Utilities.formatDate(new Date(), 'Europe/Madrid', 'HH'));
-  if (hour < 20 || hour > 22)
+  if (!DAILY_PRICE_HOURS_.includes(hour))
     return { ok: true, skipped: true, reason: 'OUTSIDE_SCHEDULE' };
   return ejecutarActualizacionDiariaPreciosTest_(config);
 }
@@ -101,8 +107,9 @@ function activateDailyPricesProduction_() {
       reusable =
         current &&
         current.getHandlerFunction() === 'financeDailyPricesProduction_' &&
-        properties.getProperty('DAILY_PRICE_PRODUCTION_SCHEDULE') ===
-          'hourly-20-22-v1' &&
+        [DAILY_PRICE_SCHEDULE_, DAILY_PRICE_LEGACY_SCHEDULE_].includes(
+          properties.getProperty('DAILY_PRICE_PRODUCTION_SCHEDULE'),
+        ) &&
         properties.getProperty('DAILY_PRICE_PRODUCTION_BOOK') === config.id &&
         properties.getProperty('DAILY_PRICE_PRODUCTION_OWNER') ===
           config.owner &&
@@ -131,7 +138,7 @@ function activateDailyPricesProduction_() {
       );
     properties.setProperty(
       'DAILY_PRICE_PRODUCTION_SCHEDULE',
-      'hourly-20-22-v1',
+      DAILY_PRICE_SCHEDULE_,
     );
     if (!reusable) {
       [
@@ -146,7 +153,10 @@ function activateDailyPricesProduction_() {
       environment: 'production',
       enabled: true,
       installed: true,
-      schedule: { timezone: 'Europe/Madrid', hours: [20, 21, 22] },
+      schedule: {
+        timezone: 'Europe/Madrid',
+        hours: DAILY_PRICE_HOURS_.slice(),
+      },
     };
   });
 }
@@ -181,7 +191,7 @@ function deactivateDailyPricesProduction_() {
 function financeDailyPricesProduction_(event) {
   const config = dailyPriceProductionTriggerConfig_(event),
     hour = Number(Utilities.formatDate(new Date(), 'Europe/Madrid', 'HH'));
-  if (hour < 20 || hour > 22)
+  if (!DAILY_PRICE_HOURS_.includes(hour))
     return { ok: true, skipped: true, reason: 'OUTSIDE_SCHEDULE' };
   return ejecutarActualizacionDiariaPreciosTest_(config);
 }
@@ -309,7 +319,7 @@ function ejecutarActualizacionDiariaPreciosTest_(config) {
         batches.push({ complete: true, skipped: true, products });
         continue;
       }
-      if (batch.attempt >= 3) {
+      if (batch.attempt >= DAILY_PRICE_HOURS_.length) {
         batches.push({
           ok: false,
           complete: false,
@@ -398,7 +408,7 @@ function ejecutarActualizacionDiariaPreciosTest_(config) {
           ? 'complete'
           : batches.some((b) => b.error === 'DAILY_RETRY_LIMIT') ||
               Object.values(ledger.batches).some(
-                (b) => !b.complete && b.attempt >= 3,
+                (b) => !b.complete && b.attempt >= DAILY_PRICE_HOURS_.length,
               )
             ? 'retry_limit'
             : 'partial',
@@ -524,8 +534,7 @@ function dailyPriceStatus_(s) {
     hour = Number(Utilities.formatDate(new Date(), 'Europe/Madrid', 'HH')),
     executionDue =
       enabled &&
-      hour >= 20 &&
-      hour <= 22 &&
+      DAILY_PRICE_HOURS_.includes(hour) &&
       (!lastRun || lastRun.today !== today || lastRun.hour !== hour);
   return {
     enabled,
@@ -542,8 +551,8 @@ function dailyPriceStatus_(s) {
               : 'scheduled',
     schedule: {
       timezone: 'Europe/Madrid',
-      hours: [20, 21, 22],
-      maxAttemptsPerBatch: 3,
+      hours: DAILY_PRICE_HOURS_.slice(),
+      maxAttemptsPerBatch: DAILY_PRICE_HOURS_.length,
     },
     lastRun,
     executionDue,
@@ -583,8 +592,9 @@ function activateDailyPricesTest_() {
       reusable =
         current &&
         current.getHandlerFunction() === 'financeDailyPricesTest_' &&
-        properties.getProperty('DAILY_PRICE_TEST_SCHEDULE') ===
-          'hourly-20-22-v1' &&
+        [DAILY_PRICE_SCHEDULE_, DAILY_PRICE_LEGACY_SCHEDULE_].includes(
+          properties.getProperty('DAILY_PRICE_TEST_SCHEDULE'),
+        ) &&
         properties.getProperty('DAILY_PRICE_TEST_BOOK') === config.id &&
         properties.getProperty('DAILY_PRICE_TEST_OWNER') === config.owner &&
         (typeof ScriptApp.getScriptId !== 'function' ||
@@ -607,7 +617,7 @@ function activateDailyPricesTest_() {
         'DAILY_PRICE_TEST_PROJECT',
         ScriptApp.getScriptId(),
       );
-    properties.setProperty('DAILY_PRICE_TEST_SCHEDULE', 'hourly-20-22-v1');
+    properties.setProperty('DAILY_PRICE_TEST_SCHEDULE', DAILY_PRICE_SCHEDULE_);
     if (!reusable) {
       [
         'DAILY_PRICE_TEST_COMPLETE',
@@ -621,7 +631,10 @@ function activateDailyPricesTest_() {
       environment: 'test',
       enabled: true,
       installed: true,
-      schedule: { timezone: 'Europe/Madrid', hours: [20, 21, 22] },
+      schedule: {
+        timezone: 'Europe/Madrid',
+        hours: DAILY_PRICE_HOURS_.slice(),
+      },
     };
   });
 }

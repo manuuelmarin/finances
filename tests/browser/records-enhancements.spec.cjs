@@ -397,6 +397,69 @@ test('la fuente del ETC explica el valor liquidativo y permite configurar el ISI
   await expect(page.locator('#operation-isin')).toHaveValue('');
 });
 
+test('las posiciones muestran el precio y la fecha usados al corte, aunque haya precios posteriores', async ({
+  page,
+}) => {
+  await setupRecords(page, (seed) => {
+    seed.tables.tPrecios.push({
+      Producto: 'INTERNAL-PRODUCT',
+      Fecha: '2026-01-02',
+      'VL EUR': 9.99,
+      Fuente: 'Precio posterior',
+    });
+    seed.prices[0].lastValid = {
+      date: '2026-01-02',
+      price: 9.99,
+      source: 'Precio posterior',
+    };
+  });
+  await navigate(page, 'investments');
+  const position = page
+    .locator('#finance-register tbody tr')
+    .filter({ hasText: 'Fondo ficticio' });
+  await expect(position).toContainText('6,17');
+  await expect(position).toContainText('1/1/2026');
+  await expect(position).not.toContainText('9,99');
+  const card = page.locator(
+    '#investment-comparisons [data-product="INTERNAL-PRODUCT"]',
+  );
+  await expect(card).toContainText('Precio: 6,17 EUR · 1/1/2026');
+  await expect(page.locator('#view-investments')).toContainText(
+    'no se incorporan automáticamente',
+  );
+  await page.locator('.price-health-details > summary').click();
+  const health = page.locator('#investment-health');
+  await health.locator('details > summary').first().click();
+  await expect(health).toContainText(
+    'Sin evidencia vinculada al último precio del periodo',
+  );
+  await expect(health).not.toContainText('Precio posterior');
+});
+
+test('@responsive la comparación del bróker distingue precisión y diferencias sin enviar operaciones', async ({
+  page,
+}) => {
+  await setupRecords(page);
+  await navigate(page, 'investments');
+  const check = page.locator('#investment-reconciliation');
+  await check.locator('summary').click();
+  const entry = check.getByRole('textbox', {
+    name: 'Participaciones del bróker: Fondo ficticio',
+  });
+  await entry.fill('2,00');
+  await expect(check).toContainText('Coincide con los decimales indicados');
+  await entry.fill('2,10');
+  await expect(check).toContainText('Diferencia frente al dato indicado: -0,1');
+  await entry.fill('2,1,0');
+  await expect(check).toContainText('Número no válido');
+  await expect(page.locator('#pending-total')).toHaveText('0');
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth + 1,
+    ),
+  ).toBe(true);
+});
+
 test('@responsive móvil conserva filtros y orden en la tabla sin desbordar la página', async ({
   page,
 }) => {

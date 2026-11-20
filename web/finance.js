@@ -70,7 +70,7 @@
       EMBEDDED_CONTEXT:
         'Abre Finanzas en su propia ventana para acceder a tu libro.',
       UPDATE_REQUIRED:
-        'Actualiza Apps Script con el instalador 3.12.4 y publica una nueva versión.',
+        'Actualiza Apps Script con el instalador 3.12.5 y publica una nueva versión.',
       POPUP_BLOCKED:
         'Permite abrir la ventana de Google y vuelve a pulsar Abrir mi libro.',
       NOT_CONNECTED: 'Abre Google para leer o enviar los pendientes.',
@@ -1067,6 +1067,8 @@
       ['Cuenta'],
       ['Clase'],
       ['Participaciones'],
+      ['Precio EUR'],
+      ['Fecha del precio'],
       ['Aportado neto'],
       ['Valor'],
       ['Resultado'],
@@ -1259,6 +1261,19 @@
       rows = [...byDate.values()];
       viewColumns = [['Fecha'], ...products.map((p) => [p.ID, p.Producto])];
     }
+    if (name === 'tProductos')
+      rows = rows.map((r) => {
+        const missing = snapshot?.summary?.missingPrices || [];
+        const quote = FinanceWealth.valuationPrice(snapshot, r.ID);
+        return {
+          ...r,
+          'Precio EUR': quote?.price ?? null,
+          'Fecha del precio': quote?.date ?? null,
+          ...(missing.includes(r.Producto)
+            ? { Valor: null, Resultado: null, Rentabilidad: null }
+            : {}),
+        };
+      });
     rows = rows.filter((row) => {
       const date = row.Fecha || row['Fecha cobro'] || row.date;
       return (
@@ -1270,13 +1285,6 @@
           ))
       );
     });
-    if (name === 'tProductos')
-      rows = rows.map((r) => {
-        const missing = snapshot?.summary?.missingPrices || [];
-        return missing.includes(r.Producto)
-          ? { ...r, Valor: null, Resultado: null, Rentabilidad: null }
-          : r;
-      });
     if (
       [
         'tMovimientos',

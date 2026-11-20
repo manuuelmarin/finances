@@ -11,6 +11,9 @@ const FinanceDashboard = (() => {
   const percentage = new Intl.NumberFormat('es-ES', {
     maximumFractionDigits: 2,
   });
+  const quoteNumber = new Intl.NumberFormat('es-ES', {
+    maximumFractionDigits: 12,
+  });
   const known = FinanceAnalytics.finite;
   const amount = (v) => (known(v) ? money.format(v) : 'Sin dato');
   const displayDate = (value) =>
@@ -45,6 +48,7 @@ const FinanceDashboard = (() => {
     product = '',
     range = 'all';
   const emergencySelection = new Map();
+  const brokerUnits = new Map();
   const selectedPeriods = new Set();
   let renderedCalendarDay = null;
   let planEditing = null,
@@ -818,6 +822,7 @@ const FinanceDashboard = (() => {
     $('investment-health').replaceChildren();
     $('investment-comparisons').replaceChildren();
     $('investment-balance-date').textContent = '';
+    $('investment-reconciliation-table').replaceChildren();
     $('prices-history-note').textContent = '';
     if (!current) {
       $('investment-product').replaceChildren();
@@ -827,6 +832,7 @@ const FinanceDashboard = (() => {
       $('investment-coverage').textContent = '';
       return;
     }
+    renderInvestmentReconciliation();
     renderBalanceComparisons(
       $('investment-comparisons'),
       FinanceWealth.investmentComparisons(current),
@@ -1067,6 +1073,83 @@ const FinanceDashboard = (() => {
       series.estimated,
     );
     FinanceInvestmentLab.render(current, $('investment-lab'), product);
+  }
+
+  function renderInvestmentReconciliation() {
+    const target = $('investment-reconciliation-table');
+    const products = current?.tables?.tProductos || [];
+    if (!products.length) {
+      target.append(el('p', 'Añade una inversión para compararla.'));
+      return;
+    }
+    const precise = new Intl.NumberFormat('es-ES', {
+      maximumFractionDigits: 12,
+    });
+    const wrap = el('div', undefined, 'table-responsive');
+    const table = el('table', undefined, 'chart-table');
+    table.append(el('caption', 'Participaciones al corte del libro'));
+    const head = el('thead');
+    const header = el('tr');
+    for (const name of ['Producto', 'En la app', 'En el bróker', 'Comparación'])
+      header.append(el('th', name));
+    head.append(header);
+    table.append(head);
+    const body = el('tbody');
+    for (const item of products) {
+      const row = el('tr');
+      const name = el('th', item.Producto);
+      name.scope = 'row';
+      row.append(
+        name,
+        el(
+          'td',
+          known(item.Participaciones)
+            ? precise.format(item.Participaciones)
+            : 'Sin dato',
+        ),
+      );
+      const inputCell = el('td');
+      const input = el('input');
+      input.type = 'text';
+      input.inputMode = 'decimal';
+      input.autocomplete = 'off';
+      input.maxLength = 30;
+      input.placeholder = 'Ej.: 1,31';
+      input.setAttribute(
+        'aria-label',
+        'Participaciones del bróker: ' + item.Producto,
+      );
+      input.value = brokerUnits.get(item.ID) || '';
+      inputCell.append(input);
+      const result = el('td');
+      result.setAttribute('aria-live', 'polite');
+      const draw = () => {
+        const comparison = FinanceWealth.compareBrokerUnits(
+          item.Participaciones,
+          input.value,
+        );
+        result.textContent = {
+          empty: 'Introduce el dato',
+          unknown: 'Participaciones de la app sin dato',
+          invalid: 'Número no válido; usa coma o punto sin miles',
+          matches: 'Coincide con los decimales indicados',
+          different:
+            'Diferencia frente al dato indicado: ' +
+            precise.format(comparison.difference || 0),
+        }[comparison.status];
+      };
+      input.addEventListener('input', () => {
+        if (input.value) brokerUnits.set(item.ID, input.value);
+        else brokerUnits.delete(item.ID);
+        draw();
+      });
+      draw();
+      row.append(inputCell, result);
+      body.append(row);
+    }
+    table.append(body);
+    wrap.append(table);
+    target.append(wrap);
   }
   function renderPortfolioAnalysis(timeline, bounds, estimated) {
     const target = $('portfolio-analysis-charts');
@@ -1458,7 +1541,10 @@ const FinanceDashboard = (() => {
     }
     for (const p of coverage.perProduct) {
       const evidence = current.prices?.find((q) => q.product === p.product);
-      const quote = evidence?.lastValid;
+      // lastValid is the latest stored quote globally, which can be later than
+      // the selected period. Never attribute that evidence to another date.
+      const quote =
+        evidence?.lastValid?.date === p.lastQuote ? evidence.lastValid : null;
       const card = el('article', undefined, 'budget-card');
       card.append(
         el('h3', p.name),
@@ -1478,7 +1564,9 @@ const FinanceDashboard = (() => {
       if (quote?.evidence?.checkedAt)
         details.append(el('p', 'Comprobado: ' + quote.evidence.checkedAt));
       if (!quote)
-        details.append(el('p', 'Sin evidencia vinculada al último precio.'));
+        details.append(
+          el('p', 'Sin evidencia vinculada al último precio del periodo.'),
+        );
       card.append(details);
       target.append(card);
     }
@@ -1507,6 +1595,16 @@ const FinanceDashboard = (() => {
       );
       if (!known(row.current) && row.currentReason)
         card.append(el('p', row.currentReason, 'calculator-note'));
+      if (kind === 'investment' && !row.total)
+        card.append(
+          el(
+            'p',
+            row.currentQuote
+              ? `Precio: ${quoteNumber.format(row.currentQuote.price)} EUR · ${displayDate(row.currentQuote.date)}`
+              : 'Precio al corte: sin dato',
+            'calculator-note',
+          ),
+        );
       const grid = el('div', undefined, 'comparison-grid');
       const explanations = [];
       for (const window of row.windows) {
@@ -1708,6 +1806,7 @@ const FinanceDashboard = (() => {
       renderPlans();
     }
     if (previousBook !== snapshot?.bookKey) {
+      brokerUnits.clear();
       renderedCalendarDay = null;
       selectedPeriods.clear();
       month = null;
