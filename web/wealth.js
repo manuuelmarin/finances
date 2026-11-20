@@ -471,6 +471,58 @@ const FinanceWealth = (() => {
     return withTotal(rows, 'account', dated);
   }
 
+  // The book values each product using its most recent quote on or before the
+  // valuation cut. A newer stored quote must not be presented as the one used.
+  function valuationPrice(snapshot, product) {
+    const cut = snapshot?.settings?.valuation || snapshot?.settings?.asof;
+    if (!validDate(cut) || !product) return null;
+    let selected = null;
+    let duplicates = 0;
+    for (const quote of snapshot?.tables?.tPrecios || []) {
+      if (
+        quote.Producto !== product ||
+        !validDate(quote.Fecha) ||
+        quote.Fecha > cut
+      )
+        continue;
+      if (!selected || quote.Fecha > selected.Fecha) {
+        selected = quote;
+        duplicates = 1;
+      } else if (quote.Fecha === selected.Fecha) duplicates++;
+    }
+    if (
+      !selected ||
+      duplicates !== 1 ||
+      !finite(selected['VL EUR']) ||
+      selected['VL EUR'] <= 0
+    )
+      return null;
+    return { date: selected.Fecha, price: selected['VL EUR'] };
+  }
+
+  function compareBrokerUnits(recorded, input) {
+    const raw = String(input ?? '').trim();
+    if (!raw) return { status: 'empty' };
+    if (!finite(recorded) || recorded < 0) return { status: 'unknown' };
+    if (!/^\d+(?:[.,]\d{1,12})?$/.test(raw)) return { status: 'invalid' };
+    const value = Number(raw.replace(',', '.')),
+      digits = (raw.split(/[.,]/)[1] || '').length;
+    if (!Number.isFinite(value) || value > 1e12) return { status: 'invalid' };
+    const format = new Intl.NumberFormat('en-US', {
+      useGrouping: false,
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    });
+    return {
+      status:
+        format.format(recorded) === format.format(value)
+          ? 'matches'
+          : 'different',
+      difference: recorded - value,
+      digits,
+    };
+  }
+
   // Market value changes include contributions and withdrawals. They are not
   // TWR: use actual units and the latest known NAV at each opening, never a
   // future quote or cost basis as a substitute for market value.
@@ -508,6 +560,7 @@ const FinanceWealth = (() => {
         product: p.ID,
         name: p.Producto,
         current,
+        currentQuote: valuationPrice(snapshot, p.ID),
         windows: windows.map((window) => {
           const date = dayBefore(window.from);
           let units = p['Unidades base'];
@@ -547,6 +600,8 @@ const FinanceWealth = (() => {
     accountComparisons,
     accountCut,
     investmentComparisons,
+    valuationPrice,
+    compareBrokerUnits,
     valueAt,
     subtractMonths,
   };

@@ -1019,17 +1019,17 @@ test('trigger vinculado al libro de pruebas se detiene al cambiar entorno o libr
   assert.equal(r.fetches.length, 0);
 });
 
-test('rutina diaria reconsulta fallos con otro receipt y limita a tres intentos por lote y día', () => {
+test('rutina diaria reconsulta fallos con otro receipt y limita a cinco intentos por lote y día', () => {
   const { r } = dailyRuntime({ fetch: () => ({ status: 503, body: '' }) });
   r.ctx.activateDailyPricesTest_();
   const ids = [];
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 5; i++) {
     const res = r.ctx.updatePricesTest_();
     assert.equal(res.complete, false);
     ids.push(res.batches[0].requestId);
-    if (i === 2) assert.equal(res.status, 'retry_limit');
+    if (i === 4) assert.equal(res.status, 'retry_limit');
   }
-  assert.equal(new Set(ids).size, 3);
+  assert.equal(new Set(ids).size, 5);
   const fetches = r.fetches.length,
     writes = r.writes.length;
   assert.equal(r.ctx.updatePricesTest_().batches[0].error, 'DAILY_RETRY_LIMIT');
@@ -1095,6 +1095,56 @@ test('trigger horario permite reintentos automáticos en ventana Madrid y omite 
   assert.equal(r.fetches.length, 0);
 });
 
+test('la publicación de la tarde se incorpora sin duplicar la valoración anterior', () => {
+  const { r } = dailyRuntime({ hour: 10 });
+  r.ctx.activateDailyPricesTest_();
+  let hour = 10;
+  let date = '18/10/2026';
+  const formatter = r.ctx.Utilities.formatDate;
+  r.ctx.Utilities.formatDate = (value, zone, format) =>
+    format === 'HH' ? String(hour) : formatter(value, zone, format);
+  r.options.fetch = () => ({ body: page({ date }) });
+  const event = { triggerUid: 'test-trigger-uid' };
+  const morning = r.ctx.financeDailyPricesTest_(event);
+  assert.equal(morning.complete, true);
+  assert.equal(morning.batches[0].results[0].date, '2026-10-18');
+  const fetches = r.fetches.length;
+  assert.equal(r.ctx.financeDailyPricesTest_(event).reason, 'ALREADY_COMPLETE');
+  assert.equal(r.fetches.length, fetches);
+  hour = 14;
+  date = '19/10/2026';
+  r.cache.clear();
+  const afternoon = r.ctx.financeDailyPricesTest_(event);
+  assert.equal(afternoon.complete, true);
+  assert.equal(afternoon.batches[0].results[0].status, 'updated');
+  assert.equal(afternoon.batches[0].results[0].date, '2026-10-19');
+  assert.notEqual(afternoon.batches[0].requestId, morning.batches[0].requestId);
+  assert.equal(
+    r.state().tables.tPrecios.filter((p) => p.Fecha === serial('2026-10-19'))
+      .length,
+    1,
+  );
+});
+
+test('la migración de horario reutiliza el activador vinculado y conserva el diario de intentos', () => {
+  const { r, properties, triggers } = dailyRuntime();
+  r.ctx.activateDailyPricesTest_();
+  r.ctx.updatePricesTest_();
+  const journal = properties.get('DAILY_PRICE_TEST_STATE');
+  properties.set('DAILY_PRICE_TEST_SCHEDULE', 'hourly-20-22-v1');
+  assert.equal(r.ctx.activateDailyPricesTest_().enabled, true);
+  assert.equal(triggers.length, 1);
+  assert.equal(properties.get('DAILY_PRICE_TEST_STATE'), journal);
+  assert.equal(
+    properties.get('DAILY_PRICE_TEST_SCHEDULE'),
+    'hourly-10-14-20-22-v2',
+  );
+  assert.deepEqual(
+    Array.from(r.api({ action: 'diagnostics' }).dailyPrices.schedule.hours),
+    [10, 14, 20, 21, 22],
+  );
+});
+
 test('NAV atrasado o anterior no completa el día aunque refresh tenga receipt válido', () => {
   const { r } = dailyRuntime({
     fetch: () => ({ body: page({ date: '01/01/2026' }) }),
@@ -1129,7 +1179,7 @@ test('reactivación conserva día e intento, elimina duplicados y desactivación
   const status = r.api({ action: 'read' }).dailyPrices;
   assert.equal(status.enabled, true);
   assert.equal(status.lastRun.status, 'complete');
-  assert.deepEqual(Array.from(status.schedule.hours), [20, 21, 22]);
+  assert.deepEqual(Array.from(status.schedule.hours), [10, 14, 20, 21, 22]);
   r.ctx.deactivateDailyPricesTest_();
   assert.equal(properties.has('DAILY_PRICE_TEST_STATE'), false);
   assert.equal(r.api({ action: 'read' }).dailyPrices.status, 'disabled');

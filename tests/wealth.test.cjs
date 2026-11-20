@@ -41,6 +41,59 @@ function fixture(overrides = {}) {
   };
 }
 
+test('el precio mostrado es el último anterior al corte, no uno guardado para después', () => {
+  const snapshot = fixture();
+  snapshot.settings.valuation = '2026-03-15';
+  snapshot.tables.tPrecios.push(
+    { Producto: 'P', Fecha: '2026-03-10', 'VL EUR': 11.5 },
+    { Producto: 'P', Fecha: '2026-03-20', 'VL EUR': 13 },
+    { Producto: 'OTHER', Fecha: '2026-03-14', 'VL EUR': 99 },
+  );
+  const before = JSON.stringify(snapshot);
+  assert.deepEqual(FinanceWealth.valuationPrice(snapshot, 'P'), {
+    date: '2026-03-10',
+    price: 11.5,
+  });
+  assert.equal(JSON.stringify(snapshot), before);
+  snapshot.tables.tPrecios.push({
+    Producto: 'P',
+    Fecha: '2026-03-10',
+    'VL EUR': 11.6,
+  });
+  assert.equal(FinanceWealth.valuationPrice(snapshot, 'P'), null);
+  snapshot.tables.tPrecios.push({
+    Producto: 'P',
+    Fecha: '2026-03-14',
+    'VL EUR': 0,
+  });
+  assert.equal(FinanceWealth.valuationPrice(snapshot, 'P'), null);
+  snapshot.settings.valuation = '2025-12-31';
+  assert.equal(FinanceWealth.valuationPrice(snapshot, 'P'), null);
+});
+
+test('comparar participaciones respeta los decimales visibles del bróker sin registrar operaciones', () => {
+  assert.equal(
+    FinanceWealth.compareBrokerUnits(123.456, '123,456').status,
+    'matches',
+  );
+  assert.equal(
+    FinanceWealth.compareBrokerUnits(1.314, '1,31').status,
+    'matches',
+  );
+  assert.equal(
+    FinanceWealth.compareBrokerUnits(1.316, '1,31').status,
+    'different',
+  );
+  assert.equal(
+    FinanceWealth.compareBrokerUnits(8.765432, '8,765432').status,
+    'matches',
+  );
+  assert.equal(FinanceWealth.compareBrokerUnits(1, '').status, 'empty');
+  assert.equal(FinanceWealth.compareBrokerUnits(null, '1').status, 'unknown');
+  for (const input of ['-1', '1.000,20', '1,1234567890123', 'x'])
+    assert.equal(FinanceWealth.compareBrokerUnits(1, input).status, 'invalid');
+});
+
 test('reconstructs observed net worth and compares against a clamped month-end', () => {
   const result = FinanceWealth.compare(fixture(), 1, FinanceAnalytics);
   assert.equal(result.currentDate, '2026-03-31');

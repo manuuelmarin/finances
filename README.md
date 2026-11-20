@@ -6,7 +6,7 @@ Personal finance PWA for cash, investments, budgets and goals. GitHub Pages serv
 
 [Open app](https://manuuelmarin.github.io/finances/) · [Install / update](https://manuuelmarin.github.io/finances/install.html) · [TODOs](TODO.md) · [History](History.md)
 
-**App 3.12.4 · API 3.3.0 · workbook model 3.**
+**App 3.12.5 · API 3.3.0 · workbook model 3.**
 
 ## End to end
 
@@ -35,7 +35,9 @@ flowchart TD
 
 After a confirmed write, the visible view refreshes from the coherent snapshot; other views are rebuilt from that snapshot when opened. Failed or stale reads are retried without resending the confirmed operation; explicit reporting filters remain selected. Existing features remain compatible with older supported backends. The bank-statement importer requires updating the private Apps Script files to 3.12.2 and running preparation first; it is disabled when the capability is unavailable.
 
-The iShares Physical Gold ETC (`IE00B4ND3602`) can be explicitly linked and valued using the issuer's USD NAV and the ECB's dated reference exchange rate. This requires private Apps Script 3.12.4; its daily NAV can differ from a broker's market price. See [prices](docs/WORKBOOK.md#prices).
+The iShares Physical Gold ETC (`IE00B4ND3602`) can be explicitly linked and valued using the issuer's USD NAV and the ECB's dated reference exchange rate. This requires private Apps Script 3.12.4 or newer; its daily NAV can differ from a broker's market price. See [prices](docs/WORKBOOK.md#prices).
+
+Positions show the price and effective date used at the workbook's valuation cut. A local, read-only comparison checks broker-reported holdings at the precision entered; it cannot reveal digits omitted by a broker or import trades. The optional 3.12.5 backend checks for published NAVs at 10, 14, 20, 21 and 22 Madrid time, keeping the existing bounded retry and conflict protections.
 
 Investment charts offer period buttons and exact custom dates. The investment tools provide contribution-led target allocation and reviewed country/sector/asset-class exposure files (both optionally saved on this device), an exact-observation simulation against recorded funds, and a breakdown of recorded distributions. Exposure percentages in each imported file must refer to the entire product, not just its equity portion; missing exposure stays unknown. Simulations require actual prices on every external-flow date and at the last common valuation, and reject nonzero initial holdings.
 

@@ -468,6 +468,23 @@
           </div>
         </div>
         <div id="investment-kpis" class="kpi-grid investment-kpis"></div>
+        <p class="calculator-note">
+          Las participaciones se calculan con las operaciones registradas en la
+          aplicación; las operaciones del bróker no se incorporan
+          automáticamente. Cada posición muestra el precio y la fecha utilizados
+          en el corte de valoración. El bróker puede mostrar una fecha o divisa
+          diferente.
+        </p>
+        <details class="section-details" id="investment-reconciliation">
+          <summary>Comparar participaciones con el bróker</summary>
+          <p>
+            Escribe las participaciones tal como aparecen en el bróker. Una
+            coincidencia se comprueba solo con los decimales indicados; si el
+            bróker redondea, puede ocultar diferencias más pequeñas. La
+            comparación no registra operaciones ni guarda los valores escritos.
+          </p>
+          <div id="investment-reconciliation-table"></div>
+        </details>
         <section
           aria-labelledby="investment-evolution-title"
           class="balance-evolution"
@@ -1709,7 +1726,7 @@
       </section>
       <footer class="workspace-footer">
         <p id="app-version" class="app-version">
-          App 3.12.4 · <span data-finance-environment>Sin conectar</span
+          App 3.12.5 · <span data-finance-environment>Sin conectar</span
           ><span id="pwa-status" hidden></span>
         </p>
       </footer>

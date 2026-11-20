@@ -226,3 +226,8 @@ Changes in repository order, from the first recorded build to the current app. V
 
 - Update the explicitly linked iShares Physical Gold ETC using its issuer's USD net asset value and a dated ECB EUR/USD reference rate. Record the conversion, preserve older prices on failure or conflict, and explain the difference from a market quote. Update the private Apps Script to use this provider.
 - Provide a direct ISIN-configuration action next to an unconfigured product and display verified issuer links in price records.
+
+## 3.12.5
+
+- Check verified prices at 10 and 14 Madrid time in addition to the existing evening window, preserving bounded attempts, conflict detection and existing trigger bindings.
+- Show the exact price and date applied to each position at the valuation cut; provide a private, read-only broker comparison that respects the digits entered and never creates trades.
