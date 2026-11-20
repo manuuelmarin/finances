@@ -272,10 +272,10 @@ const FinanceDomain = (() => {
         field('date', 'Fecha de posición base', 'date'),
         field('units', 'Unidades base', 'decimal', true, null, '0'),
         field('cost', 'Coste base EUR', 'money', true, null, '0'),
-        field('isin', 'ISIN del fondo', 'text', false),
+        field('isin', 'ISIN del producto', 'text', false),
         field(
           'referenceName',
-          'Nombre de referencia de la clase',
+          'Nombre de referencia del producto',
           'text',
           false,
         ),
@@ -285,8 +285,8 @@ const FinanceDomain = (() => {
       label: 'Configurar ISIN y nombre de referencia',
       fields: [
         product,
-        field('isin', 'ISIN del fondo'),
-        field('referenceName', 'Nombre de referencia de la clase'),
+        field('isin', 'ISIN del producto'),
+        field('referenceName', 'Nombre de referencia del producto'),
       ],
     },
     objetivo: {

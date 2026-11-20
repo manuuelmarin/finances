@@ -8,6 +8,7 @@
     "DailyPriceAutomation.gs",
     "OperatorChecks.gs",
     "PriceHistory.gs",
+    "GoldPriceProvider.gs",
     "PriceProvidersAndRefresh.gs",
     "StateAndValidation.gs",
     "Operations.gs",

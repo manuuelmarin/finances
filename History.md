@@ -221,3 +221,8 @@ Changes in repository order, from the first recorded build to the current app. V
 - Coalesce idle focus reads while recovering unresolved writes immediately, and expose local timing diagnostics without recording financial data.
 - Fetch uncached fund pages in bounded batches while retaining individual identity, date, currency, fallback and conflict checks. Update the private backend to use this price optimization.
 - Keep categorical table filters accessible outside the scrolling table, with controls to select or clear every option and preserved scroll position. This interface update does not require another Apps Script installation.
+
+## 3.12.4
+
+- Update the explicitly linked iShares Physical Gold ETC using its issuer's USD net asset value and a dated ECB EUR/USD reference rate. Record the conversion, preserve older prices on failure or conflict, and explain the difference from a market quote. Update the private Apps Script to use this provider.
+- Provide a direct ISIN-configuration action next to an unconfigured product and display verified issuer links in price records.

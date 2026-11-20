@@ -70,7 +70,7 @@
       EMBEDDED_CONTEXT:
         'Abre Finanzas en su propia ventana para acceder a tu libro.',
       UPDATE_REQUIRED:
-        'Actualiza Apps Script con el instalador 3.12.3 y publica una nueva versión.',
+        'Actualiza Apps Script con el instalador 3.12.4 y publica una nueva versión.',
       POPUP_BLOCKED:
         'Permite abrir la ventana de Google y vuelve a pulsar Abrir mi libro.',
       NOT_CONNECTED: 'Abre Google para leer o enviar los pendientes.',
@@ -469,10 +469,17 @@
   function priceSource(value) {
     const raw = String(value || 'Sin dato');
     try {
-      const url = new URL(raw);
+      const parts = raw.split(' | ');
+      const url = new URL(parts.length === 3 ? parts[2] : raw);
+      const isGoldIssuer =
+        url.hostname === 'www.blackrock.com' &&
+        url.pathname ===
+          '/es/particulares/productos/258441/ishares-physical-gold-etc' &&
+        !url.search &&
+        !url.hash;
       if (
         url.protocol === 'https:' &&
-        url.hostname === 'www.quefondos.com' &&
+        (url.hostname === 'www.quefondos.com' || isGoldIssuer) &&
         !url.username &&
         !url.password &&
         (!url.port || url.port === '443')
@@ -483,7 +490,9 @@
         link.rel = 'noopener noreferrer';
         link.setAttribute(
           'aria-label',
-          'Fuente de precios · Quefondos (abre en otra pestaña)',
+          'Fuente de precios · ' +
+            (isGoldIssuer ? 'iShares' : 'Quefondos') +
+            ' (abre en otra pestaña)',
         );
         return link;
       }
@@ -1304,6 +1313,16 @@
             priceSource(price.lastValid.source),
             document.createTextNode('. '),
           );
+        if (price.lastValid?.priceKind === 'issuer_nav')
+          p.append(
+            document.createTextNode(
+              'Valor liquidativo del emisor convertido a euros con el cambio de referencia del BCE' +
+                (price.lastValid.fx?.date
+                  ? ` del ${price.lastValid.fx.date}`
+                  : '') +
+                '; puede diferir de la cotización de mercado. ',
+            ),
+          );
         const attempt = price.lastAttempt?.detail;
         p.append(
           document.createTextNode(
@@ -1313,12 +1332,21 @@
           ),
         );
         if (price.isin) p.append(document.createTextNode('ISIN ' + price.isin));
-        else
+        else {
           p.append(
             document.createTextNode(
               'Configura el ISIN y su nombre de referencia.',
             ),
           );
+          p.append(
+            button('Configurar ISIN', () => {
+              void newOperation('vincular_isin', {
+                product: price.product,
+                referenceName: price.name,
+              });
+            }),
+          );
+        }
         panel.append(p);
       }
       parent.prepend(panel);
@@ -1887,7 +1915,7 @@
         el('h3', 'Nuevo producto'),
         el(
           'p',
-          'Se añadirá el producto y se registrará esta compra. Para consultar automáticamente cotizaciones de fondos, indica su ISIN.',
+          'Se añadirá el producto y se registrará esta compra. Para consultar automáticamente los productos compatibles, indica su ISIN.',
         ),
       );
       const productSpec = D.processes.producto.fields;
@@ -1917,7 +1945,7 @@
         el('summary', 'ⓘ ISIN y precios manuales'),
         el(
           'p',
-          'El producto es la inversión registrada en tu libro. El ISIN identifica la clase de fondo para consultar cotizaciones. Un precio manual añade una valoración fechada y no cambia tus participaciones.',
+          'El producto es la inversión registrada en tu libro. El ISIN identifica el producto para consultar precios compatibles. Un precio manual añade una valoración fechada y no cambia tus participaciones.',
         ),
         button('Configurar ISIN', () => {
           $('operation-dialog').close();
@@ -2063,14 +2091,14 @@
         '. Revisa los datos antes de confirmar.';
     $('operation-error').hidden = true;
   }
-  async function newOperation(process) {
+  async function newOperation(process, values = {}) {
     try {
       if ($('operation-dialog').open) return;
       operationChoices(process);
       if (typeof process === 'string') $('operation-kind').value = process;
       editing = null;
       $('operation-kind-field').hidden = false;
-      processFields();
+      processFields(values);
       enabled();
       // Mostrar la entrada en el clic, aunque Google no responda o no se abra.
       $('operation-dialog').showModal();

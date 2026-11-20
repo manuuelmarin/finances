@@ -363,6 +363,40 @@ test('inversiones obtiene ISIN del catálogo y limita los enlaces de fuentes', a
   ).not.toContainText('Fuente');
 });
 
+test('la fuente del ETC explica el valor liquidativo y permite configurar el ISIN del producto', async ({
+  page,
+}) => {
+  await setupRecords(page, (seed) => {
+    seed.prices[0].isin = null;
+    seed.prices[0].lastValid.source =
+      'iShares / BCE | IE00B4ND3602 | https://www.blackrock.com/es/particulares/productos/258441/ishares-physical-gold-etc';
+    seed.prices[0].lastValid.priceKind = 'issuer_nav';
+    seed.prices[0].lastValid.fx = { date: '2026-01-01' };
+    seed.tables.tPrecios[0].Fuente = seed.prices[0].lastValid.source;
+  });
+  await navigate(page, 'investments');
+  const panel = page.locator('#finance-register .price-panel');
+  await panel.locator('summary').click();
+  await expect(panel).toContainText(
+    'Valor liquidativo del emisor convertido a euros',
+  );
+  await expect(panel).toContainText(
+    'puede diferir de la cotización de mercado',
+  );
+  await expect(panel.getByRole('link', { name: /iShares/ })).toHaveAttribute(
+    'href',
+    'https://www.blackrock.com/es/particulares/productos/258441/ishares-physical-gold-etc',
+  );
+  await panel.getByRole('button', { name: 'Configurar ISIN' }).click();
+  await expect(page.locator('#operation-product')).toHaveValue(
+    'INTERNAL-PRODUCT',
+  );
+  await expect(page.locator('#operation-referenceName')).toHaveValue(
+    'Fondo ficticio',
+  );
+  await expect(page.locator('#operation-isin')).toHaveValue('');
+});
+
 test('@responsive móvil conserva filtros y orden en la tabla sin desbordar la página', async ({
   page,
 }) => {
