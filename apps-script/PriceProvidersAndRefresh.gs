@@ -324,6 +324,7 @@ function fetchFundQuote_(fund, prefetchedPrimary, precheckedCache) {
   try {
     isin = normalizeIsin_(fund.isin);
     text_(fund.referenceName, 'Nombre de referencia');
+    if (isin === GOLD_ETC_ISIN_) return fetchGoldEtcQuote_(fund, checkedAt);
     const key = 'nav-v3-' + isin;
     const cachedData = precheckedCache || cachedFundQuote_(isin),
       cache = cachedData.cache;
@@ -476,6 +477,7 @@ function fetchFundQuotesBatch_(funds) {
         try {
           const isin = normalizeIsin_(fund.isin);
           text_(fund.referenceName, 'Nombre de referencia');
+          if (isin === GOLD_ETC_ISIN_) continue;
           if (!checked.has(isin)) checked.set(isin, cachedFundQuote_(isin));
           if (!checked.get(isin).quote) candidates.add(isin);
         } catch (ignored) {
@@ -609,6 +611,8 @@ function priceSnapshot_(s) {
           conversion:
             detail.conversion ||
             (detail.classCurrency === 'EUR' ? 'none' : 'owner_export_eur'),
+          priceKind: detail.priceKind || null,
+          fx: detail.fx || null,
           evidence: {
             verification: detail.verification || 'provider_quote',
             isin: matching[3],
@@ -632,6 +636,8 @@ function priceSnapshot_(s) {
             classCurrency: provenance ? provenance.classCurrency : null,
             quoteCurrency: 'EUR',
             conversion: provenance ? provenance.conversion : null,
+            priceKind: provenance ? provenance.priceKind : null,
+            fx: provenance ? provenance.fx : null,
             evidence: provenance ? provenance.evidence : null,
             ageDays: today - latest.Fecha,
             freshness:

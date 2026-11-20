@@ -113,7 +113,7 @@ const TABLE_SCHEMA_ = [
 ];
 
 const API_VERSION_ = '3.3.0';
-const BUILD_VERSION_ = '3.12.3';
+const BUILD_VERSION_ = '3.12.4';
 const DAILY_HISTORY_MARKER_ = 'Finanzas · Histórico generado';
 const DAILY_HISTORY_MAX_DAYS_ = 36525;
 const API_TRANSPORT_ = 'finances.rpc.json.v1';
@@ -553,5 +553,11 @@ const SUPPORT_NAMES_ = {
 };
 const PRICE_LIMIT_ = 20;
 const PRICE_PROVIDER_ = 'VDOS / Quefondos';
+const GOLD_ETC_ISIN_ = 'IE00B4ND3602';
+const GOLD_ETC_PROVIDER_ = 'iShares / BCE';
+const GOLD_ETC_URL_ =
+  'https://www.blackrock.com/es/particulares/productos/258441/ishares-physical-gold-etc';
+const ECB_RATES_URL_ =
+  'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist-90d.xml';
 const PRICE_BASE_ =
   'https://www.quefondos.com/es/fondos/ficha/index.html?isin=';

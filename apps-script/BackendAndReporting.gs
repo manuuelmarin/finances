@@ -84,7 +84,7 @@ function diagnostics_(s) {
     priceReady: ['requests', 'audit', 'observations', 'funds', 'quotes'].every(
       (k) => s.tech[k],
     ),
-    priceProviders: ['VDOS / Quefondos'],
+    priceProviders: ['VDOS / Quefondos', 'iShares / BCE'],
     dailyPrices: dailyPriceStatus_(s),
     capacityReady,
     calculationReady,
